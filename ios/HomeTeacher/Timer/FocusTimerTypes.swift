@@ -59,7 +59,7 @@ struct TeacherNudge: Equatable, Sendable {
     var text: String { phrase.text }
 }
 
-/// タイマーの設定。いまはメモリ上だけで持つ（保存は後の issue）。
+/// タイマーの設定。分数と言い回しは設定画面の値（SessionPreferences）を、セッションを始めるときに読む（#65）。
 struct FocusTimerSettings: Equatable, Sendable {
     var focusDuration: Duration
     var breakDuration: Duration

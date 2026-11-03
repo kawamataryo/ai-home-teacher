@@ -227,6 +227,8 @@ final class StudySessionCoordinator {
 
         if let preferences = deps.preferences {
             settings.conversation.speakingInputMode = preferences.speakingInputMode
+            // 集中と休憩の分数・声かけの言い回し（#65）。始めるときに読むので、変えたら次のセッションから効く
+            settings.timer = preferences.timerSettings(base: settings.timer)
         }
         let conversation = settings.conversation
         trace("話している間のマイク: \(conversation.speakingInputMode == .bargeIn ? "開いたまま（割り込み）" : "止める")")
@@ -254,10 +256,16 @@ final class StudySessionCoordinator {
             }
         }
 
-        let nudgeSpeaker = ConversationNudgeSpeaker(controller: controller)
+        let rephraser = NudgeRephraser(client: deps.client, library: deps.library)
+        let nudgeSpeaker = ConversationNudgeSpeaker(controller: controller) { [weak self] nudge in
+            let varied = await rephraser.rephrase(nudge)
+            self?.trace("声かけの言い回し: \(varied.map { "「\($0)」" } ?? "定型句のまま（言い換えられなかった）")")
+            return varied
+        }
         self.nudgeSpeaker = nudgeSpeaker
         let timer = FocusTimer(clock: deps.clock, settings: settings.timer, nudgeSink: nudgeSpeaker)
         self.timer = timer
+        trace("タイマー: 集中 \(settings.timer.focusDuration.components.seconds / 60) 分・休憩 \(settings.timer.breakDuration.components.seconds / 60) 分・声かけの言い回し \(settings.timer.allowsVariation ? "変える" : "定型句")")
         timerEventsTask = Task { [weak self] in
             for await event in timer.events {
                 guard let self else { return }
