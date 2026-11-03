@@ -42,10 +42,19 @@ export function isAzureVoiceName(name: string): boolean {
   return /^[a-z]{2,3}-[A-Z]{2}-[A-Za-z0-9]+Neural$/.test(name);
 }
 
-// 1 文を SSML にする。算数の「3 < 5」などで SSML が壊れないよう、本文は XML の特殊文字を逃がす
+// 1 文を SSML にする。算数の「3 < 5」などで SSML が壊れないよう、本文は XML の特殊文字を逃がす。
+// Azure は既定で文の前に約 0.2 秒、後ろに約 0.9 秒の無音を付け、文の切れ目（「いいね！」のあと）も約 1 秒あける。
+// アプリは 1 文ずつ再生するので、前後の無音は消し、文の切れ目は 0.2 秒にする（2026-11-03 に実測して確認）
 export function azureSsml(text: string, voice: string): string {
   const lang = voice.split("-").slice(0, 2).join("-");
-  return `<speak version="1.0" xml:lang="${lang}"><voice name="${voice}">${escapeXml(text)}</voice></speak>`;
+  return (
+    `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${lang}">` +
+    `<voice name="${voice}">` +
+    `<mstts:silence type="Leading-exact" value="0ms"/>` +
+    `<mstts:silence type="Tailing-exact" value="0ms"/>` +
+    `<mstts:silence type="Sentenceboundary-exact" value="200ms"/>` +
+    `${escapeXml(text)}</voice></speak>`
+  );
 }
 
 export function escapeXml(text: string): string {

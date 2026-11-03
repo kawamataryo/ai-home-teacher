@@ -222,7 +222,12 @@ describe("/v1/tts/azure", () => {
     expect(call.headers.get("user-agent")).toBeTruthy();
     expect(call.headers.get("authorization")).toBeNull();
     expect(call.body).toBe(
-      '<speak version="1.0" xml:lang="ja-JP"><voice name="ja-JP-NanamiNeural">こんにちは</voice></speak>',
+      '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="ja-JP">' +
+        '<voice name="ja-JP-NanamiNeural">' +
+        '<mstts:silence type="Leading-exact" value="0ms"/>' +
+        '<mstts:silence type="Tailing-exact" value="0ms"/>' +
+        '<mstts:silence type="Sentenceboundary-exact" value="200ms"/>' +
+        "こんにちは</voice></speak>",
     );
   });
 
