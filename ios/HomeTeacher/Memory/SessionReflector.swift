@@ -32,6 +32,8 @@ struct FinishedSession: Equatable, Sendable {
     var spokenClosing: String
     /// Claude のふり返りを使えたか（false なら決まり文句で代わりにした）。
     var usedClaude: Bool
+    /// 決まり文句にした理由（Claude の失敗の内容）。ログ用。
+    var reflectionError: String? = nil
 }
 
 enum SessionReflectorError: Error, Equatable {
@@ -88,13 +90,12 @@ struct SessionReflector: Sendable {
     func finish(_ input: SessionReflectionInput, store: some MemoryStore, now: Date = Date()) async throws -> FinishedSession {
         let memories = (try? await store.memories()) ?? []
         let reflection: SessionReflection
-        let usedClaude: Bool
+        var reflectionError: String?
         do {
             reflection = try await reflect(input, memories: memories)
-            usedClaude = true
         } catch {
             reflection = Self.fallback(for: input)
-            usedClaude = false
+            reflectionError = String(describing: error)
         }
 
         let session = StudySessionRecord(
@@ -111,7 +112,10 @@ struct SessionReflector: Sendable {
         if !reflection.memoryUpdates.isEmpty {
             try await store.applyMemoryUpdates(reflection.memoryUpdates, now: now)
         }
-        return FinishedSession(session: session, spokenClosing: reflection.spokenClosing, usedClaude: usedClaude)
+        return FinishedSession(
+            session: session, spokenClosing: reflection.spokenClosing,
+            usedClaude: reflectionError == nil, reflectionError: reflectionError
+        )
     }
 
     /// Claude にふり返りを作ってもらう。

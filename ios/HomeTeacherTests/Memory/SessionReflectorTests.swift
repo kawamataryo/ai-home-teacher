@@ -145,6 +145,7 @@ struct SessionReflectorTests {
         let finished = try await makeReflector(transport).finish(input, store: store, now: now)
 
         #expect(finished.usedClaude)
+        #expect(finished.reflectionError == nil)
         #expect(finished.spokenClosing.hasPrefix("今日は2問やったね！"))
 
         let saved = try #require(try await store.latestSession())
@@ -168,6 +169,7 @@ struct SessionReflectorTests {
         let finished = try await makeReflector(transport).finish(input, store: store)
 
         #expect(!finished.usedClaude)
+        #expect(finished.reflectionError?.contains("502") == true)
         #expect(finished.spokenClosing == "今日は2問やったね。そのうち1問は自分の力で解けたね！おつかれさま、また一緒にやろうね！")
         let saved = try #require(try await store.latestSession())
         #expect(saved.flags == ["学校で友だちとけんかしたと話していた"])

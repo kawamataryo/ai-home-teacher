@@ -10,6 +10,10 @@ import Foundation
 /// let brain = TeacherBrain(client: client, systemPrompt: system, tools: try library.conversationTools())
 /// ```
 ///
+/// モードの切り替え（休憩 → 雑談）や先生のメモでシステムプロンプトを作り直すときも、このメソッドを通す
+/// （PromptLibrary を直接呼ぶと「前回のこと」が消える。好きなこと・出来事は休憩中の雑談で使うので大事）。
+/// 今のセッションは終わるまで保存しないので、途中で読み直しても「前回」は変わらない。
+///
 /// 「要確認」（flags）は入れない。深刻な話を先生から蒸し返さないように、親だけが見る。
 struct OpeningPromptBuilder: Sendable {
     /// 1カテゴリあたり、プロンプトに入れる記憶の数（新しい順）。
@@ -65,6 +69,7 @@ struct OpeningPromptBuilder: Sendable {
     func conversationSystemPrompt(
         store: some MemoryStore,
         mode: SessionMode = .study,
+        teacherNote: String? = nil,
         now: Date = Date()
     ) async throws -> String {
         let text = previousSessionText(
@@ -72,6 +77,6 @@ struct OpeningPromptBuilder: Sendable {
             memories: try await store.memories(),
             now: now
         )
-        return try library.conversationSystemPrompt(mode: mode, previousSession: text)
+        return try library.conversationSystemPrompt(mode: mode, teacherNote: teacherNote, previousSession: text)
     }
 }

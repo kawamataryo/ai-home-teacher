@@ -87,6 +87,18 @@ struct OpeningPromptBuilderTests {
         #expect(!prompt.contains("# 前回のこと"))
     }
 
+    @Test func 休憩中や先生のメモで作り直しても前回のことは残る() async throws {
+        let store = try SwiftDataMemoryStore.inMemory()
+        try await store.saveSession(lastSession)
+        let prompt = try await builder.conversationSystemPrompt(store: store, mode: .rest, teacherNote: "正答は 40", now: nextDay)
+        let parts = prompt.components(separatedBy: PromptLibrary.separator)
+        #expect(parts.count == 6)
+        #expect(parts[3].contains("**休憩中**"))
+        #expect(parts[4].hasPrefix("# 前回のこと"))
+        #expect(parts[4].contains("割合の文章題を3問やった"))
+        #expect(parts[5].hasPrefix("# 先生のメモ"))
+    }
+
     @Test func 先生のメモは前回のことより後ろに足す() throws {
         let prompt = try PromptLibrary().conversationSystemPrompt(teacherNote: "正答は 40", previousSession: "## 前回の勉強（昨日）")
         let parts = prompt.components(separatedBy: PromptLibrary.separator)
