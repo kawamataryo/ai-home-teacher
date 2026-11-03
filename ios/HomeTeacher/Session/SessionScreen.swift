@@ -12,6 +12,7 @@ struct SessionScreen: View {
     /// 表示確認用に固定する状態（起動引数 `-sessionPreview`）。nil ならふつうに動かす
     var preview: SessionPreviewState?
     @State private var showsDebugMenu = false
+    @State private var showsSettings = false
 
     var body: some View {
         NavigationStack {
@@ -26,6 +27,15 @@ struct SessionScreen: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        showsSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("設定")
+                    .disabled(model.coordinator?.phase != .idle)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         showsDebugMenu = true
                     } label: {
                         Image(systemName: "ladybug")
@@ -36,6 +46,9 @@ struct SessionScreen: View {
                 }
             }
             .toolbarBackground(.hidden, for: .navigationBar)
+        }
+        .sheet(isPresented: $showsSettings) {
+            SessionSettingsView(preferences: model.preferences)
         }
         .sheet(isPresented: $showsDebugMenu) {
             DebugMenuView(config: model.services.config)

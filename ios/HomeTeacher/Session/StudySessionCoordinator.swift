@@ -45,6 +45,8 @@ final class StudySessionCoordinator {
         var library = PromptLibrary()
         /// Jev（TypeSafe AI）。nil なら規則ベースだけで判定する
         var decisions: TeacherDecisions?
+        /// 設定画面の値（話している間のマイクの扱い）。始めるときに読む
+        var preferences: SessionPreferences?
         var now: @Sendable () -> Date = { Date() }
     }
 
@@ -104,6 +106,10 @@ final class StudySessionCoordinator {
     @ObservationIgnored private var replyGeneration = 0
     /// 作っている途中・話している途中の返事の世代。なければ nil
     @ObservationIgnored private var inFlightReply: Int?
+    /// 割り込まれた返事の履歴の切り詰め（次の返事はこれを待つ）
+    @ObservationIgnored private var truncation: Task<Void, Never>?
+    /// ConversationController に渡す声。いまの返事で何を話したかを数える
+    @ObservationIgnored private let tracker: SpokenReplyTracker
     @ObservationIgnored private var sessionID = UUID().uuidString
     @ObservationIgnored private(set) var sessionStartedAt: Date?
     /// 先生のメモ（#15 の分析結果）。プロンプトを組み直すときにも入れる
@@ -113,6 +119,7 @@ final class StudySessionCoordinator {
 
     init(dependencies: Dependencies) {
         self.deps = dependencies
+        self.tracker = SpokenReplyTracker(voice: dependencies.voice)
         self.openingBuilder = OpeningPromptBuilder(library: dependencies.library)
     }
 
@@ -175,7 +182,11 @@ final class StudySessionCoordinator {
         )
         self.brain = brain
 
+        if let preferences = deps.preferences {
+            settings.conversation.speakingInputMode = preferences.speakingInputMode
+        }
         let conversation = settings.conversation
+        trace("話している間のマイク: \(conversation.speakingInputMode == .bargeIn ? "開いたまま（割り込み）" : "止める")")
         var endDecider: (any EndOfUtteranceDecider)?
         if let decisions = deps.decisions {
             let judge = JevAddressingJudge(decisions: decisions, fallback: CallWordAddressingJudge(callWords: conversation.callWords))
@@ -185,7 +196,7 @@ final class StudySessionCoordinator {
             addressingJudge = nil
         }
         let controller = ConversationController(
-            input: deps.input, output: deps.voice, clock: deps.clock, settings: conversation,
+            input: deps.input, output: tracker, clock: deps.clock, settings: conversation,
             addressingJudge: addressingJudge, endOfUtteranceDecider: endDecider
         )
         self.controller = controller
@@ -243,14 +254,31 @@ final class StudySessionCoordinator {
     }
 
     /// 作っている途中・話している途中の返事を捨てる。捨てたら true（割り込みと、状態の見張りの両方から呼ばれるので 1 回だけ効く）
+    ///
+    /// 履歴は「実際に話したところ」で切り詰める（#13）。順番は
+    /// 1. 声を止めて、いまの文の何文字目まで話したかを受け取る（止めたあとは再生位置が取れない）
+    /// 2. TeacherBrain のストリームを止める（止める前に切ると、あとから届いた文字が足されてしまう）
+    /// 3. 履歴を読んで切り詰める
     @discardableResult
     private func dropInFlightReply() async -> Bool {
         guard let inFlight = inFlightReply, inFlight == replyGeneration else { return false }
         replyGeneration += 1
         inFlightReply = nil
-        // 止める前に数える（止めると再生位置が取れなくなる）。ここから await までの間に他の処理は入らない
-        deps.voice.stop()
-        await brain?.cancel()
+        // 1 から snapshot までの間に await をはさまない（話している文の後片付けが先に走らないように）
+        let played = deps.voice.stop()
+        let spoken = tracker.snapshot(playedInCurrent: played)
+        tracker.invalidate()
+        avatar.send(.userStartedSpeaking)
+        guard let brain else { return true }
+        let task = Task { [weak self] in
+            await brain.cancel()
+            let messages = await brain.history.messages
+            guard let count = ReplyTruncation.targetCount(messages: messages, spoken: spoken) else { return }
+            await brain.truncateLastReply(toCharacterCount: count)
+            self?.trace("割り込まれたので履歴を \(count) 文字に切り詰めた（話し終えた文 \(spoken.finished.count)・途中の文 \(spoken.playedInCurrent) 文字）")
+        }
+        truncation = task
+        await task.value
         return true
     }
 
@@ -258,6 +286,8 @@ final class StudySessionCoordinator {
     private func startReply(to text: String, fallback: String) {
         replyGeneration += 1
         let generation = replyGeneration
+        // 割り込みが返事のタスクより先に来ても捨てられるよう、ここで印を付ける
+        inFlightReply = generation
         replyTask = Task { [weak self] in
             await self?.runReply(to: text, fallback: fallback, generation: generation)
         }
@@ -265,8 +295,11 @@ final class StudySessionCoordinator {
 
     private func runReply(to text: String, fallback: String, generation: Int) async {
         guard let brain, let controller else { return }
-        inFlightReply = generation
         defer { if inFlightReply == generation { inFlightReply = nil } }
+        // 前の返事の切り詰めが終わってから、新しい発話を履歴に足す
+        await truncation?.value
+        guard generation == replyGeneration else { return }
+        tracker.beginReply()
         let acceptedAt = deps.clock.now
         lastReplyLatency = nil
         let stream = await brain.respond(to: text)
