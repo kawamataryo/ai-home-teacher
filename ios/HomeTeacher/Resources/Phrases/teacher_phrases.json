@@ -1,0 +1,16 @@
+[
+  { "key": "break_time", "text": "そろそろ休憩しよっか" },
+  { "key": "break_over", "text": "休憩おわり！続きやろう" },
+  { "key": "five_minutes_left", "text": "あと5分がんばろう" },
+  { "key": "iine", "text": "いいね！" },
+  { "key": "doredore", "text": "どれどれ" },
+  { "key": "o_doredore", "text": "お、どれどれ…" },
+  { "key": "ii_kanji", "text": "お、いい感じ！" },
+  { "key": "sousou", "text": "そうそう！" },
+  { "key": "naruhodo", "text": "なるほど" },
+  { "key": "sugoi_jan", "text": "すごいじゃん！" },
+  { "key": "mou_ikkai", "text": "もう一回言ってみて" },
+  { "key": "chotto_misete", "text": "ちょっと見せて？" },
+  { "key": "unun", "text": "うんうん" },
+  { "key": "chotto_matte", "text": "ちょっと考えるね" }
+]
