@@ -84,6 +84,34 @@ enum SSEFixture {
         return events.joined(separator: "\n")
     }
 
+    /// 言葉で返事をしてから（`text` が空なら言葉なしで）flag_for_parent を呼ぶストリーム。
+    static func toolStream(text: String, toolID: String = "toolu_1", name: String = "flag_for_parent", inputJSON: String) -> String {
+        var events = [#"data: {"type":"message_start","message":{"id":"msg_2","role":"assistant","content":[]}}"#]
+        var index = 0
+        if !text.isEmpty {
+            events += [
+                #"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+                "data: " + json(["type": "content_block_delta", "index": 0, "delta": ["type": "text_delta", "text": text]]),
+                #"data: {"type":"content_block_stop","index":0}"#,
+            ]
+            index = 1
+        }
+        // partial_json は2つに分けて送る
+        let mid = inputJSON.index(inputJSON.startIndex, offsetBy: inputJSON.count / 2)
+        events += [
+            "data: " + json(["type": "content_block_start", "index": index,
+                             "content_block": ["type": "tool_use", "id": toolID, "name": name, "input": [String: Any]()]]),
+            "data: " + json(["type": "content_block_delta", "index": index,
+                             "delta": ["type": "input_json_delta", "partial_json": String(inputJSON[..<mid])]]),
+            "data: " + json(["type": "content_block_delta", "index": index,
+                             "delta": ["type": "input_json_delta", "partial_json": String(inputJSON[mid...])]]),
+            "data: {\"type\":\"content_block_stop\",\"index\":\(index)}",
+            #"data: {"type":"message_delta","delta":{"stop_reason":"tool_use"}}"#,
+            #"data: {"type":"message_stop"}"#,
+        ]
+        return events.joined(separator: "\n\n")
+    }
+
     static func json(_ object: [String: Any]) -> String {
         let data = try! JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
         return String(decoding: data, as: UTF8.self)

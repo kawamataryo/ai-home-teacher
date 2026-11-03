@@ -25,12 +25,46 @@ struct PromptLibraryTests {
         #expect(text.contains("答えをそのまま言わない"))
     }
 
-    @Test func 会話用はteacherとhint_ladderとsafetyをこの順につなぐ() throws {
+    @Test func 会話用はteacherとhint_ladderとsafetyとsmall_talkをこの順につなぐ() throws {
         let library = PromptLibrary()
         let prompt = try library.conversationSystemPrompt()
         let parts = prompt.components(separatedBy: PromptLibrary.separator)
-        #expect(parts == [try library.load(.teacher), try library.load(.hintLadder), try library.load(.safety)])
+        let mode = ["session_mode": "勉強中"]
+        #expect(parts == [
+            try library.load(.teacher), try library.load(.hintLadder), try library.load(.safety),
+            try library.load(.smallTalk, variables: mode),
+        ])
         #expect(!prompt.contains("先生のメモ（子どもには"))
+        #expect(!prompt.contains("{{"))
+    }
+
+    @Test(arguments: [(SessionMode.study, "いまは **勉強中**。"), (.rest, "いまは **休憩中**。")])
+    func いまの状況を差し込む(mode: SessionMode, expected: String) throws {
+        let prompt = try PromptLibrary().conversationSystemPrompt(mode: mode)
+        #expect(prompt.contains(expected))
+    }
+
+    @Test func 雑談と要確認のルールがある() throws {
+        let library = PromptLibrary()
+        let smallTalk = try library.raw(.smallTalk)
+        for keyword in ["休憩中の雑談", "勉強中の脱線", "やさしく勉強に戻す"] {
+            #expect(smallTalk.contains(keyword), "\(keyword) がない")
+        }
+        let safety = try library.raw(.safety)
+        #expect(safety.contains("flag_for_parent"))
+        #expect(safety.contains("要確認"))
+    }
+
+    @Test func 会話用のツールはflag_for_parent() throws {
+        let tools = try PromptLibrary().conversationTools()
+        #expect(tools.map(\.name) == ["flag_for_parent"])
+        #expect(tools[0].inputSchema["type"]?.stringValue == "object")
+    }
+
+    @Test func 知らないツールはエラー() {
+        #expect(throws: PromptError.notFound("prompts/tools/nothing.json")) {
+            try PromptLibrary().tool(named: "nothing")
+        }
     }
 
     @Test func 先生のメモは最後に足す() throws {

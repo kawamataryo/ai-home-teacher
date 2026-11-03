@@ -9,29 +9,50 @@ enum TeacherBrainError: Error, Equatable {
 ///
 /// 使い方:
 /// ```swift
-/// let brain = TeacherBrain(client: client, systemPrompt: try PromptLibrary().conversationSystemPrompt())
+/// let library = PromptLibrary()
+/// let brain = TeacherBrain(
+///     client: client,
+///     systemPrompt: try library.conversationSystemPrompt(mode: .study),
+///     tools: try library.conversationTools()
+/// )
 /// for try await sentence in await brain.respond(to: "ねえ先生、割合がわかんない") {
 ///     tts.speak(sentence)
 /// }
 /// // 割り込まれたら: ストリームを止めて、再生できた文字数で切り詰める
 /// await brain.cancel()
 /// await brain.truncateLastReply(toCharacterCount: playedCount)
+/// // 「要確認」のフラグ（flag_for_parent）はセッションに記録される
+/// let flags = await brain.sessionFlags
 /// ```
 actor TeacherBrain {
     static let claudePath = "/v1/claude"
+    /// ツールを呼んだあとに返事を続けてもらう回数の上限。
+    static let maxToolContinuations = 1
+    /// tool_result に入れる文。子どもには聞こえない。
+    static let toolResultText = "記録しました。子どもには伝えずに、会話を続けてください。"
 
     private let client: WorkerClient
     private(set) var systemPrompt: String
     let model: ClaudeModel
     let maxTokens: Int
+    let tools: [ToolDefinition]
     private(set) var history = ConversationHistory()
+    /// このセッションで記録した「要確認」など（spec §3④）。保存は #25 / #28。
+    private(set) var sessionFlags = SessionFlags()
     private var currentTask: Task<Void, Never>?
 
-    init(client: WorkerClient, systemPrompt: String, model: ClaudeModel = .haiku, maxTokens: Int = 512) {
+    init(
+        client: WorkerClient,
+        systemPrompt: String,
+        model: ClaudeModel = .haiku,
+        maxTokens: Int = 512,
+        tools: [ToolDefinition] = []
+    ) {
         self.client = client
         self.systemPrompt = systemPrompt
         self.model = model
         self.maxTokens = maxTokens
+        self.tools = tools
     }
 
     /// システムプロンプトを差し替える（先生のメモ・モードの切り替えなど）。次の呼び出しから効く。
@@ -44,11 +65,10 @@ actor TeacherBrain {
     func respond(to userText: String) -> AsyncThrowingStream<String, Error> {
         currentTask?.cancel()
         history.appendUser(userText)
-        let request = makeRequest()
         let (stream, continuation) = AsyncThrowingStream<String, Error>.makeStream()
         let task = Task {
             do {
-                try await self.stream(request, into: continuation)
+                try await self.run(into: continuation)
                 continuation.finish()
             } catch {
                 continuation.finish(throwing: error)
@@ -84,6 +104,10 @@ actor TeacherBrain {
         history.removeAll()
     }
 
+    func resetSessionFlags() {
+        sessionFlags.removeAll()
+    }
+
     /// 今の履歴とシステムプロンプトから、Worker に送る本文を作る。
     func makeRequest() -> MessagesRequest {
         var messages = history.messages
@@ -91,12 +115,35 @@ actor TeacherBrain {
         if messages.first?.role == .assistant {
             messages.insert(ChatMessage(role: .user, content: [.text("（勉強スタート）")]), at: 0)
         }
-        return MessagesRequest(model: model, maxTokens: maxTokens, system: systemPrompt, messages: messages, stream: true)
+        return MessagesRequest(
+            model: model, maxTokens: maxTokens, system: systemPrompt, messages: messages, stream: true,
+            tools: tools.isEmpty ? nil : tools
+        )
     }
 
-    private func stream(_ request: MessagesRequest, into continuation: AsyncThrowingStream<String, Error>.Continuation) async throws {
+    /// 1回の返事。ツールだけ呼んで言葉がなかったときは、tool_result を付けてもう一度呼ぶ。
+    private func run(into continuation: AsyncThrowingStream<String, Error>.Continuation) async throws {
+        var continuations = 0
+        while true {
+            let turn = try await streamOnce(makeRequest(), into: continuation)
+            guard turn.calledTools, !turn.spokeText, continuations < Self.maxToolContinuations else { return }
+            continuations += 1
+        }
+    }
+
+    private struct TurnResult {
+        var spokeText = false
+        var calledTools = false
+    }
+
+    private func streamOnce(
+        _ request: MessagesRequest,
+        into continuation: AsyncThrowingStream<String, Error>.Continuation
+    ) async throws -> TurnResult {
         let parser = ClaudeStreamParser()
         var splitter = SentenceSplitter()
+        var toolUses = ToolUseAccumulator()
+        var result = TurnResult()
         let lines = try await client.streamLines(path: Self.claudePath, body: request)
         for try await line in lines {
             try Task.checkCancellation()
@@ -104,17 +151,42 @@ actor TeacherBrain {
             switch event {
             case .textDelta(_, let text):
                 history.appendAssistantText(text)
+                if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { result.spokeText = true }
                 for sentence in splitter.append(text) { continuation.yield(sentence) }
+            case .toolUseStart(let index, let id, let name):
+                toolUses.start(index: index, id: id, name: name)
+            case .inputJSONDelta(let index, let partialJSON):
+                toolUses.append(index: index, partialJSON: partialJSON)
+            case .contentBlockStop(let index):
+                if let toolUse = toolUses.stop(index: index) {
+                    handle(toolUse)
+                    result.calledTools = true
+                }
             case .error(let type, let message):
                 throw TeacherBrainError.api(type: type, message: message)
             case .messageStop:
                 for sentence in splitter.flush() { continuation.yield(sentence) }
-                return
+                return result
             default:
                 break
             }
         }
         // message_stop が来ずに終わった場合も残りを流す
         for sentence in splitter.flush() { continuation.yield(sentence) }
+        return result
+    }
+
+    /// ツールの呼び出しを処理し、履歴に tool_use と tool_result を残す（API は対になっていないと受け付けない）。
+    private func handle(_ toolUse: ToolUseAccumulator.ToolUse) {
+        history.append(.assistant, .toolUse(id: toolUse.id, name: toolUse.name, input: toolUse.input))
+        switch toolUse.name {
+        case ParentFlagTool.name:
+            if let flag = ParentFlagTool.parse(toolUse.input) {
+                sessionFlags.record(flag)
+            }
+            history.append(.user, .toolResult(toolUseID: toolUse.id, content: Self.toolResultText))
+        default:
+            history.append(.user, .toolResult(toolUseID: toolUse.id, content: "未対応のツールです。"))
+        }
     }
 }

@@ -75,7 +75,7 @@ struct ChatMessage: Equatable, Sendable, Codable {
 }
 
 /// ツールの定義。`input_schema` は JSON Schema。
-struct ToolDefinition: Equatable, Sendable, Encodable {
+struct ToolDefinition: Equatable, Sendable, Codable {
     let name: String
     let description: String
     let inputSchema: JSONValue
