@@ -43,4 +43,22 @@ struct WorkerClientTests {
             _ = try await client(transport).streamLines(path: "/v1/claude", body: Data("{}".utf8))
         }
     }
+
+    @Test func GETはクエリを付けて本文なしで送る() async throws {
+        let transport = MockTransport(body: #"{"memories":[]}"#)
+        _ = try await client(transport).getJSON(path: "/v1/sessions", query: [URLQueryItem(name: "limit", value: "200")])
+        let request = try #require(await transport.requests.first)
+        #expect(request.httpMethod == "GET")
+        #expect(request.url?.absoluteString == "https://example.workers.dev/v1/sessions?limit=200")
+        #expect(request.httpBody == nil)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer token-123")
+    }
+
+    @Test func PUTでもエラーのステータスなら投げる() async {
+        let transport = MockTransport(status: 404, body: #"{"error":"child not found"}"#)
+        await #expect(throws: WorkerError.http(status: 404, body: #"{"error":"child not found"}"#)) {
+            _ = try await client(transport).putJSON(path: "/v1/memory", body: Data("{}".utf8))
+        }
+        #expect(await transport.requests.first?.httpMethod == "PUT")
+    }
 }

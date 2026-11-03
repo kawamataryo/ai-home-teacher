@@ -6,6 +6,13 @@ actor MockTransport: HTTPTransport {
     struct Response: Sendable {
         var status: Int = 200
         var body: String
+        /// あれば応答の代わりにこのエラーを投げる（オフラインなど）。
+        var error: URLError.Code?
+
+        /// 通信エラー（URLError）を投げる応答。
+        static func failure(_ code: URLError.Code) -> Response {
+            Response(status: 0, body: "", error: code)
+        }
     }
 
     private var responses: [Response]
@@ -19,14 +26,21 @@ actor MockTransport: HTTPTransport {
         self.init(responses: [Response(status: status, body: body)])
     }
 
+    /// 応答をあとから足す。
+    func enqueue(_ more: [Response]) {
+        responses += more
+    }
+
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let response = next(for: request)
+        if let code = response.error { throw URLError(code) }
         return (Data(response.body.utf8), http(request, response.status))
     }
 
     /// URLSession の `lines` と同じく、空行は落として1行ずつ流す。
     func lines(for request: URLRequest) async throws -> (AsyncThrowingStream<String, Error>, HTTPURLResponse) {
         let response = next(for: request)
+        if let code = response.error { throw URLError(code) }
         let lines = response.body.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
         let stream = AsyncThrowingStream<String, Error> { continuation in
             for line in lines { continuation.yield(line) }

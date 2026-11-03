@@ -43,6 +43,8 @@ const sessionsQuery = z.object({
   since: isoDateTime.optional(),
   child_id: id.optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
+  // updated: 保存した順（古い順）。アプリが since を進めながらページ送りするときに使う
+  order: z.enum(["started", "updated"]).default("started"),
 });
 
 const category = z.enum(["likes", "events", "weak_points"]);
@@ -224,11 +226,12 @@ async function resolveChild(db: D1Database, familyId: string, childId?: string):
   return row?.id ?? null;
 }
 
-// 新しい順。since は updated_at（サーバーが保存した時刻）で絞る
+// 既定は started_at の新しい順。order: "updated" なら updated_at の古い順（ページ送り用）。
+// since は updated_at（サーバーが保存した時刻）で絞る
 export async function listSessions(
   db: D1Database,
   familyId: string,
-  opts: { since?: string; child_id?: string; sessionId?: string; limit: number },
+  opts: { since?: string; child_id?: string; sessionId?: string; limit: number; order?: "started" | "updated" },
 ): Promise<SessionJson[]> {
   const where = ["c.family_id = ?"];
   const params: unknown[] = [familyId];
@@ -236,10 +239,11 @@ export async function listSessions(
   if (opts.child_id) (where.push("s.child_id = ?"), params.push(opts.child_id));
   if (opts.sessionId) (where.push("s.id = ?"), params.push(opts.sessionId));
 
+  const orderBy = opts.order === "updated" ? "s.updated_at ASC, s.id" : "s.started_at DESC, s.id";
   const { results: sessions } = await db
     .prepare(
       `SELECT s.* FROM sessions s JOIN children c ON c.id = s.child_id
-       WHERE ${where.join(" AND ")} ORDER BY s.started_at DESC, s.id LIMIT ?`,
+       WHERE ${where.join(" AND ")} ORDER BY ${orderBy} LIMIT ?`,
     )
     .bind(...params, opts.limit)
     .all<SessionRow>();

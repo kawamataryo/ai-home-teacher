@@ -206,7 +206,19 @@ describe("GET /v1/sessions", () => {
     expect(body.sessions).toHaveLength(1);
   });
 
-  it.each(["since=yesterday", "limit=0", "limit=201"])("%s は 400", async (q) => {
+  it("order=updated なら保存した順（古い順）に返す", async () => {
+    // started_at は 2222 のほうが新しいが、保存したのは session（1111）が先
+    const byUpdated = (await (await send("GET", "/v1/sessions?order=updated")).json()) as any;
+    expect(byUpdated.sessions.map((s: any) => s.id)).toEqual([session.id, "22222222-2222-4222-8222-222222222222"]);
+
+    // 1111 を更新すると最後に来る
+    await new Promise((r) => setTimeout(r, 5));
+    await send("POST", "/v1/sessions", { ...session, summary: "あとから更新" });
+    const again = (await (await send("GET", "/v1/sessions?order=updated")).json()) as any;
+    expect(again.sessions.map((s: any) => s.id)).toEqual(["22222222-2222-4222-8222-222222222222", session.id]);
+  });
+
+  it.each(["since=yesterday", "limit=0", "limit=201", "order=random"])("%s は 400", async (q) => {
     expect((await send("GET", `/v1/sessions?${q}`)).status).toBe(400);
   });
 });
