@@ -148,6 +148,7 @@ async function main(argv, env) {
       console.log(`  先生: ${reply.replaceAll("\n", " ")}`);
       for (const t of toolUses) console.log(`  ツール: ${t.name} ${JSON.stringify(t.input)}`);
       for (const f of result.failures) console.log(`  - ${f}`);
+      for (const w of result.warnings) console.log(`  (注意) ${w}`);
     } catch (error) {
       failed++;
       console.log(`ERROR ${c.id}: ${error.message}`);
