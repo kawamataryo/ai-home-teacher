@@ -49,7 +49,7 @@ enum WorkerError: Error, Equatable {
     case invalidResponse
 }
 
-/// Cloudflare Worker を呼ぶ共通クライアント。家族トークンを付けて POST する。
+/// Cloudflare Worker を呼ぶ共通クライアント。家族トークンを付けて POST する（同期 API 用に GET / PUT も）。
 /// エンドポイント（/v1/claude, /v1/tts, /v1/decide, /v1/sessions …）ごとの組み立ては呼び出し側で行う。
 struct WorkerClient: Sendable {
     let baseURL: URL
@@ -68,10 +68,21 @@ struct WorkerClient: Sendable {
 
     /// `path` は "/v1/claude" のように先頭の / 付きで渡す。
     func makeRequest(path: String, body: Data, accept: String = "application/json") -> URLRequest {
-        var request = URLRequest(url: url(for: path))
-        request.httpMethod = "POST"
-        request.httpBody = body
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        makeRequest(method: "POST", path: path, body: body, accept: accept)
+    }
+
+    /// メソッドとクエリを指定して組み立てる。本文がなければ Content-Type は付けない。
+    func makeRequest(
+        method: String, path: String, query: [URLQueryItem] = [], body: Data? = nil, accept: String = "application/json"
+    ) -> URLRequest {
+        var url = url(for: path)
+        if !query.isEmpty { url.append(queryItems: query) }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        if let body {
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
         request.setValue(accept, forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(familyToken)", forHTTPHeaderField: "Authorization")
         return request
@@ -79,7 +90,22 @@ struct WorkerClient: Sendable {
 
     /// JSON を POST して本文を返す。
     func postJSON(path: String, body: Data) async throws -> Data {
-        let (data, response) = try await transport.data(for: makeRequest(path: path, body: body))
+        try await send(makeRequest(path: path, body: body))
+    }
+
+    /// GET して本文を返す。
+    func getJSON(path: String, query: [URLQueryItem] = []) async throws -> Data {
+        try await send(makeRequest(method: "GET", path: path, query: query))
+    }
+
+    /// JSON を PUT して本文を返す。
+    func putJSON(path: String, body: Data) async throws -> Data {
+        try await send(makeRequest(method: "PUT", path: path, body: body))
+    }
+
+    /// 送って、200 番台以外なら本文を付けて投げる。
+    private func send(_ request: URLRequest) async throws -> Data {
+        let (data, response) = try await transport.data(for: request)
         guard (200..<300).contains(response.statusCode) else {
             throw WorkerError.http(status: response.statusCode, body: String(decoding: data, as: UTF8.self))
         }
