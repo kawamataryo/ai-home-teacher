@@ -136,6 +136,20 @@ private struct SessionContent: View {
                 .frame(width: size.width, height: size.height)
                 .scaleEffect(scale)
                 .frame(width: geometry.size.width, height: geometry.size.height)
+                .overlay {
+                    if let count = coordinator.captureCountdown {
+                        Text("\(count)")
+                            .font(.system(size: 160, weight: .heavy, design: .rounded))
+                            .foregroundStyle(Chalk.yellow)
+                            .shadow(radius: 8)
+                            .transition(.scale)
+                    } else if coordinator.isCapturing {
+                        Label("ノートを見てるよ", systemImage: "camera.viewfinder")
+                            .font(.title.bold())
+                            .padding(20)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                }
         }
     }
 
@@ -145,7 +159,7 @@ private struct SessionContent: View {
         switch phase {
         case .idle: "「勉強スタート」で始めよう！"
         case .starting: "準備中…"
-        case .active: "わからないところは「ねえ先生」と話しかけてね。"
+        case .active: "わからないところは「ねえ先生」と話しかけてね。\n「これ見て」と言うと、ノートを見てヒントを書くよ。"
         case .ending: "今日のふり返り"
         }
     }
@@ -154,13 +168,30 @@ private struct SessionContent: View {
 
     private var controls: some View {
         VStack(spacing: 8) {
-            SessionMainButton(phase: coordinator.phase) {
-                Task {
-                    switch coordinator.phase {
-                    case .idle: await coordinator.start()
-                    case .active: await coordinator.end()
-                    case .starting, .ending: break
+            HStack(spacing: 20) {
+                SessionMainButton(phase: coordinator.phase) {
+                    Task {
+                        switch coordinator.phase {
+                        case .idle: await coordinator.start()
+                        case .active: await coordinator.end()
+                        case .starting, .ending: break
+                        }
                     }
+                }
+                if coordinator.phase == .active, coordinator.canCapture {
+                    // 「これ見て」と言わなくても撮れる
+                    Button {
+                        Task { await coordinator.captureFromButton() }
+                    } label: {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 84, height: 84)
+                            .background(Circle().fill(coordinator.isCapturing ? Color.gray : Color.teal))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(coordinator.isCapturing || coordinator.conversationState != .idle)
+                    .accessibilityLabel("ノートを撮って見せる")
                 }
             }
             Text(footnote)
