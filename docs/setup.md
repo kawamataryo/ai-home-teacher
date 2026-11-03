@@ -80,7 +80,7 @@ ElevenLabs より安い。いつでも ElevenLabs に戻せる。価格レベル
    地域と声は `worker/wrangler.jsonc` の `AZURE_SPEECH_REGION`（既定 `japaneast`）と `AZURE_TTS_VOICE`（既定 `ja-JP-NanamiNeural`）
 3. `ios/Config/Secrets.xcconfig` に `TTS_PROVIDER = azure` と書いてビルドし直す。戻すときは `elevenlabs` にする
 
-F0 は 1 分に 20 リクエストまで。初回起動時に定型句（17 個）を Azure の声で作り直すので、最初の 1 分ほどは待ってから話しかける。
+F0 は 1 分に 20 リクエストまで。初回起動時に定型句（15 個）を Azure の声で作り直すので、最初の 1 分ほどは待ってから話しかける。
 
 ## 7. つないだら最初にやる確認
 
