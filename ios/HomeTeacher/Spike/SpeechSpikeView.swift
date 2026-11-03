@@ -64,7 +64,10 @@ struct SpeechSpikeView: View {
             }
         }
         .navigationTitle("音声の実機検証")
-        .task { await model.probe() }
+        .task {
+            await model.probe()
+            if SpeechSpikeModel.isAutoRun { await model.runAutomatic() }
+        }
     }
 
     private func row(_ title: String, _ ok: Bool, detail: String) -> some View {

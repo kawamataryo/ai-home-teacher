@@ -3,8 +3,10 @@ import SwiftUI
 struct ContentView: View {
     let config: AppConfig?
 
+    @State private var path: [String] = SpeechSpikeModel.isAutoRun ? ["spike"] : []
+
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             VStack(spacing: 24) {
                 Text("AI家庭教師")
                     .font(.largeTitle.bold())
@@ -19,6 +21,7 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
             }
             .padding()
+            .navigationDestination(for: String.self) { _ in SpeechSpikeView() }
         }
     }
 }

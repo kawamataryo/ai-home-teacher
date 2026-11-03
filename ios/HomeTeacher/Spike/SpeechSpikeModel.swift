@@ -154,4 +154,25 @@ final class SpeechSpikeModel {
         UIPasteboard.general.string = report
         status = "結果をコピーしました。issue #9 に貼ってください"
     }
+
+    /// 起動引数 `-autoSpike` で、人が話さなくても測れる項目を自動で実行する。
+    /// 推奨エンジンでエコーキャンセル ON / OFF の両方を試し、結果をログと Documents/spike-report.txt に出す。
+    static var isAutoRun: Bool { ProcessInfo.processInfo.arguments.contains("-autoSpike") }
+
+    func runAutomatic() async {
+        for vp in [true, false] {
+            voiceProcessing = vp
+            await startListening()
+            // SpeechAnalyzer の日本語モデルのダウンロードと準備を待つ
+            try? await Task.sleep(for: .seconds(4))
+            await runEchoTest()
+            await stopListening()
+        }
+        let text = report
+        print("SPIKE_REPORT_BEGIN\n\(text)\nSPIKE_REPORT_END")
+        if let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            try? text.write(to: dir.appending(path: "spike-report.txt"), atomically: true, encoding: .utf8)
+        }
+        status = "自動検証が終わりました"
+    }
 }
