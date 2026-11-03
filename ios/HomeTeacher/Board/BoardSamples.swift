@@ -58,6 +58,39 @@ enum BoardSamples {
         BoardTools.content(toolName: BoardTools.showBoardName, input: Data(json[kind]!.utf8))
     }
 
+    /// render_svg のサンプル（図形の問題：三角形の角）。
+    static let svg = """
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 460">
+      <style>
+        .edge{fill:none;stroke:#f5f5f5;stroke-width:5;stroke-linejoin:round;stroke-dasharray:1600;stroke-dashoffset:1600;animation:draw 1.6s ease-out forwards}
+        .arc{fill:none;stroke-width:4}
+        .t{font-family:-apple-system,sans-serif;font-weight:700;font-size:34px}
+        .q{animation:blink 1.2s ease-in-out 1.6s infinite alternate}
+        @keyframes draw{to{stroke-dashoffset:0}}
+        @keyframes blink{from{opacity:1}to{opacity:.35}}
+      </style>
+      <polygon class="edge" points="120,400 680,400 300,80"/>
+      <path class="arc" stroke="#ffe066" d="M190,400 A70,70 0 0 0 157,338"/>
+      <path class="arc" stroke="#8fd0ff" d="M610,400 A70,70 0 0 1 621,361"/>
+      <path class="arc" stroke="#ff9eb3" d="M268,134 A62,62 0 0 0 348,120"/>
+      <text class="t" x="200" y="372" fill="#ffe066">60°</text>
+      <text class="t" x="545" y="380" fill="#8fd0ff">40°</text>
+      <text class="t q" x="285" y="190" fill="#ff9eb3">？</text>
+      <text class="t" x="96" y="445" fill="#f5f5f5">A</text>
+      <text class="t" x="690" y="445" fill="#f5f5f5">B</text>
+      <text class="t" x="290" y="62" fill="#f5f5f5">C</text>
+    </svg>
+    """
+
+    static let svgJSON: String = {
+        let input = RenderSVGInput(svg: svg, caption: "三角形の3つの角を合わせると何度だったかな？")
+        return String(decoding: try! JSONEncoder().encode(input), as: UTF8.self)
+    }()
+
+    static var svgContent: BoardContent {
+        BoardTools.content(toolName: BoardTools.renderSVGName, input: Data(svgJSON.utf8))
+    }
+
     /// デコードに失敗する入力（文字での代替表示の確認用）。
     static let brokenJSON = """
     {"title":"この図は読めない","component":{"type":"pie_chart","note":"円グラフで半分が赤"}}

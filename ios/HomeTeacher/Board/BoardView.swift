@@ -46,6 +46,8 @@ struct BoardView: View {
             case .highlightImage(let m): HighlightImageView(model: m)
             case .essayOutline(let m): EssayOutlineView(model: m)
             }
+        case .svg(let board):
+            SVGBoardView(board: board)
         case .text(let text):
             BoardTextView(text: text)
         }
@@ -70,6 +72,8 @@ extension BoardContent: Hashable {
         case .component(let title, let c):
             hasher.combine(title)
             hasher.combine(c.kind.rawValue)
+        case .svg(let b):
+            hasher.combine(b.svg)
         case .text(let t):
             hasher.combine(t)
         }

@@ -4,6 +4,8 @@ import Foundation
 enum BoardContent: Equatable, Sendable {
     /// ネイティブ部品（show_board）。
     case component(title: String, BoardComponent)
+    /// カタログで表せない図（render_svg）。中身は SVGSanitizer を通したもの。
+    case svg(SVGBoard)
     /// 図を出せなかったときの文字での代わり。
     case text(String)
 }
@@ -17,6 +19,37 @@ struct ShowBoardInput: Codable, Equatable, Sendable {
         Schema.object([
             ("title", Schema.string("黒板の見出し（短く。例：何を聞かれているかな？）")),
             ("component", BoardComponent.schema),
+        ])
+    }
+}
+
+/// render_svg で出す図。
+struct SVGBoard: Equatable, Sendable {
+    /// 無害化済みの SVG。
+    var svg: String
+    var caption: String
+}
+
+/// render_svg ツールの入力。
+struct RenderSVGInput: Codable, Equatable, Sendable {
+    var svg: String
+    var caption: String
+
+    init(svg: String, caption: String) {
+        self.svg = svg
+        self.caption = caption
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        svg = try c.decode(String.self, forKey: .svg)
+        caption = try c.decodeIfPresent(String.self, forKey: .caption) ?? ""
+    }
+
+    static var schema: JSONValue {
+        Schema.object([
+            ("svg", Schema.string("自己完結の SVG 文字列。<svg> から始め、viewBox を付ける")),
+            ("caption", Schema.string("図の下に出す短い説明。無ければ空文字")),
         ])
     }
 }
@@ -41,8 +74,27 @@ enum BoardTools {
         ])
     }
 
+    static let renderSVGName = "render_svg"
+
+    static let renderSVGDescription = """
+        show_board の部品で表せない図（図形の角度・展開図・回転など）を、自己完結の SVG で黒板に出す。
+        外部の画像・フォント・リンク、script、イベント属性（onclick など）、foreignObject は使わない（取り除かれる）。
+        動きは CSS アニメーションだけ。<svg> に viewBox を付け、黒板（暗い緑）の上で見える明るい色で描く。
+        答えの数字や言葉は書かず、求めるところは「？」にする。
+        """
+
+    /// render_svg のツール定義。
+    static var renderSVG: JSONValue {
+        .object([
+            "name": .string(renderSVGName),
+            "description": .string(renderSVGDescription),
+            "strict": .bool(true),
+            "input_schema": RenderSVGInput.schema,
+        ])
+    }
+
     /// 黒板のツールすべて。
-    static var all: [JSONValue] { [showBoard] }
+    static var all: [JSONValue] { [showBoard, renderSVG] }
 
     /// `tools` にそのまま入れられる JSON（キー順固定）。
     static func toolsJSON() throws -> Data {
@@ -69,6 +121,15 @@ enum BoardTools {
             if let decoded = try? makeDecoder().decode(ShowBoardInput.self, from: input) {
                 return .component(title: decoded.title, decoded.component)
             }
+        case renderSVGName:
+            guard let decoded = try? makeDecoder().decode(RenderSVGInput.self, from: input) else { break }
+            switch SVGSanitizer.sanitize(decoded.svg) {
+            case .success(let s):
+                return .svg(SVGBoard(svg: s.svg, caption: decoded.caption))
+            case .failure:
+                // SVG は子どもに読めないので、説明だけ出す
+                return .text(decoded.caption.isEmpty ? notice : decoded.caption)
+            }
         default:
             break
         }
@@ -92,7 +153,7 @@ enum BoardTools {
     static let notice = "（図をうまく出せなかったよ）"
 
     /// 部品の種類や ID のような、子どもに見せても意味のない値は拾わない。
-    private static let ignoredKeys: Set<String> = ["type", "image_id"]
+    private static let ignoredKeys: Set<String> = ["type", "image_id", "svg"]
 
     private static func priority(_ key: String) -> Int {
         ["title", "theme", "name", "heading"].firstIndex(of: key) ?? 99
