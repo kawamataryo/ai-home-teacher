@@ -7,6 +7,13 @@ import {
   ALLOWED_MODELS,
   ANTHROPIC_URL,
   ANTHROPIC_VERSION,
+  AZURE_DEFAULT_REGION,
+  AZURE_DEFAULT_VOICE,
+  AZURE_OUTPUT_FORMAT,
+  AZURE_USER_AGENT,
+  azureSsml,
+  azureTtsUrl,
+  isAzureVoiceName,
   ELEVENLABS_BASE,
   ELEVENLABS_MODEL,
   TYPESAFE_URL,
@@ -37,7 +44,7 @@ app.post("/v1/claude", async (c) => {
     "content-type": "application/json",
     "x-api-key": c.env.ANTHROPIC_API_KEY,
     "anthropic-version": ANTHROPIC_VERSION,
-  }, body);
+  }, JSON.stringify(body));
 });
 
 app.post("/v1/tts", async (c) => {
@@ -51,7 +58,25 @@ app.post("/v1/tts", async (c) => {
   return relay(url, {
     "content-type": "application/json",
     "xi-api-key": c.env.ELEVENLABS_API_KEY,
-  }, { text: body.text, model_id: ELEVENLABS_MODEL });
+  }, JSON.stringify({ text: body.text, model_id: ELEVENLABS_MODEL }));
+});
+
+// Azure Neural TTS。返すのは MP3 のバイト列だけ（文字タイミングなし）
+app.post("/v1/tts/azure", async (c) => {
+  const body = await readJson(c.req.raw);
+  if (!body || typeof body.text !== "string" || body.text.length === 0) {
+    return c.json({ error: "text is required" }, 400);
+  }
+  if (!c.env.AZURE_SPEECH_KEY) return c.json({ error: "azure tts is not configured" }, 503);
+  const voice =
+    typeof body.voice === "string" && body.voice ? body.voice : (c.env.AZURE_TTS_VOICE || AZURE_DEFAULT_VOICE);
+  if (!isAzureVoiceName(voice)) return c.json({ error: "invalid voice" }, 400);
+  return relay(azureTtsUrl(c.env.AZURE_SPEECH_REGION || AZURE_DEFAULT_REGION), {
+    "content-type": "application/ssml+xml",
+    "ocp-apim-subscription-key": c.env.AZURE_SPEECH_KEY,
+    "x-microsoft-outputformat": AZURE_OUTPUT_FORMAT,
+    "user-agent": AZURE_USER_AGENT,
+  }, azureSsml(body.text, voice));
 });
 
 app.post("/v1/decide", async (c) => {
@@ -60,7 +85,7 @@ app.post("/v1/decide", async (c) => {
   return relay(TYPESAFE_URL, {
     "content-type": "application/json",
     authorization: `Bearer ${c.env.TYPESAFE_API_KEY}`,
-  }, body);
+  }, JSON.stringify(body));
 });
 
 app.notFound((c) => c.json({ error: "not found" }, 404));
@@ -75,10 +100,11 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
 }
 
 // 上流を呼んで、ステータスと本文のストリームをそのまま返す（バッファしない）。
-async function relay(url: string, headers: Record<string, string>, body: unknown): Promise<Response> {
+// body は送る形のまま（JSON は呼び出し側で文字列にする。Azure は SSML）
+async function relay(url: string, headers: Record<string, string>, body: string): Promise<Response> {
   let upstream: Response;
   try {
-    upstream = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+    upstream = await fetch(url, { method: "POST", headers, body });
   } catch {
     return Response.json({ error: "upstream unreachable" }, { status: 502 });
   }

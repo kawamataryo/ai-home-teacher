@@ -159,7 +159,7 @@ final class SessionAppModel: AudioEngineLeaseHolder {
         self.coordinator = coordinator
         audioMonitor?.session = coordinator
         // 話し始めた文と時刻を記録に残す（デモ動画で声を合わせる・遅延の確認）
-        voice.onPlaybackStart = { [weak coordinator] text in coordinator?.trace("話し始めた: \(text)") }
+        voice.onPlaybackStart = { [weak coordinator] text, provider in coordinator?.trace("話し始めた[\(provider)]: \(text)") }
         if let sink = SessionTraceFile.fromLaunchArguments() {
             coordinator.onTrace = { sink.append($0) }
         }
@@ -175,13 +175,13 @@ final class SessionAppModel: AudioEngineLeaseHolder {
     /// 先生の声。Worker の設定がなければ端末の声（AVSpeechSynthesizer）だけで話す
     private func makeVoice(player: any SpeechAudioPlayer) -> TeacherVoice {
         let system = SystemTTSProvider()
-        let primary: any TTSProvider = services.config == nil ? system : ElevenLabsTTSProvider(client: services.client)
+        let primary: any TTSProvider = services.config.map { $0.ttsProvider.makeProvider(client: services.client) } ?? system
         return TeacherVoice(
             primary: primary,
             fallback: services.config == nil ? nil : system,
             player: player,
             lipSync: lipSync,
-            phraseCache: try? PhraseCache()
+            phraseCache: try? PhraseCache(preferredProvider: primary.identifier)
         )
     }
 

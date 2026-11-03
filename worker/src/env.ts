@@ -6,6 +6,10 @@ export type Env = {
   TYPESAFE_API_KEY: string;
   FAMILY_TOKEN: string;
   ELEVENLABS_VOICE_ID: string;
+  // Azure Neural TTS（/v1/tts/azure）。キーは secret、地域と声は vars（なければ japaneast / ja-JP-NanamiNeural）
+  AZURE_SPEECH_KEY?: string;
+  AZURE_SPEECH_REGION?: string;
+  AZURE_TTS_VOICE?: string;
   DB: D1Database;
   // 親のダッシュボード（#29）。すべて secret（ローカルは .dev.vars）
   GOOGLE_CLIENT_ID?: string;

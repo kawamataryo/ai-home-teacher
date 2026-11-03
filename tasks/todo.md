@@ -80,3 +80,12 @@
 - [x] 休憩したい → その場で休憩（確かめない）。終わりたい → 「今日はここまでにする？」で確かめてから終える
 - [x] テスト 596 件・`-autoSession`（本番 Worker）で誤作動なし
 - 見送り: 気持ち（困っている・疲れている）の判断。Haiku が返事の言い方と表情のしるしをすでに決めていて、重ねても体験が変わりにくい
+
+## 2026-11-03 先生の声を Azure に切り替えられるように（#98）
+
+- [x] Worker に `/v1/tts/azure`（REST・SSML・MP3）
+- [x] アプリに `AzureTTSProvider`。`TTS_PROVIDER`（elevenlabs / azure）で切り替え、既定は ElevenLabs
+- [x] 定型句は今の声で作ったものを同梱より先に使う
+- [x] 聞き比べスクリプト `scripts/compare_voices.mjs`
+- [x] キー登録・Worker のデプロイ・聞き比べ・実機（iPad Air M2）の自己テスト（33 文すべて Azure）
+- [x] ユーザーが実機で聞いて Azure に決定 → 既定を Azure にしてマージ

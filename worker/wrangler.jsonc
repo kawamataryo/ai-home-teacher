@@ -6,7 +6,10 @@
   "observability": { "enabled": true },
   "vars": {
     // ElevenLabs の既定の声。実際に使う voice ID に置き換える（秘密情報ではない）
-    "ELEVENLABS_VOICE_ID": "TX3LPaxmHKxFdv7VOQHJ"
+    "ELEVENLABS_VOICE_ID": "TX3LPaxmHKxFdv7VOQHJ",
+    // Azure Neural TTS（/v1/tts/azure）の地域と既定の声（秘密情報ではない）。キーは secret の AZURE_SPEECH_KEY
+    "AZURE_SPEECH_REGION": "japaneast",
+    "AZURE_TTS_VOICE": "ja-JP-NanamiNeural"
   },
   // セッション要約と記憶（文字だけ）。`npx wrangler d1 create ai-home-teacher` の出力の
   // database_id に置き換える（秘密情報ではない）。手順は README.md
@@ -19,7 +22,7 @@
     }
   ]
   // secret（値はリポジトリに入れない）:
-  //   ANTHROPIC_API_KEY, ELEVENLABS_API_KEY, TYPESAFE_API_KEY, FAMILY_TOKEN,
+  //   ANTHROPIC_API_KEY, ELEVENLABS_API_KEY, TYPESAFE_API_KEY, FAMILY_TOKEN, AZURE_SPEECH_KEY（Azure を使うときだけ）,
   //   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SESSION_SECRET, PARENT_EMAILS（公開リポジトリなので vars に書かない）
   //   DEV_AUTH_BYPASS はローカルの .dev.vars 専用。ここにも本番の secret にも入れない
   //   本番は `wrangler secret put <NAME>`、ローカルは .dev.vars

@@ -43,6 +43,7 @@ npx wrangler secret put ANTHROPIC_API_KEY
 | --- | --- |
 | `ANTHROPIC_API_KEY` | ハッカソンのクレジットを入れた組織の API キー |
 | `ELEVENLABS_API_KEY` | ElevenLabs の API キー |
+| `AZURE_SPEECH_KEY` | Azure の Speech リソースのキー（先生の声を Azure にするときだけ。下の「先生の声を Azure にする」） |
 | `TYPESAFE_API_KEY` | TypeSafe AI の API キー |
 | `FAMILY_TOKEN` | 最初の iPad をつなぐ予備のトークン（長いランダムな文字列） |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 3 で作った OAuth クライアント |
@@ -61,6 +62,26 @@ npm run deploy
 
 `ios/Config/Secrets.xcconfig` に Worker の URL と家族トークンを書く（URL は `https:/$()/...` と書く）。家族トークンはダッシュボード（`/dashboard`）で発行したものを使うか、4 の `FAMILY_TOKEN` を使う。
 
+### 先生の声（Azure）
+
+先生の声は既定で Azure（ElevenLabs より安い）。いつでも ElevenLabs に戻せる。価格レベルは 2 つ（2026-11 時点）:
+
+- Free（F0）: 月 50 万字まで無料。超えても課金されずに使えなくなる。1 分に 20 リクエストまで（増やせない）
+- Standard（S0）: 従量課金で 100 万字あたり $15（月 15 万字なら約 $2.3）。無料分はない。1 秒に 30 リクエストまで
+
+1. Azure ポータルで「Speech」リソースを作る（地域: Japan East。お試しは F0、日常使いは S0）
+2. リソースの「キーとエンドポイント」のキーを Worker に登録して公開する
+
+   ```bash
+   npx wrangler secret put AZURE_SPEECH_KEY
+   npm run deploy
+   ```
+
+   地域と声は `worker/wrangler.jsonc` の `AZURE_SPEECH_REGION`（既定 `japaneast`）と `AZURE_TTS_VOICE`（既定 `ja-JP-NanamiNeural`）
+3. アプリは何もしなくても Azure を使う。ElevenLabs にするときは `ios/Config/Secrets.xcconfig` に `TTS_PROVIDER = elevenlabs` と書いてビルドし直す
+
+F0 は 1 分に 20 リクエストまで。初回起動時に定型句（15 個）を Azure の声で作り直すので、最初の 1 分ほどは待ってから話しかける。
+
 ## 7. つないだら最初にやる確認
 
 一部の API の形が違うだけで、いくつもの機能がまとめて動かなくなるので、実機の確認より先にこれを行う。
@@ -77,6 +98,7 @@ npm run deploy
    | --- | --- |
    | `/v1/claude` | ストリーミング応答が届く。strict な tool と `tool_choice` の指定が通る |
    | `/v1/tts` | 音声と文字タイミングが届く（ストリームの区切り方は未確認） |
+   | `/v1/tts/azure` | （Azure を使うときだけ）MP3 が届く |
    | `/v1/decide` | Jev の `noul` 型の質問が通る |
    | `/dashboard` | Google ログインが通る |
 
