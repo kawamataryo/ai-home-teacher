@@ -29,6 +29,12 @@
 - テスト: `cd ios && xcodebuild test -project HomeTeacher.xcodeproj -scheme HomeTeacher -destination 'platform=iOS Simulator,name=iPad Pro 11-inch (M5)'`
 - ファイルを追加・削除したら `xcodegen generate` をやり直す
 
+### プロンプトの評価
+
+- プロンプトは `prompts/`（アプリに同梱される）。会話用は teacher → hint_ladder → safety の順につなぐ（`PromptLibrary` と `evals/prompt.mjs` で揃える）
+- 判定ロジックのテスト（API 不要）: `node --test evals/*.test.mjs`
+- 実際に Claude を呼ぶ評価: `WORKER_BASE_URL=... FAMILY_TOKEN=... node evals/run.mjs`（または `ANTHROPIC_API_KEY=...`）。設定がなければスキップする
+
 ### Worker
 
 ```sh
