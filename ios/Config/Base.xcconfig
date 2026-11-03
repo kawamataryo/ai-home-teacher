@@ -1,0 +1,7 @@
+// 共通設定。秘密情報と個人設定は Secrets.xcconfig（gitignore 済み）に書く。
+// Secrets.xcconfig.example をコピーして作成すること。
+
+WORKER_BASE_URL =
+FAMILY_TOKEN =
+
+#include? "Secrets.xcconfig"

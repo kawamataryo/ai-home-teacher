@@ -1,0 +1,24 @@
+import SwiftUI
+
+struct ContentView: View {
+    let config: AppConfig?
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Text("AI家庭教師")
+                .font(.largeTitle.bold())
+            if let config {
+                Label("接続先: \(config.workerBaseURL.absoluteString)", systemImage: "network")
+                    .foregroundStyle(.secondary)
+            } else {
+                Label("Secrets.xcconfig が未設定です", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+            }
+        }
+        .padding()
+    }
+}
+
+#Preview {
+    ContentView(config: AppConfig(workerBaseURL: URL(string: "http://localhost:8787")!, familyToken: "preview"))
+}
