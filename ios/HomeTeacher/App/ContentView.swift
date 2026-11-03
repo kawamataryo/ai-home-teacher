@@ -16,6 +16,7 @@ struct ContentView: View {
                         .foregroundStyle(.orange)
                 }
                 NavigationLink("集中・休憩タイマー（確認用）") { FocusTimerPreviewScreen() }
+                NavigationLink("先生ギャラリー（デバッグ）") { AvatarGalleryView() }
             }
             .padding()
         }

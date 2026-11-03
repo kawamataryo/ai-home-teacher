@@ -96,7 +96,9 @@
 ### ③ ボクセルの先生アバター
 
 - オリジナルのボクセル風3Dキャラ（既存ゲームのキャラや見た目は真似しない）。大学生くらいのお兄さん先生、やさしいくだけた口調。名前・見た目・声はひとまず決め打ちで、後で子どもと調整する
-- モデルは Blender（Blender MCP）で作り、USDZ に書き出して RealityKit で表示する
+- モデルは Blender のスクリプト（`avatar/build_teacher.py`、`Blender -b --python` で実行）で箱を組み立てて作り、USDZ（`ios/HomeTeacher/Resources/Teacher/teacher.usdz`）に書き出して RealityKit で表示する。パーツ（頭・胴体・腕・脚・目・口・メガネ）は別々のオブジェクトで、原点は関節に置く
+- **動き**：うなずき・首かしげ・伸びなどのアニメーションは USD に焼き込まず、RealityKit でパーツの transform を動かして作る（状態の切り替えや組み合わせがしやすく、USD のアニメーション書き出しに頼らないため）
+- **顔**：目と口は顔の前の板に貼ったテクスチャ（`face_eyes_*.png` / `face_mouth_*.png`）で、実行時に差し替える。目は開き・閉じ（まばたき）・にっこりの 3 種類
 - **口パク**：顔のテクスチャを口の形（あ・い・う・え・お・ん・閉じ）で差し替える。ElevenLabs の文字タイミングを母音に変換して切り替える。タイミングが取れない TTS では音量で口の開閉だけ行う
 - **状態**：`idle`（まばたき・小さな揺れ）/ `listening`（うなずき）/ `thinking`（首をかしげる）/ `looking`（ノートを見る目線）/ `talking` / `praise`（喜ぶ）/ `encourage`（応援）/ `break`（伸び）
 - 状態は ConversationController のイベントで切り替える。褒める・励ますは Claude の応答に付く感情タグ（`emotion`）で決める
