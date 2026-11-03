@@ -19,6 +19,8 @@
     }
   ]
   // secret（値はリポジトリに入れない）:
-  //   ANTHROPIC_API_KEY, ELEVENLABS_API_KEY, TYPESAFE_API_KEY, FAMILY_TOKEN
+  //   ANTHROPIC_API_KEY, ELEVENLABS_API_KEY, TYPESAFE_API_KEY, FAMILY_TOKEN,
+  //   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SESSION_SECRET, PARENT_EMAILS（公開リポジトリなので vars に書かない）
+  //   DEV_AUTH_BYPASS はローカルの .dev.vars 専用。ここにも本番の secret にも入れない
   //   本番は `wrangler secret put <NAME>`、ローカルは .dev.vars
 }

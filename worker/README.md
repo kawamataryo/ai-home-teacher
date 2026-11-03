@@ -1,6 +1,6 @@
-# Worker（中継 API ＋ 同期 API）
+# Worker（中継 API ＋ 同期 API ＋ 親のダッシュボード）
 
-iPad アプリの API キーを守るための Cloudflare Worker。アプリは家族トークンでこの Worker を呼び、Worker が各 API に中継する。セッションの要約と記憶は D1 に保存する（文字の情報だけ。写真・音声は保存しない）。
+iPad アプリの API キーを守るための Cloudflare Worker。アプリは家族トークンでこの Worker を呼び、Worker が各 API に中継する。セッションの要約と記憶は D1 に保存する（文字の情報だけ。写真・音声は保存しない）。親は `/dashboard` で学習のようすを見て、家族トークンを発行できる。
 
 | エンドポイント | 中継先 | 内容 |
 | --- | --- | --- |
@@ -11,7 +11,10 @@ iPad アプリの API キーを守るための Cloudflare Worker。アプリは�
 | `GET /v1/sessions` | D1 | セッション一覧 |
 | `GET /v1/memory` / `PUT /v1/memory` | D1 | 記憶の一覧 / カテゴリごとの入れ替え |
 
-すべてのリクエストに `Authorization: Bearer <家族トークン>` が必要（ない、または違うと 401）。データはトークンに対応する家族の分だけ読み書きできる。いまは secret の `FAMILY_TOKEN` が、マイグレーションで作る家族 `default`（子ども `default`）に対応する。
+`/v1/*` には `Authorization: Bearer <家族トークン>` が必要（ない、または違うと 401）。データはトークンに対応する家族の分だけ読み書きできる。家族トークンは次のどちらか。
+
+- ダッシュボードで発行したトークン（`ht_...`）。D1 には SHA-256 のハッシュだけを保存し、再発行すると古いものは使えなくなる
+- secret の `FAMILY_TOKEN`（最初の 1 台をつなぐための予備）。マイグレーションで作る家族 `default`（子ども `default`）に対応する
 
 ## 同期 API
 
@@ -104,6 +107,36 @@ iPad アプリの API キーを守るための Cloudflare Worker。アプリは�
 
 そのカテゴリの記憶を `items` で丸ごと入れ替える（`items: []` で全部消す。100 件・各 500 文字まで）。`child_id` は省略可。レスポンスは入れ替えたカテゴリの `{ "memories": [...] }`。
 
+## 親のダッシュボード（`/dashboard`）
+
+- Google ログイン（OAuth 2.0 Authorization Code ＋ PKCE）。id_token の `iss` / `aud` / `exp` / `nonce` / `email_verified` を確かめ、`PARENT_EMAILS` にあるメールだけ通す
+- ログイン後は `SESSION_SECRET` で署名した Cookie（HttpOnly・Secure・SameSite=Lax、7 日）。許可リストから外すとすぐ見られなくなる
+- 表示: 要確認メモ、日ごとの学習時間（直近 14 日、JST、インライン SVG）、セッションごとの要約・つまずいたところ・自力で解けたところ・先生のひとこと
+- 家族トークンの発行・再発行（表示は発行した直後の 1 回だけ）。フォームの POST は同じオリジンからだけ受け付ける
+
+スマホ幅の画面: [`docs/screenshots/dashboard-mobile.png`](../docs/screenshots/dashboard-mobile.png)（全体は `dashboard-mobile-full.png`）
+
+### Google OAuth クライアントの作り方
+
+1. [Google Cloud Console](https://console.cloud.google.com/) でプロジェクトを作る（既存のものでもよい）
+2. 「Google Auth Platform」→「Branding」でアプリ名とサポートメールを入れる。「Audience」はテスト中なら「External ＋ Testing」にして、テストユーザーに親のメールを追加する
+3. 「Clients」→「Create client」→ 種類は「Web application」
+4. 「Authorized redirect URIs」に次を追加する
+   - 本番: `https://<worker 名>.<アカウントのサブドメイン>.workers.dev/dashboard/auth/callback`（カスタムドメインならそのドメイン）
+   - ローカル: `http://localhost:8787/dashboard/auth/callback`
+5. 表示されたクライアント ID とシークレットを `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` にする。スコープは `openid email` だけを使う
+
+### ローカルで画面だけ確かめる
+
+```sh
+npx wrangler d1 migrations apply DB --local
+npx wrangler d1 execute DB --local --file seed/sample.sql   # サンプルデータ
+echo 'DEV_AUTH_BYPASS=1' >> .dev.vars                       # localhost だけログインを省く
+npm run dev                                                 # http://localhost:8787/dashboard
+```
+
+`DEV_AUTH_BYPASS` は `.dev.vars` にだけ書く。値が `1` でも、ホストが `localhost` / `127.0.0.1` 以外ならログインを省かない。
+
 ## セットアップ
 
 ```sh
@@ -137,6 +170,10 @@ npx wrangler secret put ANTHROPIC_API_KEY
 npx wrangler secret put ELEVENLABS_API_KEY
 npx wrangler secret put TYPESAFE_API_KEY
 npx wrangler secret put FAMILY_TOKEN
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+npx wrangler secret put SESSION_SECRET   # openssl rand -base64 32 などで作る
+npx wrangler secret put PARENT_EMAILS    # 例: mama@example.com,papa@example.com
 npm run deploy
 ```
 
@@ -148,6 +185,7 @@ npm run typecheck  # tsc --noEmit
 ```
 
 - 中継 API（`test/index.test.ts`）: fetch をモックして中継先の URL・ヘッダー・ストリームを確認
+- ダッシュボード（`test/dashboard.test.ts`）: Google のトークンエンドポイントを fetch のモックにして、コールバック・許可リスト・id_token の検証・家族トークンの発行と認証・画面の中身を確認
 - 同期 API（`test/sync.test.ts`）: wrangler の `getPlatformProxy` で本物のローカル D1（Miniflare / workerd）を起動し、`migrations/*.sql` をそのまま流してから API を叩く。`@cloudflare/vitest-pool-workers` は vitest 5 に未対応のため使っていない
 
 ## 動作確認の例

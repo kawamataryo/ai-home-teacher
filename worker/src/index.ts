@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { resolveFamily } from "./auth";
+import { dashboard } from "./dashboard";
 import type { AppEnv } from "./env";
 import { sync } from "./sync";
 import {
@@ -23,6 +24,7 @@ app.use("/v1/*", async (c, next) => {
 });
 
 app.route("/v1", sync);
+app.route("/dashboard", dashboard);
 
 app.post("/v1/claude", async (c) => {
   const body = await readJson(c.req.raw);
