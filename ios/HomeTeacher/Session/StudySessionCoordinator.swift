@@ -776,6 +776,29 @@ final class StudySessionCoordinator {
         if traceLines.count > 200 { traceLines.removeFirst(traceLines.count - 200) }
         onTrace?(message)
     }
+
+    // MARK: - 音声の中断（#75。AudioSessionMonitor が呼ぶ）
+
+    /// 中断から戻ったときのひと言
+    static let welcomeBackLine = "おかえり！続きやろっか"
+
+    /// 電話・Siri などで音声が中断された。作りかけの返事と聞きかけの発話を捨て、タイマーを止める
+    func pauseForAudioInterruption() async {
+        guard phase == .active else { return }
+        trace("音声が中断された（タイマーを止める）")
+        timer?.pause()
+        // 先に会話を待機に戻す（声を止めたあとで、残りの文に進まないように）
+        controller?.stop()
+        if await dropInFlightReply() == false { deps.voice.stop() }
+    }
+
+    /// 中断から戻った（マイクと先生の声は作り直してある）。タイマーを動かし、声をかける
+    func resumeAfterAudioInterruption() async {
+        guard phase == .active else { return }
+        trace("音声の中断から戻った")
+        timer?.resume()
+        await controller?.speak(Self.welcomeBackLine)
+    }
 }
 
 /// いま一緒に取り組んでいる問題

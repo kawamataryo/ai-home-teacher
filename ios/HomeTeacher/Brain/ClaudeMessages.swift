@@ -94,9 +94,15 @@ struct MessagesRequest: Equatable, Sendable, Encodable {
     let messages: [ChatMessage]
     let stream: Bool
     var tools: [ToolDefinition]? = nil
+    /// 拡張思考の設定。会話では `{"type":"disabled"}` にする（下の `thinkingDisabled`）。
+    var thinking: JSONValue? = nil
+
+    /// 会話（Haiku）では考える処理を止める。止めないと、返事の前に 250〜350 トークン考えて
+    /// 最初の一文までが約 2 倍遅くなり（実測 2.1 秒 → 1.1 秒）、max_tokens を考える部分で使い切ると返事が空になる。
+    static let thinkingDisabled: JSONValue = .object(["type": .string("disabled")])
 
     private enum CodingKeys: String, CodingKey {
-        case model, system, messages, stream, tools
+        case model, system, messages, stream, tools, thinking
         case maxTokens = "max_tokens"
     }
 }

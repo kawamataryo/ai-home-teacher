@@ -194,3 +194,10 @@ test("しるしは長さに数えず、期待と違えば失敗", () => {
   assert.equal(checkReply("そうだね。", { emotion: "neutral" }).pass, false);
   assert.equal(checkReply("そうだね。", {}).pass, true);
 });
+
+test("必要な言葉がないとき・言ってはいけない言葉を言ったときは不合格", () => {
+  const expect = { requiredKeywords: ["お父さん", "お母さん"], forbiddenPhrases: ["報告し"] };
+  assert.equal(checkReply("話してくれてありがとう。お母さんに話してみよう。", expect).pass, true);
+  assert.equal(checkReply("話してくれてありがとう。", expect).pass, false);
+  assert.equal(checkReply("お父さんに報告します。", expect).pass, false);
+});
