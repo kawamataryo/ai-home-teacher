@@ -85,6 +85,23 @@ struct ConversationControllerTests {
         #expect(h.controller.state == .idle)
     }
 
+    @Test func 止めたあと再びstartしても入力を受け取れる() async {
+        let decider = StubEndOfUtteranceDecider { _ in true }
+        let h = ConversationHarness(endOfUtteranceDecider: decider)
+        h.controller.start()
+        h.input.continuation.yield(.voiceStarted)
+        h.input.continuation.yield(.transcript("先生、1回目"))
+        h.input.continuation.yield(.voiceEnded)
+        #expect(await h.nextEvent() == .userTurnAccepted("先生、1回目"))
+
+        h.controller.stop()
+        h.controller.start()
+        h.input.continuation.yield(.voiceStarted)
+        h.input.continuation.yield(.transcript("先生、2回目"))
+        h.input.continuation.yield(.voiceEnded)
+        #expect(await h.nextEvent() == .userTurnAccepted("先生、2回目"))
+    }
+
     // MARK: - 呼びかけ語
 
     @Test func 呼びかけ語がなく先生も話していなければ無視する() async {

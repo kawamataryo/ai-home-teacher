@@ -11,6 +11,9 @@ import Observation
 ///   （`muteWhileSpeaking` モードでは発話中の入力を捨てる）
 ///
 /// 音声の入出力と時計はプロトコルで受け取るので、ここには AVFoundation は出てこない。
+///
+/// `.bargeIn` を受け取った側は、作りかけの応答（Claude のストリーム）を必ず捨てること。
+/// 捨てずに次のターンの考え中に `speak` すると、古い応答が新しい発話への返事として話されてしまう。
 @MainActor
 @Observable
 final class ConversationController {
@@ -28,6 +31,7 @@ final class ConversationController {
     @ObservationIgnored private let endOfUtteranceDecider: (any EndOfUtteranceDecider)?
 
     @ObservationIgnored private var inputTask: Task<Void, Never>?
+    @ObservationIgnored private var isActive = false
     @ObservationIgnored private var utterance: Utterance?
     @ObservationIgnored private var nextUtteranceID = 0
     @ObservationIgnored private var silenceTimer: (any ScheduledAction)?
@@ -66,21 +70,23 @@ final class ConversationController {
 
     // MARK: - セッション
 
-    /// 入力の購読を始める（学習セッションの開始）
+    /// 入力を受け付け始める（学習セッションの開始）
     func start() {
+        isActive = true
         guard inputTask == nil else { return }
+        // ストリームは購読をキャンセルすると終わってしまうので、一度だけ購読して isActive で受け付けを切り替える
         let stream = input.events
         inputTask = Task { [weak self] in
             for await event in stream {
-                self?.handle(event)
+                guard let self else { return }
+                if self.isActive { self.handle(event) }
             }
         }
     }
 
-    /// 入力の購読をやめて待機に戻る（学習セッションの終了）
+    /// 入力を受け付けるのをやめて待機に戻る（学習セッションの終了）
     func stop() {
-        inputTask?.cancel()
-        inputTask = nil
+        isActive = false
         resetUtterance()
         speechID += 1
         transition(to: .idle)
