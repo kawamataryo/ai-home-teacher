@@ -84,6 +84,17 @@ struct PromptLibraryTests {
         #expect(last.hasSuffix("- 正答: 48冊"))
     }
 
+    @Test func キャッシュの区切りは先生のメモの手前() throws {
+        let library = PromptLibrary()
+        let withoutNote = try library.conversationSystemPrompt(previousSession: "## 前回の勉強（昨日）")
+        let prompt = try library.conversationSystemPrompt(teacherNote: "- 正答: 48冊", previousSession: "## 前回の勉強（昨日）")
+        let (head, tail) = PromptLibrary.splitAtTeacherNote(prompt)
+        // メモの前（前回のことまで）は、メモがないときと同じ文になる
+        #expect(head == withoutNote)
+        #expect(tail == PromptLibrary.separator + PromptLibrary.teacherNoteSection("- 正答: 48冊"))
+        #expect(PromptLibrary.splitAtTeacherNote(withoutNote) == (withoutNote, nil))
+    }
+
     @Test func 空の先生のメモは足さない() throws {
         let library = PromptLibrary()
         #expect(try library.conversationSystemPrompt(teacherNote: "  \n") == library.conversationSystemPrompt())
