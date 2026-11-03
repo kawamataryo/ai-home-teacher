@@ -398,7 +398,7 @@ final class StudySessionCoordinator {
         do {
             let finished = try await reflector.finish(input, store: deps.store, now: deps.now())
             closing = finished.spokenClosing
-            trace("ふり返りを保存した（Claude: \(finished.usedClaude ? "使えた" : "使えず決まり文句")）")
+            trace("ふり返りを保存した（Claude: \(finished.usedClaude ? "使えた" : "使えず決まり文句")）\(finished.reflectionError.map { " 理由: \($0)" } ?? "")")
         } catch {
             closing = SessionReflector.fallback(for: input).spokenClosing
             trace("セッションを保存できなかった: \(error)")

@@ -78,8 +78,8 @@ struct SessionReflectorTests {
         #expect(json["stream"] as? Bool == false)
         #expect(json["max_tokens"] as? Int == 2000)
         let choice = try #require(json["tool_choice"] as? [String: Any])
-        #expect(choice["type"] as? String == "tool")
-        #expect(choice["name"] as? String == "record_reflection")
+        // いまのモデルはツールの強制（type: tool / any）を受け付けないので auto
+        #expect(choice["type"] as? String == "auto")
 
         let tools = try #require(json["tools"] as? [[String: Any]])
         #expect(tools.count == 1)
