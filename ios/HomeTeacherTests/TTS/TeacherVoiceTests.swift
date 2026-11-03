@@ -186,9 +186,13 @@ struct TeacherVoiceTests {
         )
         let voice = voice(primary: MockTTSProvider(), cache: cache)
         var started: [String] = []
-        voice.onPlaybackStart = { started.append($0) }
+        var providers: [String] = []
+        voice.onPlaybackStart = { text, provider in
+            started.append(text)
+            providers.append(provider)
+        }
 
-        // キャッシュの定型句も、合成した文も、再生が終わる前に知らせる
+        // キャッシュの定型句も、合成した文も、再生が終わる前に知らせる（音声を作った TTS も）
         let first = Task { await voice.say("いいね！") }
         await player.waitUntilPlaying()
         #expect(started == ["いいね！"])
@@ -197,6 +201,7 @@ struct TeacherVoiceTests {
         let second = Task { await voice.say("つぎの文") }
         await player.waitUntilPlaying(count: 2)
         #expect(started == ["いいね！", "つぎの文"])
+        #expect(providers == ["elevenlabs", "mock"])
         player.finish()
         _ = await second.value
     }
@@ -204,7 +209,7 @@ struct TeacherVoiceTests {
     @Test func 音声を作れなければ話し始めたことにしない() async {
         let voice = voice(primary: MockTTSProvider(behavior: .fail(TTSError.noAudio)))
         var started: [String] = []
-        voice.onPlaybackStart = { started.append($0) }
+        voice.onPlaybackStart = { text, _ in started.append(text) }
         #expect(await voice.say("あ") == .failed)
         #expect(started.isEmpty)
     }

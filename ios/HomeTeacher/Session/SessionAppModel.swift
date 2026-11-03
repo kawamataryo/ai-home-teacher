@@ -159,7 +159,7 @@ final class SessionAppModel: AudioEngineLeaseHolder {
         self.coordinator = coordinator
         audioMonitor?.session = coordinator
         // 話し始めた文と時刻を記録に残す（デモ動画で声を合わせる・遅延の確認）
-        voice.onPlaybackStart = { [weak coordinator] text in coordinator?.trace("話し始めた: \(text)") }
+        voice.onPlaybackStart = { [weak coordinator] text, provider in coordinator?.trace("話し始めた[\(provider)]: \(text)") }
         if let sink = SessionTraceFile.fromLaunchArguments() {
             coordinator.onTrace = { sink.append($0) }
         }
