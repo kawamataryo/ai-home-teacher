@@ -177,4 +177,35 @@ struct TeacherVoiceTests {
         #expect(primary.requests == ["どれどれ"])
         #expect(cache.speech(for: phrase)?.provider == "mock")
     }
+
+    @Test func 鳴らし始めるたびに話す文を知らせる() async {
+        let cache = PhraseCache(phrases: [.init(key: "iine", text: "いいね！")], bundle: .withoutBundledPhrases, directory: nil)
+        cache.store(
+            SynthesizedSpeech(text: "いいね！", provider: "elevenlabs", format: .mp3, audio: Data([9]), alignment: nil),
+            for: .init(key: "iine", text: "いいね！")
+        )
+        let voice = voice(primary: MockTTSProvider(), cache: cache)
+        var started: [String] = []
+        voice.onPlaybackStart = { started.append($0) }
+
+        // キャッシュの定型句も、合成した文も、再生が終わる前に知らせる
+        let first = Task { await voice.say("いいね！") }
+        await player.waitUntilPlaying()
+        #expect(started == ["いいね！"])
+        player.finish()
+        _ = await first.value
+        let second = Task { await voice.say("つぎの文") }
+        await player.waitUntilPlaying(count: 2)
+        #expect(started == ["いいね！", "つぎの文"])
+        player.finish()
+        _ = await second.value
+    }
+
+    @Test func 音声を作れなければ話し始めたことにしない() async {
+        let voice = voice(primary: MockTTSProvider(behavior: .fail(TTSError.noAudio)))
+        var started: [String] = []
+        voice.onPlaybackStart = { started.append($0) }
+        #expect(await voice.say("あ") == .failed)
+        #expect(started.isEmpty)
+    }
 }

@@ -53,6 +53,8 @@ final class TeacherVoice: SpeechOutput {
 
     /// 合成中か再生中
     private(set) var isSpeaking = false
+    /// 文の音声を鳴らし始めるたびに呼ぶ（合成のあと、再生の直前）。記録に話し始めた時刻と文を残すため
+    var onPlaybackStart: ((String) -> Void)?
 
     /// 再生中の文の、いま何文字目まで話したか（Swift の Character 単位）。再生していなければ 0
     var playedCharacterCount: Int {
@@ -102,6 +104,7 @@ final class TeacherVoice: SpeechOutput {
             lipSync.stop()
         }
 
+        onPlaybackStart?(text)
         do {
             try await player.play(speech)
         } catch {
