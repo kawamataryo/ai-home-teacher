@@ -24,6 +24,7 @@
 
 ## ドキュメント
 
+- [セットアップ手順](docs/setup.md)
 - [仕様書](docs/spec.md)
 - [ビジョンと決定事項](docs/vision.md)
 - [技術調査](docs/research-2026-11-03.md)
