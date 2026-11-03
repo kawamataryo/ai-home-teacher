@@ -6,7 +6,7 @@
   "observability": { "enabled": true },
   "vars": {
     // ElevenLabs の既定の声。実際に使う voice ID に置き換える（秘密情報ではない）
-    "ELEVENLABS_VOICE_ID": "REPLACE_WITH_VOICE_ID"
+    "ELEVENLABS_VOICE_ID": "TX3LPaxmHKxFdv7VOQHJ"
   },
   // セッション要約と記憶（文字だけ）。`npx wrangler d1 create ai-home-teacher` の出力の
   // database_id に置き換える（秘密情報ではない）。手順は README.md
