@@ -4,13 +4,14 @@ import SwiftUI
 /// 先生のアバターを RealityKit で表示するビュー。`state` に合わせて動く
 ///
 /// 会話とつなぐときは `AvatarController` にできごと（`AvatarEvent`）を送り、
-/// `AvatarView(state: controller.state)` で表示する。
+/// `AvatarView(state: controller.state, lipSync: player)` で表示する。
+/// 口パクは `LipSyncPlayer` に TTS の再生時刻（または音量）を渡すと動く。
 struct AvatarView: View {
     var state: AvatarState = .idle
-    /// 確認用に口のテクスチャを固定する（nil ならふだんの口）
-    var mouthTextureName: String? = nil
+    var lipSync: LipSyncPlayer? = nil
+    /// 確認用に口の形を固定する（nil なら口パクに任せる）
+    var mouth: MouthShape? = nil
 
-    @State private var model: TeacherModel?
     @State private var animator: AvatarAnimator?
     @State private var updateSubscription: EventSubscription?
     @State private var loadError: String?
@@ -33,21 +34,22 @@ struct AvatarView: View {
                 try await loaded.preloadFaceTextures()
                 let animator = AvatarAnimator(model: loaded)
                 animator.setState(state)
-                loaded.setMouthTexture(named: mouthTextureName ?? "face_mouth_closed")
+                animator.lipSync = lipSync
+                animator.mouthOverride = mouth
                 content.add(animator.rig)
                 updateSubscription = content.subscribe(to: SceneEvents.Update.self) { event in
                     MainActor.assumeIsolated {
                         animator.update(deltaTime: event.deltaTime)
                     }
                 }
-                self.model = loaded
                 self.animator = animator
             } catch {
                 loadError = "\(error)"
             }
         } update: { _ in
             animator?.setState(state)
-            model?.setMouthTexture(named: mouthTextureName ?? "face_mouth_closed")
+            if animator?.lipSync !== lipSync { animator?.lipSync = lipSync }
+            animator?.mouthOverride = mouth
         }
         .overlay {
             if let loadError {
