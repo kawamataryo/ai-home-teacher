@@ -27,7 +27,7 @@ struct AnswerFlowTests {
     }
 
     private func lastSystemPrompt(_ h: SessionHarness) async -> String {
-        await h.conversationRequests().last?["system"] as? String ?? ""
+        systemText(await h.conversationRequests().last) ?? ""
     }
 
     // MARK: - 気持ちのしるし

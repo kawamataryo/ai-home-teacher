@@ -151,7 +151,7 @@ struct HintLadder: Equatable, Sendable {
 }
 
 /// 助けを求める発話（「わからない」「答え教えて」「ヒント」）かどうかを規則で決める。
-/// #31 で Jev の発話の意図（choice）に差し替えられるよう、ここだけに閉じ込める。
+/// 言い方で決まるものはここで先に決め（Jev を待たない）、言い方で拾えないもの（「どうやるの？」など）は Jev の help_request で拾う（AnswerJudge）。
 enum HelpRequestDetector {
     static let phrases = [
         "わからない", "わかんない", "わかんね", "分からない", "分かんない", "解らない",

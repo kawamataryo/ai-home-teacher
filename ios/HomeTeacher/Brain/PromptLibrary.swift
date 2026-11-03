@@ -112,12 +112,22 @@ struct PromptLibrary: Sendable {
         try load(.boardCatalog, variables: variables)
     }
 
+    static let teacherNoteHeading = "# 先生のメモ（子どもには見せない・読み上げない）"
+
     static func teacherNoteSection(_ note: String) -> String {
         """
-        # 先生のメモ（子どもには見せない・読み上げない）
+        \(teacherNoteHeading)
 
         \(note)
         """
+    }
+
+    /// 会話のシステムプロンプトを、先生のメモの手前で分ける（プロンプトキャッシュの区切り）。
+    /// メモはヒントの段階が進むたびに変わるので、その前までをキャッシュすれば、メモが変わっても前の部分は読み込みで済む。
+    /// メモがなければ `tail` は nil。`head + tail` は元の文と同じ。
+    static func splitAtTeacherNote(_ prompt: String) -> (head: String, tail: String?) {
+        guard let range = prompt.range(of: separator + teacherNoteHeading, options: .backwards) else { return (prompt, nil) }
+        return (String(prompt[..<range.lowerBound]), String(prompt[range.lowerBound...]))
     }
 
     static func render(_ template: String, variables: [String: String]) -> String {

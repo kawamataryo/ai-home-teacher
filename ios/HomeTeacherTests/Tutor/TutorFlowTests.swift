@@ -47,7 +47,7 @@ struct TutorFlowTests {
 
         let body = try #require(await haikuTransport.requestBodies().first)
         let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
-        #expect((json["system"] as? String)?.hasSuffix(note) == true)
+        #expect(systemText(json)?.hasSuffix(note) == true)
 
         // 5. 子どもが自分で言えたら、先生は繰り返してほめてよい
         leakGuard.noteChildUtterance("ということは…24平方センチ！")

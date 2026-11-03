@@ -43,6 +43,18 @@ enum DecisionFixture {
         #"{"model":"jev-1.14.0","answers":{"\#(key)":{"type":"noul","noul":\#(p)}},"usage":{"input_tokens":120,"output_tokens":3}}"#
     }
 
+    /// 発話の判断をまとめて聞くキャッシュ
+    @MainActor
+    static func cache(_ transport: any HTTPTransport, timeout: Duration = .milliseconds(800)) -> UtteranceDecisionCache {
+        UtteranceDecisionCache(decisions: decisions(transport, timeout: timeout), timeout: timeout)
+    }
+
+    /// 真偽の答えをいくつも入れたレスポンス
+    static func nouls(_ answers: [String: Double]) -> String {
+        let items = answers.keys.sorted().map { #""\#($0)":{"type":"noul","noul":\#(answers[$0]!)}"# }
+        return #"{"model":"jev-1.14.0","answers":{\#(items.joined(separator: ","))},"usage":{"input_tokens":200,"output_tokens":6}}"#
+    }
+
     static func choice(_ key: String, _ choice: String, probabilities: [String: Double]) -> String {
         let probs = SSEFixture.json(probabilities)
         return #"{"model":"jev-1.14.0","answers":{"\#(key)":{"type":"choice","choice":"\#(choice)","confidence":0.8,"probabilities":\#(probs)}},"usage":{"input_tokens":120,"output_tokens":3}}"#

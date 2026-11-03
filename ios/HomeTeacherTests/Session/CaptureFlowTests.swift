@@ -50,7 +50,7 @@ struct CaptureFlowTests {
 
         // 写真のあとの返事には先生のメモ（正答つき）が入り、撮影を頼んだ発話は履歴に残っている
         let request = try #require(await h.conversationRequests().last)
-        let system = try #require(request["system"] as? String)
+        let system = try #require(systemText(request))
         #expect(system.contains("先生のメモ"))
         #expect(system.contains("正答（子どもに言わない）：24cm²"))
         let texts = (request["messages"] as? [[String: Any]] ?? []).flatMap { ($0["content"] as? [[String: Any]] ?? []).compactMap { $0["text"] as? String } }
@@ -131,7 +131,7 @@ struct CaptureFlowTests {
         await h.say("ねえ先生、わかんない")
         #expect(await eventually { h.voice.spoken.last == "どこに長さが書いてある？" })
         #expect(h.coordinator.tutoring?.ladder.level == 2)
-        let system = try #require(await h.conversationRequests().last?["system"] as? String)
+        let system = try #require(systemText(await h.conversationRequests().last))
         #expect(system.contains("今のヒントの段階：2/4"))
 
         // 自分で答えを言えたら、解けたとしてふり返りに渡す

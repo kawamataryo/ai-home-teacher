@@ -49,7 +49,13 @@ struct TeacherBrainTests {
         let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
         #expect(json["model"] as? String == "claude-haiku-5-5")
         #expect(json["stream"] as? Bool == true)
-        #expect(json["system"] as? String == "SYSTEM")
+        // プロンプトキャッシュ：system の最後（ツール ＋ system）と、最上位の自動キャッシュ（履歴）に印を付ける
+        let system = try #require(json["system"] as? [[String: Any]])
+        #expect(system.count == 1)
+        #expect(system[0]["type"] as? String == "text")
+        #expect(system[0]["text"] as? String == "SYSTEM")
+        #expect((system[0]["cache_control"] as? [String: Any])?["type"] as? String == "ephemeral")
+        #expect((json["cache_control"] as? [String: Any])?["type"] as? String == "ephemeral")
         // 黒板の図（show_board の入力）も返事に入るので、512 では足りない
         #expect(json["max_tokens"] as? Int == 1024)
         #expect((json["thinking"] as? [String: Any])?["type"] as? String == "disabled")
@@ -64,6 +70,21 @@ struct TeacherBrainTests {
         #expect(second[0]["text"] as? String == "うん。")
     }
 
+    @Test func 先生のメモはキャッシュの印より後ろに送る() async throws {
+        let prompt = try PromptLibrary().conversationSystemPrompt(teacherNote: "- 正答: 24")
+        let transport = MockTransport(body: SSEFixture.textStream(["うん。"]))
+        let brain = makeBrain(transport, systemPrompt: prompt)
+        _ = try await collect(await brain.respond(to: "先生"))
+
+        let body = try json(try #require(await transport.requestBodies().first))
+        let blocks = try #require(body["system"] as? [[String: Any]])
+        #expect(blocks.count == 2)
+        #expect(blocks[0]["cache_control"] != nil)
+        #expect(blocks[1]["cache_control"] == nil)
+        #expect((blocks[1]["text"] as? String)?.contains("- 正答: 24") == true)
+        #expect(systemText(body) == prompt)
+    }
+
     @Test func 同梱のプロンプトをシステムプロンプトとして送る() async throws {
         let prompt = try PromptLibrary().conversationSystemPrompt()
         let transport = MockTransport(body: SSEFixture.textStream(["うん。"]))
@@ -72,7 +93,7 @@ struct TeacherBrainTests {
 
         let body = try #require(await transport.requestBodies().first)
         let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
-        let system = try #require(json["system"] as? String)
+        let system = try #require(systemText(json))
         #expect(system.contains("ハル先生"))
         #expect(!system.contains("{{"))
     }
