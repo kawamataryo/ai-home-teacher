@@ -23,7 +23,7 @@ struct ProblemAnalyzerTests {
 
     static let thinkingInput = #"""
         {"kind":"thinking","problem_summary":"たて4cm、横6cmの長方形の面積を求める","answer":"24cm²",
-         "answer_variants":["24平方センチメートル","二十四"],"solution":"たて×横で4×6=24",
+         "answer_variants":["24平方センチメートル","二十四"],"analysis":"たて×横で4×6=24",
          "hint_steps":["何を求める問題かな？","長さが書いてあるところはどこ？","面積はどうやって求めたっけ？","4×6を一緒に計算しよう。ということは？"],
          "essay_guidance":""}
         """#
@@ -113,9 +113,17 @@ struct ProblemAnalyzerTests {
         let schema = AnalysisTool.inputSchema
         #expect(strictViolations(schema, path: "$").isEmpty, "\(strictViolations(schema, path: "$"))")
         let properties = try #require(schema["properties"]?.testObject)
-        #expect(Set(properties.keys) == ["kind", "problem_summary", "answer", "answer_variants", "solution", "hint_steps", "essay_guidance"])
+        #expect(Set(properties.keys) == ["kind", "problem_summary", "answer", "answer_variants", "analysis", "hint_steps", "essay_guidance"])
         #expect(properties["kind"]?["enum"] == .array([.string("reading"), .string("thinking"), .string("writing")]))
         #expect(AnalysisTool.definition["strict"] == .bool(true))
+    }
+
+    @Test func 送るスキーマでは解き方が正答より先に並ぶ() throws {
+        // 強制した tool_choice では前置きを書けないので、先に解き方を書かせたい
+        let encoded = AnalysisTool.definition.jsonString
+        let analysis = try #require(encoded.range(of: #""analysis":"#))
+        let answer = try #require(encoded.range(of: #""answer":"#))
+        #expect(analysis.lowerBound < answer.lowerBound)
     }
 
     /// 全オブジェクトに additionalProperties: false と、全キーの required があるか。strict 非対応の制約がないか。
@@ -158,7 +166,7 @@ struct ProblemAnalyzerTests {
 
     @Test func ヒントの数を段階の数に揃える() throws {
         let short = try AnalysisTool.decode(try JSONDecoder().decode(JSONValue.self, from: Data(#"""
-            {"kind":"reading","problem_summary":"s","answer":" イ ","answer_variants":["", "い"],"solution":"",
+            {"kind":"reading","problem_summary":"s","answer":" イ ","answer_variants":["", "い"],"analysis":"",
              "hint_steps":["1段目","  "],"essay_guidance":""}
             """#.utf8)))
         #expect(short.hintSteps.count == 4)
@@ -175,7 +183,7 @@ struct ProblemAnalyzerTests {
     @Test func 作文の分析をデコードする() throws {
         let data = Self.response(blocks: [Self.toolUse("report_analysis", #"""
             {"kind":"writing","problem_summary":"「わたしの宝物」という題で400字の作文を書く","answer":"","answer_variants":[],
-             "solution":"","hint_steps":["宝物を3つ思いうかべよう","はじめ・なか・おわりを決めよう","具体的な場面があるか見る"],
+             "analysis":"","hint_steps":["宝物を3つ思いうかべよう","はじめ・なか・おわりを決めよう","具体的な場面があるか見る"],
              "essay_guidance":"400字・3段落。宝物にまつわる思い出を1つにしぼる"}
             """#)])
         let result = try ProblemAnalyzer.decodeResponse(Data(data.utf8))

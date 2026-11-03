@@ -32,12 +32,18 @@ struct ProblemAnalysis: Codable, Equatable, Sendable {
     var answer: String
     /// 正答の言いかえ（例: 0.75、4分の3、75%）。読み上げの検査（AnswerLeakGuard）に使う
     var answerVariants: [String]
-    /// 解き方の説明。先生がヒントを考える材料で、読み上げない
+    /// 解き方の説明（ツールの入力では `analysis`）。先生がヒントを考える材料で、読み上げない
     var solution: String
     /// ヒントの段階ごとの中身。段階の順に並ぶ（reading / thinking は4つ、writing は3つ）
     var hintSteps: [String]
     /// 作文の進め方の目安（題・条件・書けそうな題材）。作文以外は空文字
     var essayGuidance: String
+
+    /// JSON（snake_case を変換したあと）のキー。解き方だけは `analysis` で受け取る（AnalysisTool.inputSchema）。
+    private enum CodingKeys: String, CodingKey {
+        case kind, problemSummary, answer, answerVariants, hintSteps, essayGuidance
+        case solution = "analysis"
+    }
 
     init(
         kind: ProblemKind,
@@ -97,7 +103,9 @@ enum AnalysisTool {
                 Schema.string("正答の別の書き方"),
                 description: "正答の言いかえ（例：0.75、4分の3、75%、二十四）。無ければ空の配列"
             )),
-            ("solution", Schema.string("解き方の説明（先生用）。作文は空文字")),
+            // キー順を固定した JSON で送るので、properties はアルファベット順に並ぶ。
+            // 強制した tool_choice では前置きの文を書けないため、解き方（analysis）が answer より先に来る名前にして、先に考えさせる
+            ("analysis", Schema.string("解き方（先生用）。answer を書く前に、ここで問題を最後まで解いて確かめる。作文は空文字")),
             ("hint_steps", Schema.array(
                 Schema.string("その段階で子どもにかける問いかけ。正答は書かない"),
                 description: """
