@@ -33,3 +33,10 @@
 - 並行開発で同名の型（JSONValue, ProblemKind, MemoryCategory）が衝突した → `ios/HomeTeacher/Shared/` に一本化
 - API キーがないため、Claude / ElevenLabs / Jev / Google ログインの実通信はすべて未検証。評価スクリプト（`evals/run.mjs`）も未実行
 - 各モジュールは単体で完成しているが、学習セッション画面へのつなぎ込み（#14）はまだ。つなぎ込みと実機確認が次の山場
+
+## 2026-11-03 つなぎ込み（#14 → #13 → #15 を積み上げ PR で）
+
+- [x] #14 学習セッション画面（SpeechInput の本番実装・StudySessionCoordinator・画面・-autoSession の自己テスト）
+- [ ] #13 割り込みで履歴を切り詰める・設定画面
+- [ ] #15 カメラ撮影と「見て」→ 分析 → ヒント → 黒板
+- [ ] 実機確認（各 issue のチェックリスト）
