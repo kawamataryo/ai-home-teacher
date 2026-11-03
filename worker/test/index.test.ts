@@ -7,6 +7,11 @@ const env: Env = {
   TYPESAFE_API_KEY: "test-typesafe",
   FAMILY_TOKEN: "family-secret",
   ELEVENLABS_VOICE_ID: "default-voice",
+  // 中継のテストでは D1 を使わない（同期 API は sync.test.ts で本物のローカル D1 を使う）。
+  // 発行済みトークンの照合は常に「見つからない」にする
+  DB: {
+    prepare: () => ({ bind: () => ({ first: async () => null }) }),
+  } as unknown as D1Database,
 };
 
 const AUTH = { Authorization: "Bearer family-secret" };
