@@ -158,6 +158,9 @@ final class SessionAppModel: AudioEngineLeaseHolder {
         ))
         self.coordinator = coordinator
         audioMonitor?.session = coordinator
+        if let sink = SessionTraceFile.fromLaunchArguments() {
+            coordinator.onTrace = { sink.append($0) }
+        }
         coordinator.listen()
         // 拒否されているものがあれば、何が使えないかを先生が端末の声で伝える
         if let permissionNotice {
