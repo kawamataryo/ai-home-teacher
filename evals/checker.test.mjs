@@ -32,7 +32,7 @@ test("問いかけは全角・半角の？で判定する", () => {
 test("答えを言わずにヒントと問いかけがあれば合格", () => {
   const expect = { forbidden: ["48"], requireQuestion: true, hintKeywords: ["前の月", "比べ"], maxChars: 200 };
   const good = checkReply("答えはまだ言わないよ。前の月と比べると、どこがいちばん増えてる？", expect);
-  assert.deepEqual(good, { pass: true, failures: [] });
+  assert.deepEqual(good, { pass: true, failures: [], warnings: [] });
 });
 
 test("答えを言ったら不合格", () => {
@@ -41,7 +41,7 @@ test("答えを言ったら不合格", () => {
   assert.match(result.failures[0], /答えを言っている: 48/);
 });
 
-test("問いかけ・ヒント・長さの不足をそれぞれ報告する", () => {
+test("問いかけ・長さの不足は不合格、ヒントの言葉の不足は注意にする", () => {
   const result = checkReply("がんばろう。".repeat(50), {
     forbidden: [],
     requireQuestion: true,
@@ -49,7 +49,14 @@ test("問いかけ・ヒント・長さの不足をそれぞれ報告する", ()
     maxChars: 200,
   });
   assert.equal(result.pass, false);
-  assert.equal(result.failures.length, 3);
+  assert.equal(result.failures.length, 2);
+  assert.equal(result.warnings.length, 1);
+});
+
+test("ヒントの言葉がなくても、答えを言わず問いかけていれば合格", () => {
+  const result = checkReply("まず、何を聞かれているか言えるかな？", { forbidden: ["48"], requireQuestion: true, hintKeywords: ["表"] });
+  assert.equal(result.pass, true);
+  assert.equal(result.warnings.length, 1);
 });
 
 test("ケースはすべて読み込めて、必要な項目がある", () => {

@@ -120,13 +120,23 @@ struct SessionReflector: Sendable {
 
     /// Claude にふり返りを作ってもらう。
     func reflect(_ input: SessionReflectionInput, memories: [MemoryRecord]) async throws -> SessionReflection {
-        let data = try await client.postJSON(path: Self.claudePath, body: try makeRequest(input, memories: memories))
-        return try Self.parseResponse(data)
+        let body = try makeRequest(input, memories: memories)
+        // tool_choice は auto なので、record_reflection を呼ばないことがある。そのときは1回だけやり直す
+        for attempt in 1...2 {
+            let data = try await client.postJSON(path: Self.claudePath, body: body)
+            do {
+                return try Self.parseResponse(data)
+            } catch SessionReflectorError.noReflection(let reason) where attempt == 1 && reason != "max_tokens" {
+                continue
+            }
+        }
+        throw SessionReflectorError.noReflection(stopReason: nil)
     }
 
     // MARK: - リクエスト
 
-    /// `POST /v1/claude` の本文。tool_choice で record_reflection を必ず呼ばせる。
+    /// `POST /v1/claude` の本文。tool_choice は `auto`（いまのモデルはツールの強制を受け付けない）。
+    /// record_reflection を必ず呼ぶよう、ユーザーメッセージの最後で指示する。
     struct Request: Encodable, Sendable {
         let model: ClaudeModel
         let maxTokens: Int
@@ -150,7 +160,7 @@ struct SessionReflector: Sendable {
             system: try systemPrompt(),
             messages: [ChatMessage(role: .user, content: [.text(userMessage(input, memories: memories))])],
             tools: [Self.tool],
-            toolChoice: .object(["type": .string("tool"), "name": .string(Self.toolName)]),
+            toolChoice: .object(["type": .string("auto")]),
             stream: false
         )
     }
@@ -188,6 +198,7 @@ struct SessionReflector: Sendable {
         }
 
         lines += ["", "# 会話", "", Self.transcriptText(input.transcript, limit: Self.maxTranscriptCharacters)]
+        lines += ["", "必ず \(Self.toolName) ツールを呼んで、ふり返りを記録してください（文章だけで答えないこと）。"]
         return lines.joined(separator: "\n")
     }
 

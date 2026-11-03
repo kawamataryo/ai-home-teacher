@@ -90,7 +90,7 @@ struct ProblemAnalyzer: Sendable {
             これまでの会話：
             \(talk.isEmpty ? "（なし）" : talk)
 
-            この写真の問題を分析して、report_analysis で報告してください。
+            この写真の問題を分析して、必ず report_analysis ツールを呼んで報告してください（文章だけで答えないこと）。
             """
         var tools = [AnalysisTool.definition]
         if includeBoardTools { tools += BoardTools.all }
@@ -123,8 +123,16 @@ struct ProblemAnalyzer: Sendable {
     /// 写真（長辺 2048px の JPEG）と会話から問題を分析する。
     func analyze(jpegData: Data, conversation: [ChatMessage] = [], imageID: String = "photo_1") async throws -> AnalysisResult {
         let body = try makeRequestBody(jpegData: jpegData, conversation: conversation, imageID: imageID)
-        let data = try await client.postJSON(path: Self.claudePath, body: body.jsonData())
-        return try Self.decodeResponse(data)
+        // tool_choice は auto なので、report_analysis を呼ばずに文章で答えることがある。そのときは1回だけやり直す
+        for attempt in 1...2 {
+            let data = try await client.postJSON(path: Self.claudePath, body: body.jsonData())
+            do {
+                return try Self.decodeResponse(data)
+            } catch ProblemAnalyzerError.missingAnalysis where attempt == 1 {
+                continue
+            }
+        }
+        throw ProblemAnalyzerError.missingAnalysis
     }
 
     private struct Response: Decodable {
