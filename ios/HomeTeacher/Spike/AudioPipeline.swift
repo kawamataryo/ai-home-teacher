@@ -17,6 +17,13 @@ final class AudioPipeline: @unchecked Sendable {
 
     private(set) var voiceProcessingEnabled = false
 
+    enum PipelineError: LocalizedError {
+        /// 中断の直後などで、入力の形式（チャンネル数・サンプルレート）が 0 になっている
+        case inputUnavailable
+
+        var errorDescription: String? { "マイクの入力がまだ使えません" }
+    }
+
     func configureSession() throws {
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP])
@@ -41,6 +48,8 @@ final class AudioPipeline: @unchecked Sendable {
 
         // voice processing を切り替えると入力フォーマットが変わるので、ここで取り直す
         let format = input.outputFormat(forBus: 0)
+        // 0 チャンネル・0 Hz の形式で installTap すると Objective-C の例外で落ちる（Swift では捕まえられない）ので、先に弾く
+        guard format.channelCount > 0, format.sampleRate > 0 else { throw PipelineError.inputUnavailable }
         input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             guard let self else { return }
             let (handler, level) = self.lock.withLock { (self.onBuffer, self.onLevel) }
