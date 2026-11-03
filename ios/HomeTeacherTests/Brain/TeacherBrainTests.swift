@@ -51,6 +51,7 @@ struct TeacherBrainTests {
         #expect(json["stream"] as? Bool == true)
         #expect(json["system"] as? String == "SYSTEM")
         #expect(json["max_tokens"] as? Int == 512)
+        #expect((json["thinking"] as? [String: Any])?["type"] as? String == "disabled")
         #expect(json["tools"] == nil)
 
         let messages = try #require(json["messages"] as? [[String: Any]])

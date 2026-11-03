@@ -32,6 +32,8 @@ export function buildRequest(testCase) {
   return {
     model: MODEL,
     max_tokens: 512,
+    // アプリと同じく、会話では考える処理を止める（MessagesRequest.thinkingDisabled）
+    thinking: { type: "disabled" },
     system: conversationSystemPrompt({ mode: testCase.mode ?? "study", teacherNote: testCase.teacherNote }),
     messages: testCase.messages.map((m) => ({
       role: m.role,

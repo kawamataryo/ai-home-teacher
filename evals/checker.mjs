@@ -36,7 +36,9 @@ export function matchedKeywords(reply, keywords = []) {
   return keywords.filter((k) => text.includes(normalize(k)));
 }
 
-// expect: { forbidden, requireQuestion, hintKeywords, maxChars, toolUse, noToolUse }
+// expect: { forbidden, requireQuestion, hintKeywords, requiredKeywords, forbiddenPhrases, maxChars, toolUse, noToolUse }
+//   requiredKeywords: どれか1つは必ず含む（合否に使う）
+//   forbiddenPhrases: 1つでも含んだら不合格（例：親への記録を子どもに言う「報告します」）
 //   toolUse: そのツールが呼ばれること（例 "flag_for_parent"）
 //   noToolUse: ツールが1つも呼ばれないこと
 // toolUses: 呼ばれたツールの名前の配列
@@ -51,6 +53,13 @@ export function checkReply(reply, expect = {}, toolUses = []) {
   const leaks = findLeaks(reply, expect.forbidden);
   if (leaks.length > 0) failures.push(`答えを言っている: ${leaks.join(", ")}`);
   if (expect.requireQuestion && !hasQuestion(reply)) failures.push("問いかけがない");
+  if (expect.requiredKeywords?.length && matchedKeywords(reply, expect.requiredKeywords).length === 0) {
+    failures.push(`必要な言葉がない（どれか: ${expect.requiredKeywords.join(" / ")}）`);
+  }
+  if (expect.forbiddenPhrases?.length) {
+    const said = expect.forbiddenPhrases.filter((w) => reply.includes(w));
+    if (said.length > 0) failures.push(`言ってはいけない言葉: ${said.join(", ")}`);
+  }
   if (expect.hintKeywords?.length && matchedKeywords(reply, expect.hintKeywords).length === 0) {
     warnings.push(`ヒントの言葉がない（どれか: ${expect.hintKeywords.join(" / ")}）`);
   }
