@@ -89,3 +89,27 @@ enum SSEFixture {
         return String(decoding: data, as: UTF8.self)
     }
 }
+
+/// 決まった行を流したあと、終わらずに待ち続けるモック（通信中の割り込みを試す）。
+actor HangingTransport: HTTPTransport {
+    private let lines: [String]
+    private(set) var requestCount = 0
+    /// ストリームが勝手に終わらないように持っておく。
+    private var continuations: [AsyncThrowingStream<String, Error>.Continuation] = []
+
+    init(lines: [String]) {
+        self.lines = lines
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        throw WorkerError.invalidResponse
+    }
+
+    func lines(for request: URLRequest) async throws -> (AsyncThrowingStream<String, Error>, HTTPURLResponse) {
+        requestCount += 1
+        let (stream, continuation) = AsyncThrowingStream<String, Error>.makeStream()
+        for line in lines { continuation.yield(line) }
+        continuations.append(continuation)
+        return (stream, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+    }
+}
