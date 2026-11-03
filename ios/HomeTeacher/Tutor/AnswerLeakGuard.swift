@@ -67,6 +67,16 @@ struct AnswerLeakGuard: Equatable, Sendable {
         isRevealedByChild = true
         return true
     }
+
+    /// 子どもが正答を言ったと別の判定（Jev など）で決めたとき。以降は先生が答えを繰り返してよい
+    mutating func markRevealedByChild() {
+        isRevealedByChild = true
+    }
+
+    /// 正答が数か（数の答えなら、数を言った発話は答えようとしたものとみなせる）
+    var hasNumericAnswer: Bool {
+        patterns.contains { if case .numbers = $0 { true } else { false } }
+    }
 }
 
 // MARK: - 照合の中身
