@@ -3,6 +3,7 @@ import SwiftUI
 import UIKit
 
 /// 起動引数 `-autoSession`：実機でマイクを使わずに、学習セッションを通しで動かす自己テスト。
+/// 起動引数 `-autoSessionDemo`：同じ台本を、ふだんのセッション画面（先生・字幕・黒板・タイマー）で流す（デモ動画の撮影用）。
 ///
 /// 台本の発話（`ScriptedSpeechInput`）を流し、先生が Worker（Claude）経由で返事できたかと、1 文目までの時間を記録する。
 /// キーや Worker の設定がなければ返事は決まり文句になる（失敗として記録して、最後まで進める）。
@@ -10,7 +11,22 @@ import UIKit
 @MainActor
 @Observable
 final class SessionSelfTest {
-    static var isEnabled: Bool { ProcessInfo.processInfo.arguments.contains("-autoSession") }
+    /// 進み具合をどの画面で見せるか
+    enum Mode: Equatable {
+        /// 記録の文字を並べる画面（`-autoSession`）
+        case log
+        /// ふだんのセッション画面（`-autoSessionDemo`）。子どもが話す前に少し間をあける
+        case screen
+    }
+
+    static func mode(_ arguments: [String] = ProcessInfo.processInfo.arguments) -> Mode? {
+        if arguments.contains("-autoSessionDemo") { return .screen }
+        if arguments.contains("-autoSession") { return .log }
+        return nil
+    }
+
+    static var isEnabled: Bool { mode() == .log }
+    static var isDemoEnabled: Bool { mode() == .screen }
 
     /// 子どもの発話の台本。呼びかけ語で始めるので、30 秒ルールの外でも先生が答える
     static let script = [
@@ -41,14 +57,18 @@ final class SessionSelfTest {
     let model: SessionAppModel
     private let input = ScriptedSpeechInput()
     private let started = Date()
+    let mode: Mode
+    /// 子どもが話す前の間（画面で見せるときに、前の返事と字幕を読めるように）
+    private var pauseBeforeUtterance: Duration { mode == .screen ? .seconds(2) : .zero }
 
-    init(services: AppServices) {
+    init(services: AppServices, mode: Mode = .log) {
         model = SessionAppModel(services: services)
+        self.mode = mode
     }
 
     func run() async {
         resetFile()
-        record("自己テスト開始（\(UIDevice.current.model) / iOS \(UIDevice.current.systemVersion)）")
+        record("自己テスト開始（\(mode == .screen ? "セッション画面・" : "")\(UIDevice.current.model) / iOS \(UIDevice.current.systemVersion)）")
         record("接続先: \(model.services.config?.workerBaseURL.absoluteString ?? "未設定（Secrets.xcconfig）")")
         await model.prepare(scriptedInput: input)
         guard let coordinator = model.coordinator else {
@@ -67,8 +87,7 @@ final class SessionSelfTest {
 
         for (index, line) in Self.script.enumerated() {
             let before = coordinator.completedReplies
-            record("子ども: 「\(line)」")
-            input.say(line)
+            await childSays(line)
             let replied = await waitUntil(seconds: 40) {
                 coordinator.completedReplies > before && coordinator.conversationState == .idle
             }
@@ -80,8 +99,7 @@ final class SessionSelfTest {
         await coordinator.beginProblem(Self.problem)
         for (index, line) in Self.answerScript.enumerated() {
             let before = coordinator.completedReplies
-            record("子ども: 「\(line)」")
-            input.say(line)
+            await childSays(line)
             let replied = await waitUntil(seconds: 40) {
                 coordinator.completedReplies > before && coordinator.conversationState == .idle
             }
@@ -91,8 +109,7 @@ final class SessionSelfTest {
         let solved = coordinator.problems.last?.solvedBySelf == true
         results.append("- 解けた記録（solved_by_self）: \(solved ? "true" : "false")、ヒントの段階 \(coordinator.problems.last?.hintLevelReached ?? 0)")
 
-        record("子ども: 「\(Self.endCommand)」")
-        input.say(Self.endCommand)
+        await childSays(Self.endCommand)
         let ended = await waitUntil(seconds: 90) { coordinator.phase == .idle }
         results.append(ended ? "- 終わり: ふり返りを話して保存した" : "- 終わり: 終わらなかった")
 
@@ -100,6 +117,12 @@ final class SessionSelfTest {
         print("SESSION_SELFTEST_BEGIN\n\(report)\nSESSION_SELFTEST_END")
         record(report)
         finish()
+    }
+
+    private func childSays(_ line: String) async {
+        if pauseBeforeUtterance > .zero { try? await Task.sleep(for: pauseBeforeUtterance) }
+        record("子ども: 「\(line)」")
+        input.say(line)
     }
 
     private func summary(_ label: String, _ coordinator: StudySessionCoordinator) -> String {
@@ -137,6 +160,12 @@ final class SessionSelfTest {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appending(path: "session-selftest.txt")
     }
 
+    /// 記録の時刻。ISO 8601（ミリ秒まで）と UNIX 時刻（秒・ミリ秒まで）。録画と声の位置を合わせるのに使う
+    static func timestamp(_ date: Date) -> String {
+        let iso = date.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true))
+        return "\(iso) [\(String(format: "%.3f", date.timeIntervalSince1970))]"
+    }
+
     private func resetFile() {
         guard let url = Self.fileURL else { return }
         try? Data().write(to: url)
@@ -147,8 +176,21 @@ final class SessionSelfTest {
         print("SESSION_SELFTEST \(message)")
         guard let url = Self.fileURL, let handle = try? FileHandle(forWritingTo: url) else { return }
         handle.seekToEndOfFile()
-        handle.write(Data("\(Date().formatted(.iso8601)) \(message)\n".utf8))
+        handle.write(Data("\(Self.timestamp(Date())) \(message)\n".utf8))
         try? handle.close()
+    }
+}
+
+/// 自己テストを、ふだんのセッション画面で流す（`-autoSessionDemo`）。台本の発話と決まった問題で、先生は本番の Worker（Claude）が返す
+struct SessionSelfTestDemoView: View {
+    @State private var test: SessionSelfTest
+
+    init(services: AppServices) {
+        _test = State(initialValue: SessionSelfTest(services: services, mode: .screen))
+    }
+
+    var body: some View {
+        SessionScreen(model: test.model, selfTest: test)
     }
 }
 

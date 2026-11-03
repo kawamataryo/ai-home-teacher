@@ -11,6 +11,8 @@ struct SessionScreen: View {
     @State var model: SessionAppModel
     /// 表示確認用に固定する状態（起動引数 `-sessionPreview`）。nil ならふつうに動かす
     var preview: SessionPreviewState?
+    /// 台本の自己テストを画面で流す（起動引数 `-autoSessionDemo`）。あれば準備も自己テストに任せる
+    var selfTest: SessionSelfTest?
     @State private var showsDebugMenu = false
     /// 起動引数 `-showSettings` なら設定を開いた状態で始める（設定画面の表示確認用）
     @State private var showsSettings = ProcessInfo.processInfo.arguments.contains("-showSettings")
@@ -67,7 +69,9 @@ struct SessionScreen: View {
             DebugMenuView(config: model.services.config)
         }
         .task {
-            if let preview {
+            if let selfTest {
+                await selfTest.run()
+            } else if let preview {
                 await model.prepare(scriptedInput: ScriptedSpeechInput())
                 model.coordinator?.showPreview(preview)
             } else {
