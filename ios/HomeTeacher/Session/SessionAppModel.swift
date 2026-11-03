@@ -84,6 +84,12 @@ final class SessionAppModel: AudioEngineLeaseHolder {
         self.permissions = permissions
     }
 
+    /// 起動引数 `-skipPermissionOnboarding`：許可の説明を飛ばす（人がボタンを押せない自動の確認で、マイクの聞き取りまで進めるため）。
+    /// まだ決まっていない許可（カメラなど）は使わない。
+    static var skipsPermissionOnboarding: Bool {
+        ProcessInfo.processInfo.arguments.contains("-skipPermissionOnboarding")
+    }
+
     /// マイクと先生の声を用意して、まとめ役を作る。`scriptedInput` を渡すとマイクを使わない（自己テスト・表示確認）
     func prepare(
         scriptedInput: ScriptedSpeechInput? = nil, clock: any ConversationClock = SystemConversationClock(), watchOver: WatchOver? = nil
@@ -97,7 +103,8 @@ final class SessionAppModel: AudioEngineLeaseHolder {
             audioStatus = "マイクなし（台本の発話）"
         } else {
             // いきなりシステムのダイアログを出さず、先生が理由を話してから聞く（#66）
-            if !PermissionOnboarding.pending(permissions).isEmpty {
+            // 起動引数 -skipPermissionOnboarding（自動の確認用）では飛ばし、まだ決まっていない許可は使わない
+            if !Self.skipsPermissionOnboarding, !PermissionOnboarding.pending(permissions).isEmpty {
                 let flow = PermissionOnboarding(authorizer: permissions, voice: makeVoice(player: AudioClipPlayer()))
                 onboarding = flow
                 await flow.run()
@@ -124,7 +131,8 @@ final class SessionAppModel: AudioEngineLeaseHolder {
 
         let voice = makeVoice(player: player)
         // カメラだけ拒否なら、撮影と見守りは使わずに声の会話を続ける（#66）
-        let cameraAllowed = permissions.state(of: .camera) != .denied
+        let cameraState = permissions.state(of: .camera)
+        let cameraAllowed = Self.skipsPermissionOnboarding ? cameraState == .granted : cameraState != .denied
         if scriptedInput == nil {
             let states = Dictionary(uniqueKeysWithValues: AppPermission.allCases.map { ($0, permissions.state(of: $0)) })
             permissionNotice = PermissionNotice(states: states, speechInputFailed: !isMicrophoneAvailable)
@@ -154,6 +162,7 @@ final class SessionAppModel: AudioEngineLeaseHolder {
             coordinator.onTrace = { sink.append($0) }
         }
         coordinator.listen()
+        coordinator.trace("音声: \(audioStatus)")
         // 拒否されているものがあれば、何が使えないかを先生が端末の声で伝える
         if let permissionNotice {
             coordinator.trace("許可の案内: \(permissionNotice.parentMessage)")
