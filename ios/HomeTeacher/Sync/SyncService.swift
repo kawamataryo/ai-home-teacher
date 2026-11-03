@@ -24,6 +24,8 @@ struct SyncReport: Equatable, Sendable {
     /// 4xx で受け付けられなかったセッション（pending のまま。送り直しても同じなので、やり直さない）。
     var rejectedSessionIDs: [String] = []
     var pushedMemoryCategories: [MemoryCategory] = []
+    /// 4xx で受け付けられなかった記憶の書き換え。送り直しても同じなので、サーバーの内容で入れ替える。
+    var rejectedMemoryCategories: [MemoryCategory] = []
     var pulledMemoryCategories: [MemoryCategory] = []
     var pulledSessionCount = 0
 }
@@ -157,6 +159,7 @@ actor SyncService {
             do {
                 data = try await withRetry { try await self.client.putJSON(path: "/v1/memory", body: body) }
             } catch WorkerError.http(let status, _) where (400..<500).contains(status) {
+                report.rejectedMemoryCategories.append(category)
                 continue
             }
             let response = try SyncCoding.decoder.decode(MemoryListResponse.self, from: data)
@@ -168,8 +171,8 @@ actor SyncService {
     private func pullMemories(into report: inout SyncReport) async throws {
         let data = try await withRetry { try await self.client.getJSON(path: "/v1/memory") }
         let response = try SyncCoding.decoder.decode(MemoryListResponse.self, from: data)
-        // 送れなかった書き換えは消さない（次に送れたらサーバーと揃う）
-        let pending = try await store.pendingMemoryCategories()
+        // 同期の途中で書き換えたものは消さない（次の同期で送る）。4xx で断られたものはサーバーの内容に戻す
+        let pending = try await store.pendingMemoryCategories().subtracting(report.rejectedMemoryCategories)
         for category in MemoryCategory.allCases where !pending.contains(category) {
             // サーバーで空になったカテゴリも空に入れ替える
             try await store.replaceMemories(category: category, items: response.memories.filter { $0.category == category })

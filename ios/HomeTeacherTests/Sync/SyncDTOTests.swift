@@ -69,6 +69,12 @@ struct SyncDTOTests {
         #expect(session.updatedAt == nil)
     }
 
+    @Test func ミリ秒の時刻は書き戻しても変わらない() throws {
+        // since にサーバーの updated_at をそのまま渡すので、丸めでずれないこと
+        let text = "2026-11-03T07:41:02.123Z"
+        #expect(SyncCoding.formatDate(try #require(SyncCoding.parseDate(text))) == text)
+    }
+
     @Test func 時刻でない文字列は読めない() {
         let json = #"{"id":"x","started_at":"yesterday","ended_at":"2026-11-03T07:00:00Z","focus_minutes":1}"#
         #expect(throws: DecodingError.self) {

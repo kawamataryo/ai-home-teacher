@@ -298,18 +298,33 @@ struct SyncServiceTests {
         #expect(await store.memories[.likes]?.map(\.content) == ["サッカー"])
     }
 
-    @Test func 送れなかった記憶の書き換えはサーバーの内容で消さない() async throws {
+    @Test func サーバーに断られた記憶の書き換えはサーバーの内容に戻す() async throws {
         let store = InMemorySyncStore()
-        await store.setLocalMemories(["運動会"], category: .events)
+        await store.setLocalMemories([""], category: .events)
         let transport = MockTransport(responses: [
             .init(status: 400, body: #"{"error":"invalid request"}"#),
-            SyncFixture.memories([(.likes, "サッカー")]),
+            SyncFixture.memories([(.likes, "サッカー"), (.events, "運動会")]),
             SyncFixture.sessionsPage([]),
         ])
 
         let report = await service(transport, store).syncNow(reason: .sessionEnded)
 
-        #expect(report.pulledMemoryCategories == [.likes, .weakPoints])
+        #expect(report.rejectedMemoryCategories == [.events])
+        #expect(report.pulledMemoryCategories == MemoryCategory.allCases)
+        #expect(await store.localMemories(category: .events) == [MemoryItemDTO(content: "運動会")])
+        #expect(await store.pendingMemoryCategories().isEmpty)
+        // PUT は1回だけ（やり直さない）
+        #expect(await paths(transport).filter { $0 == "PUT /v1/memory" }.count == 1)
+    }
+
+    @Test func 記憶を送れずオフラインなら端末の書き換えを残す() async throws {
+        let store = InMemorySyncStore()
+        await store.setLocalMemories(["運動会"], category: .events)
+        let transport = MockTransport(responses: Array(repeating: .failure(.networkConnectionLost), count: 4))
+
+        let report = await service(transport, store).syncNow(reason: .sessionEnded)
+
+        #expect(report.outcome == .offline)
         #expect(await store.localMemories(category: .events) == [MemoryItemDTO(content: "運動会")])
         #expect(await store.pendingMemoryCategories() == [.events])
     }
