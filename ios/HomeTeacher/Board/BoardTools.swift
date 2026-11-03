@@ -100,6 +100,16 @@ enum BoardTools {
     /// 黒板のツールすべて。
     static var all: [JSONValue] { [showBoard, renderSVG] }
 
+    static func isBoardTool(_ name: String) -> Bool {
+        name == showBoardName || name == renderSVGName
+    }
+
+    /// 会話（Haiku）に渡す黒板のツール。show_board だけを渡す。
+    /// render_svg は SVG が長く、返事の max_tokens に収まらず途中で切れやすいので、分析（Sonnet）だけで使う。
+    static var conversationTool: ToolDefinition {
+        ToolDefinition(name: showBoardName, description: showBoardDescription, inputSchema: ShowBoardInput.schema, strict: false)
+    }
+
     /// `tools` にそのまま入れられる JSON（キー順固定）。
     static func toolsJSON() throws -> Data {
         try JSONValue.array(all).jsonData()

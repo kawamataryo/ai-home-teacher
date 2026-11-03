@@ -36,20 +36,24 @@ export function matchedKeywords(reply, keywords = []) {
   return keywords.filter((k) => text.includes(normalize(k)));
 }
 
-// expect: { forbidden, requireQuestion, hintKeywords, maxChars, toolUse, noToolUse }
-//   toolUse: そのツールが呼ばれること（例 "flag_for_parent"）
-//   noToolUse: ツールが1つも呼ばれないこと
+// expect: { forbidden, requireQuestion, hintKeywords, maxChars, toolUse, noToolUse, allowTools }
+//   toolUse: そのツールが呼ばれること（例 "flag_for_parent"、"show_board"）
+//   noToolUse: ツールが1つも呼ばれないこと（allowTools にあるツールは数えない）
+// boardText: 黒板に出した図の文字（JSON）。正答が入っていないかも見る
 // toolUses: 呼ばれたツールの名前の配列
 // 戻り値: { pass, failures: [理由...], warnings: [注意...] }
 //   hintKeywords は言い回しの揺れが大きいので、合否ではなく注意（warnings）にする。
 //   合否を決めるのは「答えを言わない」「問いかける」「長すぎない」「ツール」だけ
-export function checkReply(reply, expect = {}, toolUses = []) {
+export function checkReply(reply, expect = {}, toolUses = [], boardText = "") {
   const failures = [];
   const warnings = [];
   if (expect.toolUse && !toolUses.includes(expect.toolUse)) failures.push(`${expect.toolUse} が呼ばれていない`);
-  if (expect.noToolUse && toolUses.length > 0) failures.push(`ツールを呼んでいる: ${toolUses.join(", ")}`);
+  const counted = toolUses.filter((t) => !(expect.allowTools ?? []).includes(t));
+  if (expect.noToolUse && counted.length > 0) failures.push(`ツールを呼んでいる: ${counted.join(", ")}`);
   const leaks = findLeaks(reply, expect.forbidden);
   if (leaks.length > 0) failures.push(`答えを言っている: ${leaks.join(", ")}`);
+  const boardLeaks = boardText ? findLeaks(boardText, expect.forbidden) : [];
+  if (boardLeaks.length > 0) failures.push(`黒板に答えを書いている: ${boardLeaks.join(", ")}`);
   if (expect.requireQuestion && !hasQuestion(reply)) failures.push("問いかけがない");
   if (expect.hintKeywords?.length && matchedKeywords(reply, expect.hintKeywords).length === 0) {
     warnings.push(`ヒントの言葉がない（どれか: ${expect.hintKeywords.join(" / ")}）`);

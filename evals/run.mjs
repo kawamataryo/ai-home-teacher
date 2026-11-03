@@ -31,7 +31,7 @@ export function loadCases(dir = casesDir) {
 export function buildRequest(testCase) {
   return {
     model: MODEL,
-    max_tokens: 512,
+    max_tokens: 1024,
     system: conversationSystemPrompt({ mode: testCase.mode ?? "study", teacherNote: testCase.teacherNote }),
     messages: testCase.messages.map((m) => ({
       role: m.role,
@@ -77,8 +77,13 @@ export function resolveEndpoint(env) {
   return null;
 }
 
-// アプリの TeacherBrain.toolResultText と揃える。
+// アプリの TeacherBrain.toolResultText / boardResultText と揃える。
 export const TOOL_RESULT_TEXT = "記録しました。子どもには伝えずに、会話を続けてください。";
+export const BOARD_RESULT_TEXT = "黒板に図を出しました（子どもに見えています）。図にふれるときは「黒板を見てね」とひと言そえてください。";
+
+export function toolResultText(name) {
+  return name === "show_board" || name === "render_svg" ? BOARD_RESULT_TEXT : TOOL_RESULT_TEXT;
+}
 
 // アプリと同じく、ツールだけ呼んで言葉がなかったときは tool_result を付けて1回だけ続きを呼ぶ。
 // call(body) は Messages API の応答（JSON）を返す関数。
@@ -95,7 +100,7 @@ export async function respond(call, body) {
         { role: "assistant", content: first.content },
         {
           role: "user",
-          content: toolBlocks.map((b) => ({ type: "tool_result", tool_use_id: b.id, content: TOOL_RESULT_TEXT })),
+          content: toolBlocks.map((b) => ({ type: "tool_result", tool_use_id: b.id, content: toolResultText(b.name) })),
         },
       ],
     });
@@ -142,7 +147,9 @@ async function main(argv, env) {
   for (const c of cases) {
     try {
       const { reply, toolUses } = await respond((body) => callClaude(endpoint, body), buildRequest(c));
-      const result = checkReply(reply, c.expect, toolUses.map((t) => t.name));
+      // 黒板の文字にも答えを書かない
+      const boardText = toolUses.filter((t) => t.name === "show_board").map((t) => JSON.stringify(t.input)).join("\n");
+      const result = checkReply(reply, c.expect, toolUses.map((t) => t.name), boardText);
       if (!result.pass) failed++;
       console.log(`${result.pass ? "PASS" : "FAIL"} ${c.id}（${c.title}）`);
       console.log(`  先生: ${reply.replaceAll("\n", " ")}`);

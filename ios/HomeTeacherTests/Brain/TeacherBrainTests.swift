@@ -50,7 +50,8 @@ struct TeacherBrainTests {
         #expect(json["model"] as? String == "claude-haiku-5-5")
         #expect(json["stream"] as? Bool == true)
         #expect(json["system"] as? String == "SYSTEM")
-        #expect(json["max_tokens"] as? Int == 512)
+        // 黒板の図（show_board の入力）も返事に入るので、512 では足りない
+        #expect(json["max_tokens"] as? Int == 1024)
         #expect(json["tools"] == nil)
 
         let messages = try #require(json["messages"] as? [[String: Any]])
@@ -124,9 +125,12 @@ struct TeacherBrainTests {
 
         let body = try json(try #require(await transport.requestBodies().first))
         let sent = try #require(body["tools"] as? [[String: Any]])
-        #expect(sent.map { $0["name"] as? String } == ["flag_for_parent"])
+        #expect(sent.map { $0["name"] as? String } == ["flag_for_parent", "show_board"])
         let schema = try #require(sent[0]["input_schema"] as? [String: Any])
         #expect(schema["required"] as? [String] == ["category", "reason"])
+        // strict は書いたツールだけに付ける
+        #expect(sent[0]["strict"] == nil)
+        #expect(sent[1]["strict"] as? Bool == false)
     }
 
     @Test func 言葉で返事をしてからフラグを立てたら記録して続けて呼ばない() async throws {

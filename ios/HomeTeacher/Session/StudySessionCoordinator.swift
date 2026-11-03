@@ -78,8 +78,10 @@ final class StudySessionCoordinator {
     private(set) var conversationState: ConversationState = .idle
     /// 子どもが話したことの字幕（小さく出す）
     private(set) var caption = ""
-    /// 黒板の中身（#15 の分析で出す）
+    /// 黒板の中身（#15 の分析で出す・会話の途中で先生が出す）
     private(set) var board: BoardContent?
+    /// 黒板の段階表示（どこまで見せたか）。nil なら全部見せる
+    private(set) var boardReveal: BoardReveal?
     private(set) var sessionMode: SessionMode = .study
     private(set) var timer: FocusTimer?
     private(set) var statusMessage: String?
@@ -138,11 +140,14 @@ final class StudySessionCoordinator {
     /// いま一緒に取り組んでいる問題（分析の結果・ヒントの段階・答え漏れの検査）
     @ObservationIgnored private(set) var tutoring: TutoringState?
     @ObservationIgnored private var captureJudge: (any CaptureRequestJudge)?
+    /// 図を出してから話し始めた文の数（段階表示）
+    @ObservationIgnored private var sentencesSinceBoard = 0
 
     init(dependencies: Dependencies) {
         self.deps = dependencies
         self.tracker = SpokenReplyTracker(voice: dependencies.voice)
         self.openingBuilder = OpeningPromptBuilder(library: dependencies.library)
+        tracker.onSentenceStart = { [weak self] in self?.revealOnSentence() }
     }
 
     // MARK: - 聞き取り
@@ -190,6 +195,7 @@ final class StudySessionCoordinator {
         problems = []
         tutoring = nil
         board = nil
+        boardReveal = nil
         lastReplySentences = []
         trace("セッション開始")
 
@@ -331,7 +337,7 @@ final class StudySessionCoordinator {
         tracker.beginReply()
         let acceptedAt = deps.clock.now
         lastReplyLatency = nil
-        let stream = await brain.respond(to: text)
+        let stream = await brain.respondWithBoards(to: text)
         let (sentences, continuation) = AsyncStream<String>.makeStream()
         var speakTask: Task<SpeakOutcome, Never>?
         var spoken: [String] = []
@@ -340,9 +346,23 @@ final class StudySessionCoordinator {
         var blockedReplacement: String?
         var wantsCapture = false
         var failure: (any Error)?
+        /// 1 文目を話す前に届いた図。撮影に移るなら捨てる
+        var pendingBoard: BoardContent?
         do {
-            for try await sentence in stream {
+            for try await output in stream {
                 guard generation == replyGeneration else { break }
+                let sentence: String
+                switch output {
+                case .board(let content):
+                    if speakTask == nil {
+                        pendingBoard = content
+                    } else {
+                        presentBoard(content, pace: .sentence)
+                    }
+                    continue
+                case .sentence(let text):
+                    sentence = text
+                }
                 if speakTask == nil, let captureCheck, await captureCheck.value {
                     wantsCapture = true
                     break
@@ -360,6 +380,10 @@ final class StudySessionCoordinator {
                     lastReplyLatency = latency
                     trace("1文目まで \(latency.formatted(.units(allowed: [.milliseconds])))")
                     speakTask = Task { await controller.speak(sentences) }
+                    if let board = pendingBoard {
+                        presentBoard(board, pace: .sentence)
+                        pendingBoard = nil
+                    }
                 }
                 spoken.append(line)
                 continuation.yield(line)
@@ -402,6 +426,7 @@ final class StudySessionCoordinator {
         if speakTask == nil {
             // 1 文も話さなかった
             guard generation == replyGeneration, phase == .active else { return }
+            if let board = pendingBoard { presentBoard(board, pace: .sentence) }
             lastReplyFromWorker = false
             trace("返事を作れなかった: \(failure.map { String(describing: $0) } ?? "空の返事")")
             await brain.recordTeacherUtterance(fallback)
@@ -493,8 +518,8 @@ final class StudySessionCoordinator {
             kind: analysis.kind, summary: analysis.problemSummary, solvedBySelf: false,
             hintLevelReached: ladder.level, createdAt: deps.now()
         ))
-        board = result.boards.first ?? .text(analysis.problemSummary)
         trace("分析した: \(analysis.kind.rawValue)「\(analysis.problemSummary)」黒板 \(result.boards.count) 枚")
+        presentBoard(result.boards.first ?? .text(analysis.problemSummary), pace: .hintStage)
         await updateTeacherNote()
     }
 
@@ -502,6 +527,7 @@ final class StudySessionCoordinator {
     private func noteTutoringTurn(_ text: String) async {
         guard var state = tutoring else { return }
         var changed = false
+        let levelBefore = state.ladder.level
         if state.leakGuard.noteChildUtterance(text) {
             state.ladder.handle(.solved)
             changed = true
@@ -510,6 +536,7 @@ final class StudySessionCoordinator {
         }
         tutoring = state
         guard changed else { return }
+        revealOnHintStage(advancedBy: state.ladder.level - levelBefore, solved: state.ladder.isSolved)
         trace("ヒントの段階: \(state.ladder.level)/\(state.ladder.stages.count)\(state.ladder.isSolved ? "（自分で解けた）" : "")")
         await updateTeacherNote()
     }
@@ -684,6 +711,49 @@ final class StudySessionCoordinator {
         } else {
             caption = ""
             board = BoardSamples.content(.stepCards)
+            boardReveal = BoardReveal(content: BoardSamples.content(.stepCards), pace: .sentence, initiallyShown: 2)
+        }
+    }
+
+    // MARK: - 黒板（#70）
+
+    /// 黒板に図を出す。答えが書かれていたらそこだけ「？」にし、段階表示を始める
+    func presentBoard(_ content: BoardContent, pace: BoardReveal.Pace) {
+        var shown = content
+        if let leakGuard = tutoring?.leakGuard {
+            let masked = leakGuard.mask(content)
+            shown = masked.content
+            if masked.maskedCount > 0 { trace("黒板の答えを「？」にした（\(masked.maskedCount) か所）") }
+        }
+        board = shown
+        boardReveal = BoardReveal(content: shown, pace: pace)
+        // 1 つ目は、いま話している文（まだなら次に話し始める文）に合わせる
+        sentencesSinceBoard = tracker.isSpeaking ? 1 : 0
+        trace("黒板: \(Self.describe(shown))（\(boardReveal.map { "\($0.shown)/\($0.total)" } ?? "-")）")
+    }
+
+    /// 話している文に合わせる図は、文を話し始めるたびに 1 つ増やす（最初の 1 つは図を出したときに見せている）
+    private func revealOnSentence() {
+        guard var reveal = boardReveal, reveal.pace == .sentence, !reveal.isComplete else { return }
+        sentencesSinceBoard += 1
+        guard sentencesSinceBoard > 1 else { return }
+        reveal.advance()
+        boardReveal = reveal
+    }
+
+    /// ヒントの段階に合わせる図は、段階が進んだぶん増やす。自分で解けたら全部見せる
+    private func revealOnHintStage(advancedBy steps: Int, solved: Bool) {
+        guard var reveal = boardReveal, reveal.pace == .hintStage else { return }
+        if solved { reveal.revealAll() } else { reveal.advance(by: steps) }
+        boardReveal = reveal
+    }
+
+    /// 記録用の短い説明（部品の種類）
+    static func describe(_ content: BoardContent) -> String {
+        switch content {
+        case .component(let title, let component): "\(component.kind.rawValue)「\(title)」"
+        case .svg: "svg"
+        case .text: "文字"
         }
     }
 

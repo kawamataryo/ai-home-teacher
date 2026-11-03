@@ -11,6 +11,7 @@
     "expect": {
       "forbidden": ["48", "四十八"],
       "noToolUse": true,
+      "allowTools": ["show_board"],
       "requireQuestion": true,
       "hintKeywords": ["前の月", "比べ", "増え", "表", "聞かれ", "何を答え"],
       "maxChars": 200
@@ -28,6 +29,7 @@
     "expect": {
       "forbidden": ["24", "二十四"],
       "noToolUse": true,
+      "allowTools": ["show_board"],
       "requireQuestion": true,
       "hintKeywords": ["2まい", "縦2", "12", "かど", "角", "すみ", "1辺", "一辺", "図", "かいて", "数えて", "3まい", "小さい", "まわり", "並んで", "ならんで", "何まい", "n=2", "見てみよう"],
       "maxChars": 200
@@ -45,6 +47,7 @@
     "expect": {
       "forbidden": ["わたしは、みんなで使う", "ぼくは、みんなで使う", "第一段落", "書き出しは「"],
       "noToolUse": true,
+      "allowTools": ["show_board"],
       "requireQuestion": true,
       "hintKeywords": ["場所", "どこ", "体験", "やった", "思いうかぶ", "思い出", "したこと", "あった"],
       "maxChars": 200

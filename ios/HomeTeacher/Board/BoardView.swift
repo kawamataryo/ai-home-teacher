@@ -25,6 +25,7 @@ struct BoardView: View {
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Chalk.frame, lineWidth: 14))
         .foregroundStyle(Chalk.white)
         .id(content)
+        .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.96)), removal: .opacity))
     }
 
     private var title: String? {

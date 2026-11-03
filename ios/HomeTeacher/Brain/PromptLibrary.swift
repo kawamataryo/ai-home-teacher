@@ -12,6 +12,8 @@ enum PromptName: String, CaseIterable, Sendable {
     case boardCatalog = "board_catalog"
     /// 雑談と、いまの状況（勉強中 / 休憩中）（spec §3④）
     case smallTalk = "small_talk"
+    /// 会話の途中で黒板に図を出すときのルール（#70）
+    case boardTalk = "board_talk"
     /// 始まり：前回のこと（前回の要約と記憶）の使い方（spec §3④）
     case opening
     /// 終わり：ふり返りと記憶の作り方（SessionReflector）（spec §3④）
@@ -67,7 +69,7 @@ struct PromptLibrary: Sendable {
     /// プロンプトの区切り。evals/prompt.mjs と揃える。
     static let separator = "\n\n---\n\n"
 
-    /// 会話（Haiku）用のシステムプロンプト。teacher → hint_ladder → safety → small_talk の順につなぎ、
+    /// 会話（Haiku）用のシステムプロンプト。teacher → hint_ladder → safety → small_talk → board_talk の順につなぎ、
     /// 前回のこと（OpeningPromptBuilder が作る。opening.md に差し込む）があれば足し、
     /// 先生のメモ（Sonnet の分析結果。正答を含む）があれば最後に足す。
     /// 組み立て方を変えたら evals/prompt.mjs も合わせる。
@@ -88,7 +90,7 @@ struct PromptLibrary: Sendable {
         return parts.joined(separator: Self.separator)
     }
 
-    static let conversationParts: [PromptName] = [.teacher, .hintLadder, .safety, .smallTalk]
+    static let conversationParts: [PromptName] = [.teacher, .hintLadder, .safety, .smallTalk, .boardTalk]
 
     /// 同梱したツールの定義（prompts/tools/<name>.json）を読む。
     func tool(named name: String) throws -> ToolDefinition {
@@ -98,9 +100,9 @@ struct PromptLibrary: Sendable {
         return try JSONDecoder().decode(ToolDefinition.self, from: Data(contentsOf: url))
     }
 
-    /// 会話（Haiku）に渡すツール。
+    /// 会話（Haiku）に渡すツール。要確認のフラグと、黒板（show_board）。
     func conversationTools() throws -> [ToolDefinition] {
-        [try tool(named: ParentFlagTool.name)]
+        [try tool(named: ParentFlagTool.name), BoardTools.conversationTool]
     }
 
     /// 問題の分析・黒板（Sonnet）用に足す部品カタログ。
