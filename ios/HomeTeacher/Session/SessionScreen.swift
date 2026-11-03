@@ -50,7 +50,8 @@ struct SessionScreen: View {
         .sheet(isPresented: $showsSettings) {
             SessionSettingsView(preferences: model.preferences)
         }
-        .sheet(isPresented: $showsDebugMenu) {
+        // 音声の検証画面はマイクを借りるので、閉じたらセッションのエンジンを作り直す（#75）
+        .sheet(isPresented: $showsDebugMenu, onDismiss: { model.reclaimAudio() }) {
             DebugMenuView(config: model.services.config)
         }
         .task {

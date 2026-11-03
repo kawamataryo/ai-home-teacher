@@ -19,6 +19,8 @@ final class EngineClipPlayer: SpeechAudioPlayer {
     private var token = 0
     private var continuation: CheckedContinuation<Void, Never>?
     private var timeoutTask: Task<Void, Never>?
+    /// 中断・作り直しの間は再生しない（止めたエンジンを `play` が勝手に動かさないように）
+    private(set) var isSuspended = false
 
     init(engine: AVAudioEngine, outputFormat: AVAudioFormat? = nil) {
         self.engine = engine
@@ -40,6 +42,7 @@ final class EngineClipPlayer: SpeechAudioPlayer {
 
     func play(_ speech: SynthesizedSpeech) async throws {
         stop()
+        guard !isSuspended else { throw TTSError.playbackFailed }
         let buffer = try Self.decode(speech, to: outputFormat)
         if !engine.isRunning { try engine.start() }
         token += 1
@@ -74,6 +77,25 @@ final class EngineClipPlayer: SpeechAudioPlayer {
         timeoutTask = nil
         continuation?.resume()
         continuation = nil
+    }
+
+    /// 中断（電話・Siri）やエンジンの作り直しの間。いまの文を止め、`reattach()` まで再生しない
+    func suspend() {
+        stop()
+        isSuspended = true
+    }
+
+    /// エンジンを作り直す前に再生ノードを外す
+    func detach() {
+        suspend()
+        if node.engine != nil { engine.detach(node) }
+    }
+
+    /// エンジンを動かし直したあとに再生ノードをつなぎ直す（#9 / #13 と同じく、エンジンが動いてからつなぐ）
+    func reattach() {
+        if node.engine == nil { engine.attach(node) }
+        engine.connect(node, to: engine.mainMixerNode, format: outputFormat)
+        isSuspended = false
     }
 
     private func finish(_ id: Int) {

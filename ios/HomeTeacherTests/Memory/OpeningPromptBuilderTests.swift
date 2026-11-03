@@ -72,7 +72,7 @@ struct OpeningPromptBuilderTests {
         #expect(parts.count == 5)
         let opening = parts[4]
         #expect(opening.hasPrefix("# 前回のこと"))
-        #expect(opening.contains("昨日の割合の続きやる？"))
+        #expect(opening.contains("〈いつ〉の割合の続きやる？"))
         #expect(opening.contains("## 前回の勉強（昨日）"))
         #expect(opening.contains("割合の文章題を3問やった"))
         #expect(opening.contains("猫のミケ"))

@@ -20,6 +20,22 @@ final class SessionSelfTest {
     ]
     static let endCommand = "終わり"
 
+    /// 答えを言う台本（#73）の問題。撮影のかわりに、この分析の結果を入れてから始める
+    static let problem = AnalysisResult(
+        analysis: ProblemAnalysis(
+            kind: .thinking, problemSummary: "たて4cm、横6cmの長方形の面積を求める", answer: "24cm²",
+            answerVariants: ["24平方センチメートル"], solution: "たて×横で4×6=24",
+            hintSteps: ["何を求める問題かな？", "長さが書いてあるところはどこ？", "面積はどうやって求めたっけ？", "4×6を一緒に計算しよう。ということは？"]
+        ),
+        boards: []
+    )
+    /// 違う答えを 2 回（2 回目で次のヒントへ・励ます）→ 正しい答え（ほめる）
+    static let answerScript = [
+        "ねえ先生、答えは20平方センチ？",
+        "ねえ先生、じゃあ10平方センチかな？",
+        "ねえ先生、わかった！24平方センチだ！",
+    ]
+
     private(set) var lines: [String] = []
     private(set) var isFinished = false
     let model: SessionAppModel
@@ -59,6 +75,22 @@ final class SessionSelfTest {
             results.append(replied ? summary("\(index + 1)往復目", coordinator) : "- \(index + 1)往復目: 返事が終わらなかった")
         }
 
+        // 答えを言う台本（#73）：違う → 違う（次のヒントへ・励ます）→ 正しい（ほめる・解けた）
+        record("問題を入れる: \(Self.problem.analysis.problemSummary)（正答 \(Self.problem.analysis.answer)）")
+        await coordinator.beginProblem(Self.problem)
+        for (index, line) in Self.answerScript.enumerated() {
+            let before = coordinator.completedReplies
+            record("子ども: 「\(line)」")
+            input.say(line)
+            let replied = await waitUntil(seconds: 40) {
+                coordinator.completedReplies > before && coordinator.conversationState == .idle
+            }
+            let label = "答え\(index + 1)"
+            results.append(replied ? summary(label, coordinator) + answerSummary(coordinator) : "- \(label): 返事が終わらなかった")
+        }
+        let solved = coordinator.problems.last?.solvedBySelf == true
+        results.append("- 解けた記録（solved_by_self）: \(solved ? "true" : "false")、ヒントの段階 \(coordinator.problems.last?.hintLevelReached ?? 0)")
+
         record("子ども: 「\(Self.endCommand)」")
         input.say(Self.endCommand)
         let ended = await waitUntil(seconds: 90) { coordinator.phase == .idle }
@@ -75,6 +107,13 @@ final class SessionSelfTest {
         let latency = coordinator.lastReplyLatency.map { "1文目まで \(Int($0 / .milliseconds(1)))ms" } ?? "-"
         let text = coordinator.lastReplyFromWorker == true ? "「\(coordinator.lastReplySentences.joined())」" : ""
         return "- \(label): \(source)、\(latency) \(text)"
+    }
+
+    /// 答えの判定・ヒントの段階・表情
+    private func answerSummary(_ coordinator: StudySessionCoordinator) -> String {
+        let judgement = coordinator.lastAnswerJudgement.map { "\($0.verdict.rawValue)（\($0.source.rawValue)）" } ?? "-"
+        let ladder = coordinator.tutoring.map { "\($0.ladder.level)/\($0.ladder.stages.count)\($0.ladder.isSolved ? " 解けた" : "")" } ?? "-"
+        return " ／ 判定 \(judgement)、段階 \(ladder)、表情 \(coordinator.lastReplyEmotion.rawValue)"
     }
 
     private func finish() {

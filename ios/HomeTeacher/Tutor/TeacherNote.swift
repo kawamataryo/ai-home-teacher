@@ -10,7 +10,8 @@ import Foundation
 enum TeacherNote {
     static let doNotTell = "子どもに言わない"
 
-    static func make(analysis: ProblemAnalysis, ladder: HintLadder) -> String {
+    /// `reaction` は直前の子どもの発話でヒントの段階がどう変わったか（2回まちがえて進んだときに励ますため）
+    static func make(analysis: ProblemAnalysis, ladder: HintLadder, reaction: TutoringReaction? = nil) -> String {
         var lines: [String] = [
             "- 問題の種類：\(analysis.kind.rawValue)（\(analysis.kind.label)）",
             "- 問題：\(analysis.problemSummary)",
@@ -41,7 +42,11 @@ enum TeacherNote {
         }
 
         if ladder.isSolved {
-            lines.append("- 子どもが自分で答えにたどりついた。どうしてそう思ったかを聞いて、具体的にほめる。")
+            lines.append("- 子どもが自分で答えにたどりついた（先生はもう「\(ReplyCue.praisePhrase)」と声をかけた。同じほめ言葉はくり返さない）。どうしてそう思ったかを聞いて、具体的にほめる。返事のしるしは [praise]。")
+        } else if reaction == .wrongAttempt(advanced: true) {
+            lines.append("- 子どもは前の段階で\(ladder.wrongAttemptsToAdvance)回まちがえたので、段階を1つ進めた。責めずに「おしい」「いいところまで来てる」と励ましてから、今のヒントを1つだけ出す。返事のしるしは [encourage]。")
+        } else if ladder.wrongAttempts > 0 {
+            lines.append("- この段階で違う答えが\(ladder.wrongAttempts)回あった。正答は言わずに「おしい」と励まし、どう考えたかを聞く。")
         }
         return lines.joined(separator: "\n")
     }
