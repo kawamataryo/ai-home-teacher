@@ -3,7 +3,7 @@
 
 WORKER_BASE_URL =
 FAMILY_TOKEN =
-// 先生の声: elevenlabs（既定）/ azure。Secrets.xcconfig で上書きする
+// 先生の声: azure（既定）/ elevenlabs。Secrets.xcconfig で上書きする
 TTS_PROVIDER =
 
 #include? "Secrets.xcconfig"

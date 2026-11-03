@@ -70,12 +70,13 @@ struct AzureTTSProviderTests {
 @MainActor
 struct TTSProviderKindTests {
     @Test(arguments: [
-        (nil as String?, TTSProviderKind.elevenlabs),
-        ("", .elevenlabs),
+        (nil as String?, TTSProviderKind.azure),
+        ("", .azure),
         ("elevenlabs", .elevenlabs),
+        (" ElevenLabs ", .elevenlabs),
         ("azure", .azure),
         (" Azure ", .azure),
-        ("unknown", .elevenlabs),
+        ("unknown", .azure),
     ])
     func 設定の値から選ぶ(setting: String?, expected: TTSProviderKind) {
         #expect(TTSProviderKind(setting: setting) == expected)

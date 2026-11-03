@@ -70,7 +70,7 @@
 - **エコー対策**：AVAudioEngine の `setVoiceProcessingEnabled(true)`。入力と再生を同じエンジンに通す
 - **保険**：設定で「先生が話している間はマイクを止める」方式に切り替えられる
 - **TTS**：`TTSProvider` プロトコルで差し替え可能にする。最初は ElevenLabs Flash v2.5（文字タイミングを口パクに使う）。オフライン時は AVSpeechSynthesizer
-  - 先生の声は `Secrets.xcconfig` の `TTS_PROVIDER` で選ぶ（#98）: `elevenlabs`（既定）/ `azure`。費用を抑えたいときは Azure Neural TTS（ja-JP、既定の声は `ja-JP-NanamiNeural`）。書き換えてビルドし直せば ElevenLabs に戻る
+  - 先生の声は `Secrets.xcconfig` の `TTS_PROVIDER` で選ぶ（#98）: `azure`（既定）/ `elevenlabs`。既定は費用の安い Azure Neural TTS（ja-JP、声は `ja-JP-NanamiNeural`）。実機で聞き比べて Azure に決めた。`elevenlabs` と書いてビルドし直せば ElevenLabs に戻る
   - Azure は REST（`cognitiveservices/v1`）で 1 文ずつ MP3 を作る。文字タイミングは返らないので、音声の長さを文字数で均等に割って推定し、口パクと割り込みの位置に使う（ElevenLabs より口の動きは粗い。Viseme が欲しくなったら WebSocket / Speech SDK を検討）
   - Azure の無料枠（F0）は 1 分に 20 リクエストまで。1 文 1 リクエストなので、初回起動の定型句づくりや早口の会話で超えると 429 になり、60 秒は端末の声になる。日常使いは S0（従量課金）にする
   - 1 文ぶんの音声（ElevenLabs は MP3、AVSpeechSynthesizer は WAV）を受け取りきってから再生する。出だしは少し遅れるが、MP3 を自前でつなぎながらデコードするより確実（ストリーミング再生は後回し）
@@ -80,7 +80,7 @@
 - **定型句キャッシュ**：「いいね！」「どれどれ」「休憩しよっか」などは事前に音声を生成して同梱し、待ち時間ゼロで再生する
   - 一覧は `ios/HomeTeacher/Resources/Phrases/teacher_phrases.json`。音声は `scripts/generate_phrases.mjs` で ElevenLabs から作って同梱する
   - 同梱の音声がない定型句は、初回起動時に作ってディスクにキャッシュする（オフラインなら AVSpeechSynthesizer の声。あとで ElevenLabs が使えたら作り直す）
-  - 同梱の音声は ElevenLabs の声。`TTS_PROVIDER = azure` のときは初回起動時に Azure の声で作り直してディスクに置き、そちらを先に使う（先生の声が定型句だけ変わらないように）
+  - 同梱の音声は ElevenLabs の声。Azure（既定）のときは初回起動時に Azure の声で作り直してディスクに置き、そちらを先に使う（先生の声が定型句だけ変わらないように）
 - **相づち**：Sonnet の処理に時間がかかるときは、Haiku の応答か定型句（「お、どれどれ…」）で間をつなぐ
 - **初めての許可**（#66）：いきなりシステムのダイアログを出さない。まだ聞いていない許可だけを、マイク → 音声認識 → カメラ（カメラがある端末だけ）の順に、先生が理由を話してから「いいよ」のボタンで聞く。状態は毎回 OS の許可の状態から決める
   - 拒否されたとき：先生が端末の声で何が使えないかを伝え（「お父さん・お母さんに、設定アプリで許可してもらってね」）、画面の上に保護者向けの案内と「設定アプリを開く」を出す。カメラだけ拒否なら撮影と見守りを止めて、声の会話は続ける。音声認識の拒否は、聞き取りを始められなかったときだけ伝える

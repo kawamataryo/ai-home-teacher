@@ -62,9 +62,9 @@ npm run deploy
 
 `ios/Config/Secrets.xcconfig` に Worker の URL と家族トークンを書く（URL は `https:/$()/...` と書く）。家族トークンはダッシュボード（`/dashboard`）で発行したものを使うか、4 の `FAMILY_TOKEN` を使う。
 
-### 先生の声を Azure にする（任意）
+### 先生の声（Azure）
 
-ElevenLabs より安い。いつでも ElevenLabs に戻せる。価格レベルは 2 つ（2026-11 時点）:
+先生の声は既定で Azure（ElevenLabs より安い）。いつでも ElevenLabs に戻せる。価格レベルは 2 つ（2026-11 時点）:
 
 - Free（F0）: 月 50 万字まで無料。超えても課金されずに使えなくなる。1 分に 20 リクエストまで（増やせない）
 - Standard（S0）: 従量課金で 100 万字あたり $15（月 15 万字なら約 $2.3）。無料分はない。1 秒に 30 リクエストまで
@@ -78,7 +78,7 @@ ElevenLabs より安い。いつでも ElevenLabs に戻せる。価格レベル
    ```
 
    地域と声は `worker/wrangler.jsonc` の `AZURE_SPEECH_REGION`（既定 `japaneast`）と `AZURE_TTS_VOICE`（既定 `ja-JP-NanamiNeural`）
-3. `ios/Config/Secrets.xcconfig` に `TTS_PROVIDER = azure` と書いてビルドし直す。戻すときは `elevenlabs` にする
+3. アプリは何もしなくても Azure を使う。ElevenLabs にするときは `ios/Config/Secrets.xcconfig` に `TTS_PROVIDER = elevenlabs` と書いてビルドし直す
 
 F0 は 1 分に 20 リクエストまで。初回起動時に定型句（15 個）を Azure の声で作り直すので、最初の 1 分ほどは待ってから話しかける。
 
