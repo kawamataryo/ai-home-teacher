@@ -16,3 +16,20 @@
 - 公開リポジトリ: https://github.com/kawamataryo/ai-home-teacher（MIT）
 - issue 32件（親6・子26）、うち `実機確認` 7件（#9, #13, #14, #15, #20, #30, #32）
 - 最初に取り組むのは #7（Xcode 雛形）、#8（Worker）、#9（音声認識とエコーの実機スパイク）
+
+## 2026-11-03 実装（/goal: 実機確認以外の issue をすべてマージ）
+
+- [x] ① #7 雛形 / #8 Worker 中継 / #10 ConversationController / #11 TeacherBrain / #12 TTS・定型句
+- [x] ② #16 問題分析・ヒント段階・答え漏れ検査 / #17 プロンプト一式 / #18 黒板の8部品 / #19 render_svg
+- [x] ③ #21 ボクセル先生モデル / #22 AvatarView / #23 口パク
+- [x] ④ #24 タイマー / #25 ふり返りと記憶 / #26 雑談と安全ルール
+- [x] ⑤ #27 D1 と同期 API / #28 アプリ側の同期 / #29 親ダッシュボード
+- [x] ⑥ #31 Jev による判断
+- [ ] 実機確認: #9（割り込みの声だけ未確認）, #13, #14, #15, #20, #30, #32
+
+### レビュー
+
+- サブエージェントを worktree ごとに並行させ、PR ごとに main を取り込んで全テストを通してから squash マージした（最終的に iOS 372 テスト、Worker 72 テスト）
+- 並行開発で同名の型（JSONValue, ProblemKind, MemoryCategory）が衝突した → `ios/HomeTeacher/Shared/` に一本化
+- API キーがないため、Claude / ElevenLabs / Jev / Google ログインの実通信はすべて未検証。評価スクリプト（`evals/run.mjs`）も未実行
+- 各モジュールは単体で完成しているが、学習セッション画面へのつなぎ込み（#14）はまだ。つなぎ込みと実機確認が次の山場
