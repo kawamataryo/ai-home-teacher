@@ -13,10 +13,11 @@ struct BoardToolsTests {
         #expect(component.kind == kind)
     }
 
-    @Test func ツール定義はstrictで全部品を含む() throws {
+    @Test func ツール定義は全部品を含みstrictにしない() throws {
         let tool = BoardTools.showBoard
         #expect(tool["name"] == .string("show_board"))
-        #expect(tool["strict"] == .bool(true))
+        // 全部品の anyOf を strict にすると API が「grammar is too large」で 400 を返す
+        #expect(tool["strict"] == .bool(false))
         #expect(tool["description"]?.stringValue?.contains("正答") == true)
         let input = try #require(tool["input_schema"])
         #expect(input["type"] == .string("object"))

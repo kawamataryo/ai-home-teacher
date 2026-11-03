@@ -1,0 +1,588 @@
+{
+  "analyzer_request" : {
+    "max_tokens" : 4096,
+    "messages" : [
+      {
+        "content" : [
+          {
+            "source" : {
+              "data" : "",
+              "media_type" : "image/jpeg",
+              "type" : "base64"
+            },
+            "type" : "image"
+          },
+          {
+            "text" : "写真の ID：photo_1\nこれまでの会話：\n（なし）\n\nこの写真の問題を分析して、必ず report_analysis ツールを呼んで報告してください（文章だけで答えないこと）。",
+            "type" : "text"
+          }
+        ],
+        "role" : "user"
+      }
+    ],
+    "model" : "claude-sonnet-5-5",
+    "stream" : false,
+    "system" : "あなたは小学5年生の家庭教師の「頭脳」です。子どもが撮影した問題（またはノート・作文）の写真と、それまでの会話を読み、report_analysis ツールで分析結果を報告します。\n\n- kind：資料・グラフ・表の読み取りは reading、算数・理科的な思考は thinking、作文・記述は writing\n- analysis：先にここで問題を最後まで解き、答えを確かめる（先生用のメモ）\n- answer：正答の短い形だけ（例：24cm²、イ、3/4）。answer_variants に同じ答えの別の書き方（小数・分数・漢数字・単位の言いかえなど）を入れる\n- hint_steps：下の「ヒントの出し方」の段階に合わせて、段階ごとの問いかけを順に書く。どの段階にも正答そのものは書かない。4段目は、答えの手前で「ということは？」と子どもに言わせる形で終える\n- 写真に問題が複数あるときは、会話から子どもが聞いている問題を選ぶ。わからなければ最初の問題\n- 写真が読めないときも report_analysis を呼び、problem_summary にそのことを書き、answer は空文字にする\n\n---\n\n# ヒントの出し方\n\n子どもが問題でつまずいたら、答えを言わずに、段階を追ってヒントを出す。\n一度に1段だけ進める。子どもが自分で気づけたら、そこで止めてほめる。\n\n## 答えを言わないルール\n\n- 正答（数・言葉・記号・選択肢）を、子どもより先に言わない。「答えは〜だよ」「〜になるね」と言いきらない\n- 「答え教えて」「もう無理」と言われても、正答は言わない。かわりに、ヒントを1段細かくする\n  - 例：「答えを言っちゃうと、もったいないんだよね。じゃあ、もっと小さく分けよう。」\n- 計算の途中の式や数も、子どもが自分で出す前に全部は言わない。「ここに何が入りそう？」と聞く\n- 子どもが答えを言ったら、正しくても「どうしてそう思った？」と理由を聞いてから認める\n- 先生のメモにある正答や解き方は、ヒントを考えるための材料。そのまま読み上げない\n\n## 読み取り（reading）と思考（thinking）の段階\n\n資料・グラフ・表の読み取り（reading）、算数・理科的な思考（thinking）は、次の順に進む。\n\n1. **何を聞かれているかを確認する**\n   - 「この問題、何を答えればいいんだっけ？」「最後の一文、もう一回読んでみて？」\n   - 問題の条件を子どもの言葉で言いかえてもらう\n2. **どこを見ればよいか（注目する場所）**\n   - 「表のどの行が関係ありそう？」「グラフの、いちばん高いところを見てみよう」\n   - reading では資料の場所、thinking では使う条件や数を指す\n3. **考え方の方向**\n   - 「前の月と比べるには、どうすればいい？」「1つ分が何個になるか考えてみよう」\n   - 使えそうな考え方（比べる・ひき算・図にする・小さい数で試す・きまりを探す）を1つだけ示す\n4. **一緒に解き方をたどる**\n   - 1手ずつ、子どもに計算や判断をしてもらいながら進む\n   - 最後のひと言（答え）は、必ず子どもに言わせる。「ということは？」で止める\n\n段階を進める目安：\n\n- 子どもが同じところで2回つまずいたら、次の段階へ\n- 子どもがわかったと言ったら、1つ前の段階に戻って本当に言えるか確かめてもよい\n- 図があると伝わりそうなときは、黒板に図を出す（部品カタログを参照）\n\n## 作文（writing）の段階\n\n作文・記述は、正答がない。先生が代わりに書かないことが「答えを言わない」にあたる。\n\n1. **書くことを一緒に整理する**\n   - 「この題で、思いうかぶことを3つ言ってみて？」「自分がやったことで、近い話はある？」\n   - 子どもが話したことを短くまとめて返す\n2. **構成を考える**\n   - 「はじめ・なか・おわり」に何を書くかを、子どもに決めてもらう\n   - 文字数や段落の数など、問題の条件を一緒に確認する\n3. **書いたものを見て講評する**\n   - 書けたら撮影してもらい、よいところを具体的に1〜2つほめる（「ここの例がわかりやすい」）\n   - 直すとよくなる点は1つだけ伝える。直し方は子どもに考えてもらう\n\n作文で守ること：\n\n- 先生が文章を書いて見せない。書き出しの一文も、子どもが考える\n- 子どもの考えを否定しない。考えが浅いときは「それってどうして？」と深める質問をする\n\n\n---\n\n# 黒板の部品カタログ\n\n先生の話と一緒に、iPad の黒板（BoardView）に図を出せる。\n`show_board` ツールで、下の部品から1つ選んで中身を指定する。\nカタログで表せないときだけ `render_svg` ツールで SVG を描く。\n\n> JSON の正確な形（フィールド名・型・必須かどうか）は、アプリ側の Swift のツール定義（`show_board` の JSON Schema）が正。\n> このファイルは「どの部品をいつ使うか」の説明で、下に書くフィールドは目安。食い違ったらツール定義に従う。\n\n## 共通のルール\n\n- 黒板は答えを見せる場所ではない。正答・答えの数字・完成した作文を黒板に書かない\n  - 答えが入る場所は空欄（「？」）にして、子どもに埋めてもらう\n- 1回に出す部品は1つ。話している内容と合うものを選ぶ\n- 文字は短く、小5が読める言葉にする。1つのラベルはだいたい15文字以内\n- 図を出したら、話でも「黒板を見てね」とひと言ふれる\n- 撮影した問題を使うときは、問題にある数・言葉をそのまま使い、勝手に変えない\n\n## 部品\n\n### step_cards（手順カード）\n\n解き方や考え方の順番を、カードで見せる。ヒントの段階4（一緒にたどる）でよく使う。\n\n- `title`: 見出し\n- `steps`: カードの配列。各カードに `text`（短い説明）と、任意で `done`（終わったか）\n- 最後のカード（答えを出すところ）は「？」のままにする\n\n### number_line（数直線）\n\n数の大小、分数・小数、割合、時間の流れを見せる。\n\n- `min` / `max`: 範囲\n- `ticks`: 目盛りの間隔\n- `marks`: 印の配列。各印に `value`（位置）と `label`（ラベル）。答えの位置は `label: \"？\"` にする\n\n### area_diagram（面積図）\n\nかけ算・割合・平均・つるかめ算など、「1つ分 × いくつ分」を長方形の面積で見せる。\n\n- `rects`: 長方形の配列。各長方形に `width` と `height` の値、`widthLabel` / `heightLabel`、任意で `areaLabel`\n- 求めたい値のラベルは「？」にする\n\n### segment_diagram（線分図）\n\n和差算・割合・比など、量の関係を線分の長さで見せる。\n\n- `segments`: 線分の配列。各線分に `label`（何の量か）と `parts`（区切り。各区切りに `length` と `label`）\n- 線分どうしの差や合計を示す `braces`（範囲とラベル）を任意で付ける\n\n### table（表）\n\n資料の数をまとめ直す、条件を整理する、きまりを探すときに使う。\n\n- `columns`: 列の見出し\n- `rows`: 行の配列（各行はセルの文字の配列）\n- `highlight`: 注目させたいセル（行と列の番号）の配列。答えのセルは「？」にする\n\n### bar_chart（棒グラフ）\n\n資料の数を比べやすくする。撮影したグラフを読みやすく描き直すときにも使う。\n\n- `title`、`unit`（単位）\n- `bars`: 棒の配列。各棒に `label` と `value`、任意で `highlight`（目立たせる）\n\n### highlight_image（撮影画像の一部を囲む）\n\n撮影した問題・資料の「どこを見ればよいか」を示す。ヒントの段階2（注目する場所）でよく使う。\n\n- `regions`: 囲む場所の配列。各場所は画像に対する割合（0〜1）の `x` / `y` / `width` / `height` と、短い `label`\n- 画像そのものは端末にあるものを使う。画像を送り返したり、作ったりしない\n\n### essay_outline（作文の構成メモ）\n\n作文の「はじめ・なか・おわり」を整理する。作文の段階1・2で使う。\n\n- `theme`: 題\n- `sections`: 段落の配列。各段落に `heading`（はじめ・なか・おわり など）と `notes`（子どもが話したことのメモ）\n- `notes` には子どもが言ったことだけを書く。先生が考えた文章を入れない\n\n## render_svg（カタログで表せないとき）\n\n立体図形、図形の移動、てこ・ふりこ、地図の方角など、上の部品で表せないときだけ使う。\n\n- 自己完結の SVG 1つだけを出す。`<svg>` の外に何も書かない\n- `viewBox` を必ず指定する（例：`viewBox=\"0 0 800 600\"`）。`width` / `height` は固定しない\n- 外部リソースを使わない（画像・フォント・リンク・`<use href=\"http...\">` など）\n- `<script>`、`on〜` 属性（onclick など）、`<foreignObject>` は使わない\n- 動かしたいときは CSS アニメーション（`<style>` 内の `@keyframes`）だけを使う\n- 文字は大きめに（`font-size` 24 以上が目安）。色は黒板に映える明るい色を使う\n- 答えの数や完成形は描かない。答えのところは「？」にする\n",
+    "tool_choice" : {
+      "type" : "auto"
+    },
+    "tools" : [
+      {
+        "description" : "撮影した問題を分析した結果を報告する。必ず1回だけ呼ぶ。\n正答は子どもには見せず、先生がヒントを考える材料にする。",
+        "input_schema" : {
+          "additionalProperties" : false,
+          "properties" : {
+            "analysis" : {
+              "description" : "解き方（先生用）。answer を書く前に、ここで問題を最後まで解いて確かめる。作文は空文字",
+              "type" : "string"
+            },
+            "answer" : {
+              "description" : "正答の短い形だけ（例：24cm²、イ、3/4、東京）。式や説明は入れない。作文は空文字",
+              "type" : "string"
+            },
+            "answer_variants" : {
+              "description" : "正答の言いかえ（例：0.75、4分の3、75%、二十四）。無ければ空の配列",
+              "items" : {
+                "description" : "正答の別の書き方",
+                "type" : "string"
+              },
+              "type" : "array"
+            },
+            "essay_guidance" : {
+              "description" : "作文の題・条件（文字数・段落）・書けそうな題材の方向。作文以外は空文字",
+              "type" : "string"
+            },
+            "hint_steps" : {
+              "description" : "ヒントの段階ごとの中身を順に並べる。\nreading / thinking は4つ：1 何を聞かれているか → 2 どこを見るか → 3 考え方 → 4 一緒にたどる（最後のひと言は子どもに言わせる）。\nwriting は3つ：1 書くことの整理 → 2 構成 → 3 講評の観点",
+              "items" : {
+                "description" : "その段階で子どもにかける問いかけ。正答は書かない",
+                "type" : "string"
+              },
+              "type" : "array"
+            },
+            "kind" : {
+              "description" : "reading＝資料・グラフ・表の読み取り、thinking＝算数・理科的な思考、writing＝作文・記述",
+              "enum" : [
+                "reading",
+                "thinking",
+                "writing"
+              ],
+              "type" : "string"
+            },
+            "problem_summary" : {
+              "description" : "問題文の要約。何を答えればよいかがわかるように、子どもの学年の言葉で1〜2文",
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "kind",
+            "problem_summary",
+            "answer",
+            "answer_variants",
+            "analysis",
+            "hint_steps",
+            "essay_guidance"
+          ],
+          "type" : "object"
+        },
+        "name" : "report_analysis",
+        "strict" : true
+      },
+      {
+        "description" : "先生の発話と一緒に、黒板に図を出す。部品を1つ選んで中身を指定する。\n黒板には考え方・見る場所・手順を出し、正答（答えの数字や言葉）は書かない。答えのマスや部分は「？」にする。\n子どもが読めるように、小学5年生までの漢字と短い言葉で書く。",
+        "input_schema" : {
+          "additionalProperties" : false,
+          "properties" : {
+            "component" : {
+              "anyOf" : [
+                {
+                  "additionalProperties" : false,
+                  "description" : "手順カード。考える順番を短いカードで見せる。最後のカードは子どもに考えさせる問いかけにする",
+                  "properties" : {
+                    "steps" : {
+                      "description" : "カード（2〜5枚）",
+                      "items" : {
+                        "additionalProperties" : false,
+                        "properties" : {
+                          "detail" : {
+                            "description" : "説明。1〜2文",
+                            "type" : "string"
+                          },
+                          "heading" : {
+                            "description" : "カードの見出し（例：何を聞かれている？）",
+                            "type" : "string"
+                          }
+                        },
+                        "required" : [
+                          "heading",
+                          "detail"
+                        ],
+                        "type" : "object"
+                      },
+                      "type" : "array"
+                    },
+                    "type" : {
+                      "const" : "step_cards",
+                      "type" : "string"
+                    }
+                  },
+                  "required" : [
+                    "type",
+                    "steps"
+                  ],
+                  "type" : "object"
+                },
+                {
+                  "additionalProperties" : false,
+                  "description" : "数直線。数の大小、分数・小数の位置、割合や差の幅を示す",
+                  "properties" : {
+                    "marks" : {
+                      "description" : "点で示す値",
+                      "items" : {
+                        "additionalProperties" : false,
+                        "properties" : {
+                          "label" : {
+                            "description" : "印の名前（例：A、□）",
+                            "type" : "string"
+                          },
+                          "value" : {
+                            "description" : "印を付ける値",
+                            "type" : "number"
+                          }
+                        },
+                        "required" : [
+                          "value",
+                          "label"
+                        ],
+                        "type" : "object"
+                      },
+                      "type" : "array"
+                    },
+                    "max" : {
+                      "description" : "右端の値（min より大きい）",
+                      "type" : "number"
+                    },
+                    "min" : {
+                      "description" : "左端の値",
+                      "type" : "number"
+                    },
+                    "ranges" : {
+                      "description" : "かっこで示す幅。無ければ空配列",
+                      "items" : {
+                        "additionalProperties" : false,
+                        "properties" : {
+                          "from" : {
+                            "description" : "始まりの値",
+                            "type" : "number"
+                          },
+                          "label" : {
+                            "description" : "幅の説明（例：差、？）",
+                            "type" : "string"
+                          },
+                          "to" : {
+                            "description" : "終わりの値",
+                            "type" : "number"
+                          }
+                        },
+                        "required" : [
+                          "from",
+                          "to",
+                          "label"
+                        ],
+                        "type" : "object"
+                      },
+                      "type" : "array"
+                    },
+                    "step" : {
+                      "description" : "目盛りの間隔（0 より大きい）",
+                      "type" : "number"
+                    },
+                    "type" : {
+                      "const" : "number_line",
+                      "type" : "string"
+                    },
+                    "unit" : {
+                      "description" : "単位（例：m、%）。無ければ空文字",
+                      "type" : "string"
+                    }
+                  },
+                  "required" : [
+                    "type",
+                    "min",
+                    "max",
+                    "step",
+                    "unit",
+                    "marks",
+                    "ranges"
+                  ],
+                  "type" : "object"
+                },
+                {
+                  "additionalProperties" : false,
+                  "description" : "面積図。たて×よこ＝面積 で考える問題（平均、つるかめ算、単位量あたりの大きさ）。長方形を左から並べる",
+                  "properties" : {
+                    "parts" : {
+                      "description" : "左から並べる長方形（1〜4個）",
+                      "items" : {
+                        "additionalProperties" : false,
+                        "properties" : {
+                          "height" : {
+                            "description" : "たての長さ（図の比率。0 より大きい）",
+                            "type" : "number"
+                          },
+                          "height_label" : {
+                            "description" : "たての辺の説明（例：80点）",
+                            "type" : "string"
+                          },
+                          "label" : {
+                            "description" : "長方形の中に書く文字（例：面積＝？）",
+                            "type" : "string"
+                          },
+                          "width" : {
+                            "description" : "よこの長さ（図の比率。0 より大きい）",
+                            "type" : "number"
+                          },
+                          "width_label" : {
+                            "description" : "よこの辺の説明（例：3人）",
+                            "type" : "string"
+                          }
+                        },
+                        "required" : [
+                          "width",
+                          "height",
+                          "label",
+                          "width_label",
+                          "height_label"
+                        ],
+                        "type" : "object"
+                      },
+                      "type" : "array"
+                    },
+                    "total_label" : {
+                      "description" : "全体の説明（例：合わせて5人）。無ければ空文字",
+                      "type" : "string"
+                    },
+                    "type" : {
+                      "const" : "area_diagram",
+                      "type" : "string"
+                    }
+                  },
+                  "required" : [
+                    "type",
+                    "parts",
+                    "total_label"
+                  ],
+                  "type" : "object"
+                },
+                {
+                  "additionalProperties" : false,
+                  "description" : "線分図。2〜3つの量をテープで並べて比べる（和と差、何倍、割合）。長さは全テープ共通の比率",
+                  "properties" : {
+                    "bars" : {
+                      "description" : "上から並べるテープ（1〜4本）",
+                      "items" : {
+                        "additionalProperties" : false,
+                        "properties" : {
+                          "name" : {
+                            "description" : "テープの名前（例：兄、もとの量）",
+                            "type" : "string"
+                          },
+                          "segments" : {
+                            "description" : "左から並べる区切り",
+                            "items" : {
+                              "additionalProperties" : false,
+                              "properties" : {
+                                "label" : {
+                                  "description" : "区切りの上に書く文字（例：120円、？）",
+                                  "type" : "string"
+                                },
+                                "length" : {
+                                  "description" : "区切りの長さ（比率。0 より大きい）",
+                                  "type" : "number"
+                                }
+                              },
+                              "required" : [
+                                "length",
+                                "label"
+                              ],
+                              "type" : "object"
+                            },
+                            "type" : "array"
+                          },
+                          "total_label" : {
+                            "description" : "テープ全体の説明。無ければ空文字",
+                            "type" : "string"
+                          }
+                        },
+                        "required" : [
+                          "name",
+                          "segments",
+                          "total_label"
+                        ],
+                        "type" : "object"
+                      },
+                      "type" : "array"
+                    },
+                    "type" : {
+                      "const" : "segment_diagram",
+                      "type" : "string"
+                    }
+                  },
+                  "required" : [
+                    "type",
+                    "bars"
+                  ],
+                  "type" : "object"
+                },
+                {
+                  "additionalProperties" : false,
+                  "description" : "表。資料の読み取り、ともなって変わる量、きまり探し。注目してほしいマスを強調できる",
+                  "properties" : {
+                    "headers" : {
+                      "description" : "1行目の見出し",
+                      "items" : {
+                        "description" : "見出し",
+                        "type" : "string"
+                      },
+                      "type" : "array"
+                    },
+                    "highlight_cells" : {
+                      "description" : "強調するマス。無ければ空配列",
+                      "items" : {
+                        "additionalProperties" : false,
+                        "properties" : {
+                          "column" : {
+                            "description" : "何列目か（0 始まり）",
+                            "type" : "integer"
+                          },
+                          "row" : {
+                            "description" : "rows の何行目か（0 始まり）",
+                            "type" : "integer"
+                          }
+                        },
+                        "required" : [
+                          "row",
+                          "column"
+                        ],
+                        "type" : "object"
+                      },
+                      "type" : "array"
+                    },
+                    "rows" : {
+                      "description" : "見出しの下の行",
+                      "items" : {
+                        "description" : "1行分",
+                        "items" : {
+                          "description" : "マスの文字。空欄は空文字、考えさせるマスは？",
+                          "type" : "string"
+                        },
+                        "type" : "array"
+                      },
+                      "type" : "array"
+                    },
+                    "type" : {
+                      "const" : "table",
+                      "type" : "string"
+                    }
+                  },
+                  "required" : [
+                    "type",
+                    "headers",
+                    "rows",
+                    "highlight_cells"
+                  ],
+                  "type" : "object"
+                },
+                {
+                  "additionalProperties" : false,
+                  "description" : "棒グラフ。量を比べる、グラフの読み取り。注目してほしい棒を強調できる",
+                  "properties" : {
+                    "bars" : {
+                      "description" : "左から並べる棒（2〜8本）",
+                      "items" : {
+                        "additionalProperties" : false,
+                        "properties" : {
+                          "highlighted" : {
+                            "description" : "注目してほしい棒なら true",
+                            "type" : "boolean"
+                          },
+                          "label" : {
+                            "description" : "横軸の項目名",
+                            "type" : "string"
+                          },
+                          "value" : {
+                            "description" : "値（0 以上）",
+                            "type" : "number"
+                          }
+                        },
+                        "required" : [
+                          "label",
+                          "value",
+                          "highlighted"
+                        ],
+                        "type" : "object"
+                      },
+                      "type" : "array"
+                    },
+                    "type" : {
+                      "const" : "bar_chart",
+                      "type" : "string"
+                    },
+                    "unit" : {
+                      "description" : "たて軸の単位（例：人、mm）",
+                      "type" : "string"
+                    }
+                  },
+                  "required" : [
+                    "type",
+                    "unit",
+                    "bars"
+                  ],
+                  "type" : "object"
+                },
+                {
+                  "additionalProperties" : false,
+                  "description" : "撮影した写真の一部を囲んで「ここを見て」と示す。座標は写真の幅・高さを 1 とした割合（左上が 0,0）",
+                  "properties" : {
+                    "image_id" : {
+                      "description" : "会話で渡された写真の ID",
+                      "type" : "string"
+                    },
+                    "regions" : {
+                      "description" : "囲む場所（1〜3個）",
+                      "items" : {
+                        "additionalProperties" : false,
+                        "properties" : {
+                          "height" : {
+                            "description" : "囲みの高さ（0〜1）",
+                            "type" : "number"
+                          },
+                          "label" : {
+                            "description" : "囲みに付ける短い言葉（例：ここの単位）",
+                            "type" : "string"
+                          },
+                          "width" : {
+                            "description" : "囲みの幅（0〜1）",
+                            "type" : "number"
+                          },
+                          "x" : {
+                            "description" : "囲みの左端（0〜1）",
+                            "type" : "number"
+                          },
+                          "y" : {
+                            "description" : "囲みの上端（0〜1）",
+                            "type" : "number"
+                          }
+                        },
+                        "required" : [
+                          "x",
+                          "y",
+                          "width",
+                          "height",
+                          "label"
+                        ],
+                        "type" : "object"
+                      },
+                      "type" : "array"
+                    },
+                    "type" : {
+                      "const" : "highlight_image",
+                      "type" : "string"
+                    }
+                  },
+                  "required" : [
+                    "type",
+                    "image_id",
+                    "regions"
+                  ],
+                  "type" : "object"
+                },
+                {
+                  "additionalProperties" : false,
+                  "description" : "作文の構成メモ。子どもが話した言葉を使って、はじめ・なか・おわり に書くことを整理する",
+                  "properties" : {
+                    "sections" : {
+                      "description" : "段落（2〜4個）",
+                      "items" : {
+                        "additionalProperties" : false,
+                        "properties" : {
+                          "heading" : {
+                            "description" : "段落の名前（例：はじめ）",
+                            "type" : "string"
+                          },
+                          "points" : {
+                            "description" : "書くこと。まだ決まっていなければ「？」",
+                            "items" : {
+                              "description" : "書くこと（短く）",
+                              "type" : "string"
+                            },
+                            "type" : "array"
+                          }
+                        },
+                        "required" : [
+                          "heading",
+                          "points"
+                        ],
+                        "type" : "object"
+                      },
+                      "type" : "array"
+                    },
+                    "theme" : {
+                      "description" : "作文の題やテーマ",
+                      "type" : "string"
+                    },
+                    "type" : {
+                      "const" : "essay_outline",
+                      "type" : "string"
+                    }
+                  },
+                  "required" : [
+                    "type",
+                    "theme",
+                    "sections"
+                  ],
+                  "type" : "object"
+                }
+              ],
+              "description" : "黒板に出す部品。type で種類を選ぶ"
+            },
+            "title" : {
+              "description" : "黒板の見出し（短く。例：何を聞かれているかな？）",
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "title",
+            "component"
+          ],
+          "type" : "object"
+        },
+        "name" : "show_board",
+        "strict" : false
+      },
+      {
+        "description" : "show_board の部品で表せない図（図形の角度・展開図・回転など）を、自己完結の SVG で黒板に出す。\n外部の画像・フォント・リンク、script、イベント属性（onclick など）、foreignObject は使わない（取り除かれる）。\n動きは CSS アニメーションだけ。<svg> に viewBox を付け、黒板（暗い緑）の上で見える明るい色で描く。\n答えの数字や言葉は書かず、求めるところは「？」にする。",
+        "input_schema" : {
+          "additionalProperties" : false,
+          "properties" : {
+            "caption" : {
+              "description" : "図の下に出す短い説明。無ければ空文字",
+              "type" : "string"
+            },
+            "svg" : {
+              "description" : "自己完結の SVG 文字列。<svg> から始め、viewBox を付ける",
+              "type" : "string"
+            }
+          },
+          "required" : [
+            "svg",
+            "caption"
+          ],
+          "type" : "object"
+        },
+        "name" : "render_svg",
+        "strict" : true
+      }
+    ]
+  }
+}

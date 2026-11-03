@@ -64,6 +64,20 @@ enum BoardComponent: Equatable, Sendable {
         }
     }
 
+    /// 描くものが何もないか（足りないキーを既定値で埋めた結果、中身が空になったとき）。空の図より文字の方が伝わる。
+    var isEmpty: Bool {
+        switch self {
+        case .stepCards(let m): m.steps.isEmpty
+        case .numberLine(let m): m.marks.isEmpty && m.ranges.isEmpty
+        case .areaDiagram(let m): m.parts.isEmpty
+        case .segmentDiagram(let m): m.bars.isEmpty
+        case .table(let m): m.headers.isEmpty && m.rows.isEmpty
+        case .barChart(let m): m.bars.isEmpty
+        case .highlightImage(let m): m.regions.isEmpty
+        case .essayOutline(let m): m.sections.isEmpty
+        }
+    }
+
     /// 全部品の anyOf。
     static var schema: JSONValue {
         Schema.anyOf(Kind.allCases.map { $0.model.schema }, description: "黒板に出す部品。type で種類を選ぶ")

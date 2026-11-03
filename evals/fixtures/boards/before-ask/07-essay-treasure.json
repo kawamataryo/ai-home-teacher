@@ -1,0 +1,64 @@
+{
+  "id": "07-essay-treasure",
+  "title": "作文の構成",
+  "model": "claude-sonnet-5-5",
+  "ask_board": true,
+  "analysis": {
+    "analysis": "作文課題。正答はない。条件は、題が「あなたが大切にしているもの」、200字以上300字以内、2段落構成。1段落目は大切にしているものとその理由、2段落目はそれをこれからどうしていきたいか。先生は文章を書いて見せない。子どもが話した題材を整理し、理由を「それってどうして？」と深める。書けたら、よい点を1〜2つほめ、直す点は1つだけ伝える。字数と段落の条件も確認する。",
+    "answer": "",
+    "answer_variants": [],
+    "essay_guidance": "題：「あなたが大切にしているもの」。条件：200字以上300字以内、2段落。1段落目は大切にしているものとその理由、2段落目はそれをこれからどうしていきたいか。題材は、物（ぬいぐるみ、本、道具など）、人（家族、友達）、時間や習慣（読書、練習、約束）など、子ども自身の体験から選べる。",
+    "hint_steps": [
+      "大切にしているものを、思いうかぶだけ3つ言ってみて？物でも、人でも、時間や習慣でもいいよ。その中でいちばん話したいものはどれかな？",
+      "選んだものについて、「どうして大切なのか」を話してみて。きっかけやできごとはあるかな？それを1段落目に、「これからどうしたいか」を2段落目にすると、はじめ・おわりの2つに分かれるね。",
+      "書けたら撮影して見せてね。字数（200字以上300字以内）と2段落になっているかを一緒に確認して、よいところを伝えるよ。"
+    ],
+    "kind": "writing",
+    "problem_summary": "「あなたが大切にしているもの」という題で、200字以上300字以内、2段落の作文を書く。1段落目は大切なものとその理由、2段落目はこれからどうしていきたいかを書く。"
+  },
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "作文の組み立てを考えよう",
+        "component": {
+          "type": "essay_outline",
+          "theme": "あなたが大切にしているもの",
+          "sections": [
+            {
+              "heading": "1だん落め",
+              "points": [
+                "大切にしているもの：？",
+                "大切な理由：？"
+              ]
+            },
+            {
+              "heading": "2だん落め",
+              "points": [
+                "これからどうしていきたいか：？"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 8194,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 939,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

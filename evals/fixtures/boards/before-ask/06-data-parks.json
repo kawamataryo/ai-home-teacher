@@ -1,0 +1,84 @@
+{
+  "id": "06-data-parks",
+  "title": "資料の比較（1つあたりの量）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": true,
+  "analysis": {
+    "analysis": "公園1か所あたりの人数 = 人口 ÷ 公園の数。A町は 24000÷12=2000(人)、B町は 15000÷10=1500(人)。2000>1500 なので、1か所あたりの人数が少ないのはB町。人口はAのほうが多いが、聞かれているのは「1か所あたり」なので、わり算で公園1か所に分けたときの人数をくらべる。",
+    "answer": "B町",
+    "answer_variants": [
+      "B",
+      "B町のほう",
+      "ビー町",
+      "Bまち"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題、最後に何をくらべてほしいと聞いているかな？「公園1か所あたりの人数」ってどういう意味か、自分の言葉で言ってみよう。",
+      "表の「人口」と「公園の数」の2つの数に注目しよう。A町とB町で、それぞれどの数を使えばよさそう？",
+      "人口が多いほうが答えとは限らないよ。公園1か所に同じ人数ずつ分けると考えたら、どんな計算になりそうかな？",
+      "まずA町で、人口を公園の数でわると1か所あたり何人になるかな？次にB町も同じように計算しよう。2つの数をくらべると、人数が少ないのは、ということは？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "A町(人口24000人・公園12か所)とB町(人口15000人・公園10か所)で、公園1か所あたりの人数が少ないのはどちらかを答える問題。"
+  },
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "何をくらべるのかな？",
+        "component": {
+          "type": "table",
+          "headers": [
+            "町",
+            "人口(人)",
+            "公園の数(か所)",
+            "1か所あたりの人数(人)"
+          ],
+          "rows": [
+            [
+              "A町",
+              "24000",
+              "12",
+              "？"
+            ],
+            [
+              "B町",
+              "15000",
+              "10",
+              "？"
+            ]
+          ],
+          "highlight_cells": [
+            {
+              "row": 0,
+              "column": 3
+            },
+            {
+              "row": 1,
+              "column": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 8186,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 965,
+    "output_tokens_details": {
+      "thinking_tokens": 134
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

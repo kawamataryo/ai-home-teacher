@@ -1,0 +1,45 @@
+{
+  "id": "10-timeline-schedule",
+  "title": "時間の流れ（予定表）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "3時50分に学校を出る。歩いて15分 → 図書館に着くのは4時5分（3:50+10分=4:00、あと5分で4:05）。40分間本を読む → 4:45。公園まで歩いて10分 → 4:55。答えは午後4時55分。別解：かかった時間を全部たす 15+40+10=65分＝1時間5分。3:50 + 1時間5分 = 4:55。",
+    "answer": "午後4時55分",
+    "answer_variants": [
+      "4時55分",
+      "午後4時55分",
+      "16時55分",
+      "午後4:55",
+      "4:55"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題、何を答えればいいんだっけ？最後の一文をもう一回読んで、自分の言葉で言ってみて。",
+      "文の中に時間が3つ出てくるよ。「歩いた時間」「本を読んだ時間」「歩いた時間」。それぞれ何分か、問題から探してみよう。出発の時刻はどこかな？",
+      "出発の時刻から、じゅんばんに時間をたしていくといいよ。1つずつ区切って、時計や数直線の図にしてみよう。60分で1時間になることに気をつけてね。",
+      "まず3時50分から15分たつと何時何分かな？（3時50分→4時まで何分、そのあと何分、と分けてみよう）。そこに40分、さらに10分とたしていくよ。最後の時刻は、自分で言ってみて。「ということは、公園に着いたのは…？」"
+    ],
+    "kind": "thinking",
+    "problem_summary": "午後3時50分に学校を出て、歩いて15分で図書館へ行き、40分本を読み、さらに歩いて10分で公園へ行く。公園に着く時刻は午後何時何分かを答える。"
+  },
+  "boards": [],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 8149,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 735,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

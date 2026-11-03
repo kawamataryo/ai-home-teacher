@@ -1,0 +1,85 @@
+{
+  "id": "08-average-test",
+  "title": "平均（あと何点）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": true,
+  "analysis": {
+    "analysis": "平均×回数＝合計 で考える。4回の合計は 80×4=320点。5回の平均が82点になるには、5回の合計が 82×5=410点必要。5回目の点数は 410−320=90点。確かめ：(320+90)÷5=410÷5=82点。別解：平均を2点上げるには、5回分で 2×5=10点 多く必要なので、80+10=90点。",
+    "answer": "90点",
+    "answer_variants": [
+      "90",
+      "90てん",
+      "九十点"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題、最後に何を答えればいいんだっけ？「何点をとれば」と聞かれているのは、何回目のテストの点数かな？自分の言葉で言ってみて。",
+      "問題に出てくる数をひろってみよう。「4回」「平均80点」「5回」「平均82点」があるね。平均と回数、この2つを使うと何がわかりそうか、黒板の表を見ながら考えてみて。",
+      "平均は『合計を回数でわった数』だったよね。ということは、平均と回数がわかっていれば、合計は、どうやって求められそう？まず4回の合計を考えてみよう。",
+      "4回の合計は何点になる？次に、5回の平均が82点になるには、5回の合計は何点必要？その2つの合計をくらべると、5回目に必要な点数は…ということは？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "4回の漢字テストの平均が80点のはるかさんが、5回目に何点をとれば、5回の平均が82点になるかを求める問題。"
+  },
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "平均と合計をせいりしよう",
+        "component": {
+          "type": "table",
+          "headers": [
+            "",
+            "回数",
+            "平均点",
+            "合計点"
+          ],
+          "rows": [
+            [
+              "これまで",
+              "4回",
+              "80点",
+              "？"
+            ],
+            [
+              "5回目まで",
+              "5回",
+              "82点",
+              "？"
+            ],
+            [
+              "5回目だけ",
+              "1回",
+              "？",
+              "？"
+            ]
+          ],
+          "highlight_cells": [
+            {
+              "row": 2,
+              "column": 2
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 8169,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 1050,
+    "output_tokens_details": {
+      "thinking_tokens": 209
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

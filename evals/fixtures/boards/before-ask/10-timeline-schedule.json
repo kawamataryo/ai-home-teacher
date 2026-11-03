@@ -1,0 +1,99 @@
+{
+  "id": "10-timeline-schedule",
+  "title": "時間の流れ（予定表）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": true,
+  "analysis": {
+    "analysis": "",
+    "answer": "午後4時55分",
+    "answer_variants": [
+      "4時55分",
+      "午後4:55",
+      "16時55分",
+      "午後四時五十五分"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題、最後に何を答えればいいんだっけ？問題の最後の一文を読んで、自分の言葉で言ってみよう。",
+      "そうたさんは、学校を出てから公園に着くまでに、どんなことを順番にしているかな？黒板の表を見て、かかった時間が書いてあるところを3つ探してみよう。",
+      "時計の問題は、時刻から時間をたしながら、一つずつ進めていくとまちがえにくいよ。まず、学校を出た時刻に最初の15分をたすと、何時何分になるかな？",
+      "一緒にたどろう。①3時50分から15分たつと図書館に着くね。②そこから40分本を読むと何時何分？③そこから10分歩くと公園に着くよ。ということは、公園に着いた時刻は？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "そうたさんは午後3時50分に学校を出て、15分歩いて図書館へ行き、40分本を読み、さらに10分歩いて公園へ行く。公園に着く時刻（午後何時何分）を答える。"
+  },
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "できごとを順番に整理しよう",
+        "component": {
+          "type": "table",
+          "headers": [
+            "できごと",
+            "かかった時間",
+            "着いた・終わった時刻"
+          ],
+          "rows": [
+            [
+              "学校を出る",
+              "—",
+              "午後3時50分"
+            ],
+            [
+              "図書館まで歩く",
+              "15分",
+              "？"
+            ],
+            [
+              "図書館で本を読む",
+              "40分",
+              "？"
+            ],
+            [
+              "公園まで歩く",
+              "10分",
+              "？"
+            ]
+          ],
+          "highlight_cells": [
+            {
+              "row": 0,
+              "column": 2
+            },
+            {
+              "row": 1,
+              "column": 1
+            },
+            {
+              "row": 2,
+              "column": 1
+            },
+            {
+              "row": 3,
+              "column": 1
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 8202,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 1029,
+    "output_tokens_details": {
+      "thinking_tokens": 218
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

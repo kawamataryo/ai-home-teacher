@@ -1,0 +1,43 @@
+{
+  "id": "08-average-test",
+  "title": "平均（あと何点）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "4回の合計＝80×4＝320点。5回の平均が82点になるには、5回の合計が82×5＝410点必要。5回目の点数＝410−320＝90点。確かめ：(320+90)÷5＝82。別解：平均を2点上げたい。5回分で2×5＝10点多く必要なので、80+10＝90点。",
+    "answer": "90点",
+    "answer_variants": [
+      "90",
+      "90てん",
+      "九十点"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題、最後に何を答えればいいのかな？「何点をとれば」のあとに、どんな条件がついているか、自分の言葉で言いかえてみて。",
+      "問題の中の数字を見てみよう。「4回」「80点」「5回」「82点」が出てくるね。平均は、合計と回数のどちらとどちらから出す数だったかな？",
+      "平均だけだと5回目の点数はわからないよね。平均から「合計」を考えられないかな？「平均×回数＝合計」を使って、まず4回分の合計を考えてみよう。",
+      "まず4回の合計は？次に、5回の平均が82点になるときの5回の合計は？その2つの合計を比べると、5回目で何点たりないかな。ということは、5回目は何点？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "4回の漢字テストの平均が80点のはるかさんが、5回目に何点とれば5回の平均が82点になるかを求める問題。"
+  },
+  "boards": [],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 8116,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 629,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

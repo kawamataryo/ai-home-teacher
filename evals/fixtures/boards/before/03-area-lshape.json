@@ -1,0 +1,44 @@
+{
+  "id": "03-area-lshape",
+  "title": "図形の面積（L字形）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "全体の長方形の面積は 6×8=48cm²。切り取った長方形の面積は 2×3=6cm²。残りは 48−6=42cm²。L字の形でも、大きい長方形から切り取った部分をひけばよい。別の解き方として、L字を2つの長方形に分けて足してもよい(例: 6×5=30 と 4×3=12 で 42)。",
+    "answer": "42cm²",
+    "answer_variants": [
+      "42",
+      "42平方センチメートル",
+      "四十二cm²",
+      "42cm2"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題、最後に何を聞かれているかな？「残った紙の面積」ってどの部分のことか、自分の言葉で言ってみよう。",
+      "もとの長方形と、切り取った長方形。この2つの大きさ(たてとよこ)に注目してみよう。それぞれ問題のどこに書いてあるかな？",
+      "L字の形は計算しにくいね。「切り取る前の形」に戻して、大きい長方形から小さい長方形を取ると考えられないかな？",
+      "まず、もとの長方形の面積は？ 次に、切り取った長方形の面積は？ その2つを使って、残った紙の面積を出すにはどうするかな？ ということは、残った面積は？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "たて6cm、よこ8cmの長方形の紙の右上から、たて2cm、よこ3cmの長方形を切り取ってL字にした。残った紙の面積は何cm²か。"
+  },
+  "boards": [],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 8137,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 655,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

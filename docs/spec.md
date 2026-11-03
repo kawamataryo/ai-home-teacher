@@ -99,7 +99,7 @@
   - 先生の文は読み上げる前に正答（と言いかえ）と照合し、含まれていたら別の文に差し替える（`AnswerLeakGuard`）。子どもが先に正答を言ったあとは繰り返してよい
     - 差し替えたら、その返事の残りの文は話さない（答えの説明が続きやすいため）。履歴も差し替えた文にそろえる
 - **Generative UI**：先生の発話と一緒に、黒板（BoardView）に図を出す
-  - Claude は `show_board` ツールで、部品カタログから部品を選んで中身を指定する（strict JSON Schema）
+  - Claude は `show_board` ツールで、部品カタログから部品を選んで中身を指定する（JSON Schema。全部品の anyOf を strict にすると API が「grammar is too large」で 400 を返すので、`show_board` だけ strict にせず、足りないキーをスキーマの既定値で埋めてから読む。#70）
   - 部品カタログ（初期）：`step_cards`（手順カード）、`number_line`（数直線）、`area_diagram`（面積図）、`segment_diagram`（線分図）、`table`（表）、`bar_chart`（棒グラフ）、`highlight_image`（撮影画像の一部を囲む）、`essay_outline`（作文の構成メモ）
   - カタログで表せないときは `render_svg` ツールで、自己完結の SVG（外部リソースなし・CSS アニメのみ・viewBox 固定）を出させ、WKWebView に表示する
   - WKWebView は外部ネットワーク禁止、CSP で script を禁止する
