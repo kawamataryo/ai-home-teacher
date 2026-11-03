@@ -99,6 +99,7 @@
 - **口パク**：顔のテクスチャを口の形（あ・い・う・え・お・ん・閉じ）で差し替える。ElevenLabs の文字タイミングを母音に変換して切り替える。タイミングが取れない TTS では音量で口の開閉だけ行う
 - **状態**：`idle`（まばたき・小さな揺れ）/ `listening`（うなずき）/ `thinking`（首をかしげる）/ `looking`（ノートを見る目線）/ `talking` / `praise`（喜ぶ）/ `encourage`（応援）/ `break`（伸び）
 - 状態は ConversationController のイベントで切り替える。褒める・励ますは Claude の応答に付く感情タグ（`emotion`）で決める
+  - アバター側は `AvatarEvent`（話し始め・話し終わり・考え中・発話開始（emotion 付き）・発話終了・ノートを見る・休憩開始/終了）を受け取り、`AvatarStateMachine` で状態を決める。感情タグは `neutral` / `praise` / `encourage`（それ以外は `neutral`）。休憩中に話し終えたら伸び（`break`）に戻る
 
 ### ④ 時間での声かけ ＋ 前回の記憶
 

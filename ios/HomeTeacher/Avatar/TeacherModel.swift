@@ -34,6 +34,8 @@ final class TeacherModel {
     let entity: Entity
     private var parts: [TeacherPart: Entity] = [:]
     private var textures: [String: TextureResource] = [:]
+    /// いま貼っているテクスチャ（毎フレーム呼ばれても同じなら差し替えない）
+    private var currentTextures: [TeacherPart: String] = [:]
 
     init(entity: Entity) {
         self.entity = entity
@@ -77,7 +79,9 @@ final class TeacherModel {
     static let mouthTextureNames = ["a", "i", "u", "e", "o", "n", "closed"].map { "face_mouth_\($0)" }
 
     private func setFaceTexture(_ name: String, on target: TeacherPart) {
-        guard let texture = textures[name], let entity = part(target) else { return }
+        guard currentTextures[target] != name,
+              let texture = textures[name], let entity = part(target) else { return }
+        currentTextures[target] = name
         for model in Self.modelEntities(under: entity) {
             guard var component = model.components[ModelComponent.self] else { continue }
             // usdz のマテリアルをそのまま使い、テクスチャだけ替える（頭の肌と同じ光の当たり方にするため）
