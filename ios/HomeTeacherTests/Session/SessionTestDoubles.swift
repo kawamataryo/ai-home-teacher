@@ -162,13 +162,16 @@ final class SessionHarness {
         clock: ManualClock = ManualClock(),
         watchOver: (any WatchOverControlling)? = nil,
         now: Date = Date(timeIntervalSince1970: 1_793_000_000),
-        client: WorkerClient? = nil
+        client: WorkerClient? = nil,
+        usesDecisions: Bool = false
     ) throws {
         self.clock = clock
         store = MemorySyncStore(base: try SwiftDataMemoryStore.inMemory(), stateStorage: InMemorySyncStateStorage())
         let client = client ?? WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: transport)
+        // Jev の答えは transport に /v1/decide で積む（積んでいなければ失敗として規則に任せる）
+        let decisions = usesDecisions ? TeacherDecisions(client: DecisionClient(worker: client)) : nil
         coordinator = StudySessionCoordinator(dependencies: .init(
-            client: client, input: input, voice: voice, store: store, sync: sync, clock: clock,
+            client: client, input: input, voice: voice, store: store, sync: sync, clock: clock, decisions: decisions,
             preferences: preferences, camera: camera, countdown: InstantCountdown(), now: { now }, answerJudge: answerJudge,
             watchOver: watchOver
         ))

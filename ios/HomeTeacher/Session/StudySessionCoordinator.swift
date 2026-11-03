@@ -240,6 +240,7 @@ final class StudySessionCoordinator {
         teacherNote = nil
         problems = []
         tutoring = nil
+        finishConfirmationDeadline = nil
         // 前のセッションで先生が最後に話した文を、新しいセッションの発話の判断に持ち込まない
         decisionCache?.teacherLastSaid = nil
         board = nil
@@ -332,6 +333,15 @@ final class StudySessionCoordinator {
                 }
                 trace("カメラがないので撮影は省略（ふつうに返事する）")
             }
+            // 「今日はここまでにする？」への返事（#103）
+            if let agreed = consumeFinishConfirmation(text) {
+                if agreed {
+                    Task { await self.end() }
+                    return
+                }
+            } else if await handleRequest(in: text) {
+                return
+            }
             let reaction = await noteTutoringTurn(text)
             // 答えだった発話は撮影の依頼ではない
             let isAnswer = lastAnswerJudgement.map { $0.verdict != .notAnAnswer } ?? false
@@ -345,6 +355,48 @@ final class StudySessionCoordinator {
             trace("割り込み（\(during == .speaking ? "発話中" : "考え中")）")
             await handleBargeIn()
         }
+    }
+
+    // MARK: - 休憩したい・終わりたい（#103）
+
+    /// 先生が「今日はここまでにする？」と聞き、返事を待っている期限
+    @ObservationIgnored private var finishConfirmationDeadline: ContinuousClock.Instant?
+    static let finishConfirmLine = "今日はここまでにする？"
+    /// 「今日はここまでにする？」の返事を待つ時間（ConversationSettings の continuationWindow と同じ）
+    static let finishConfirmationWindow: Duration = .seconds(30)
+
+    /// 休憩したい・終わりたいと言っていれば動く。返事をこれで済ませたら true（ふつうの返事を作らない）
+    ///
+    /// - 休憩したい：集中の途中なら、その場で休憩に切り替える（雑談モードで、ふつうに返事する）。間違えても戻せるので確かめない
+    /// - 終わりたい：「今日はここまでにする？」と聞く。終えるとふり返りと保存が走るので、Jev の判断だけでは終えない
+    private func handleRequest(in text: String) async -> Bool {
+        let analysis = await decisionCache?.analysis(for: text, within: AnswerJudge.defaultTimeout)
+        if let p = analysis?.finishRequest, DecisionReading(p) == .yes {
+            trace("終わりたいと言った（Jev \(String(format: "%.2f", p))）→ 確かめる")
+            finishConfirmationDeadline = deps.clock.now + Self.finishConfirmationWindow
+            Task {
+                await self.speakFallback([Self.finishConfirmLine])
+                self.decisionCache?.teacherLastSaid = Self.finishConfirmLine
+            }
+            return true
+        }
+        let wantsBreak = analysis?.breakRequest.map { DecisionReading($0) == .yes } ?? BreakRequestDetector.isBreakRequest(text)
+        if wantsBreak, sessionMode == .study, timer?.startBreakNow() == true {
+            trace("休憩したいと言ったので休憩に入る（\(analysis?.breakRequest.map { "Jev \(String(format: "%.2f", $0))" } ?? "言い方")）")
+            // タイマーの出来事を待たずに雑談モードにしてから返事を作る（あとから届く出来事は同じモードなので何もしない）
+            await handleTimer(.phaseStarted(.rest))
+        }
+        return false
+    }
+
+    /// 「今日はここまでにする？」への返事なら、終えてよいか（true / false）。返事を待っていなければ nil
+    private func consumeFinishConfirmation(_ text: String) -> Bool? {
+        guard let deadline = finishConfirmationDeadline else { return nil }
+        finishConfirmationDeadline = nil
+        guard deps.clock.now <= deadline else { return nil }
+        let agreed = FinishConfirmationDetector.isAgreement(text)
+        trace("「\(Self.finishConfirmLine)」への返事「\(text)」→ \(agreed ? "終える" : "続ける")")
+        return agreed
     }
 
     /// 割り込まれた: 作りかけの応答を捨て、声とストリームを止める

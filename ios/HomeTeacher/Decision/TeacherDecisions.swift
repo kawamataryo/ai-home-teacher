@@ -40,6 +40,10 @@ struct UtteranceAnalysis: Sendable, Equatable {
     var utteranceComplete: Double?
     var captureRequest: Double?
     var helpRequest: Double?
+    /// 今、休憩したいと言っているか
+    var breakRequest: Double?
+    /// 今日の勉強を終わりにしたいと言っているか
+    var finishRequest: Double?
     /// 問題の答えを言っているか（問題に取り組み中だけ聞く）
     var givesAnswer: Double?
     /// 言った答えが正答と同じか（問題に取り組み中だけ聞く）
@@ -91,6 +95,8 @@ struct TeacherDecisions: Sendable {
         static let complete = "utterance_complete"
         static let capture = "capture_request"
         static let help = "help_request"
+        static let breakRequest = "break_request"
+        static let finishRequest = "finish_request"
         static let givesAnswer = "gives_answer"
         static let matchesAnswer = "matches_answer"
     }
@@ -119,6 +125,18 @@ struct TeacherDecisions: Sendable {
         whenFalse: "Giving an answer or an idea, small talk, or saying they want a break"
     )
 
+    static let breakQuestion = DecisionQuestion.boolean(
+        instructions: "Is the child asking to take a break now?",
+        whenTrue: "Saying they are tired and want to rest, or asking for a break (「休憩したい」「ちょっと休みたい」)",
+        whenFalse: "Talking about the work, small talk that only mentions rest or play, or only wanting to stop for today"
+    )
+
+    static let finishQuestion = DecisionQuestion.boolean(
+        instructions: "Is the child saying they want to stop studying for today?",
+        whenTrue: "Wanting to end today's study session (「もう今日は終わりにしたい」「今日はもうやめる」)",
+        whenFalse: "Wanting only a short break, asking about a problem that contains the word 終わり, saying they want to keep going, or small talk"
+    )
+
     static let givesAnswerQuestion = DecisionQuestion.boolean(
         instructions: "Is the child stating an answer to `problem` in `utterance`?",
         whenTrue: "States a final answer, including unsure forms like 「24かな？」",
@@ -140,6 +158,8 @@ struct TeacherDecisions: Sendable {
             Key.complete: Self.completeQuestion,
             Key.capture: Self.captureQuestion,
             Key.help: Self.helpQuestion,
+            Key.breakRequest: Self.breakQuestion,
+            Key.finishRequest: Self.finishQuestion,
         ]
         if context.problem != nil {
             questions[Key.givesAnswer] = Self.givesAnswerQuestion
@@ -152,6 +172,8 @@ struct TeacherDecisions: Sendable {
             utteranceComplete: result[Key.complete]?.probability,
             captureRequest: result[Key.capture]?.probability,
             helpRequest: result[Key.help]?.probability,
+            breakRequest: result[Key.breakRequest]?.probability,
+            finishRequest: result[Key.finishRequest]?.probability,
             givesAnswer: result[Key.givesAnswer]?.probability,
             matchesAnswer: result[Key.matchesAnswer]?.probability
         )
