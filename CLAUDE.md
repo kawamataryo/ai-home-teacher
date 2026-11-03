@@ -35,6 +35,12 @@
 - 判定ロジックのテスト（API 不要）: `node --test evals/*.test.mjs`
 - 実際に Claude を呼ぶ評価: `WORKER_BASE_URL=... FAMILY_TOKEN=... node evals/run.mjs`（または `ANTHROPIC_API_KEY=...`）。設定がなければスキップする
 
+### 定型句の音声
+
+- 一覧は `ios/HomeTeacher/Resources/Phrases/teacher_phrases.json`
+- ElevenLabs で作って同梱: `WORKER_BASE_URL=... FAMILY_TOKEN=... node scripts/generate_phrases.mjs`（設定がなければスキップ）。書き出したら `xcodegen generate`
+- パーサーのテスト: `node --test scripts/*.test.mjs`
+
 ### Worker
 
 ```sh

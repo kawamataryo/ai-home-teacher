@@ -8,7 +8,7 @@ enum MouthShape: String, CaseIterable, Sendable {
 }
 
 /// TTS の文字タイミング（ElevenLabs の `alignment` / `normalized_alignment` と同じ形）
-struct TTSAlignment: Decodable, Equatable, Sendable {
+struct TTSAlignment: Codable, Equatable, Sendable {
     var characters: [String]
     var characterStartTimesSeconds: [Double]
     var characterEndTimesSeconds: [Double]

@@ -69,7 +69,13 @@
 - **エコー対策**：AVAudioEngine の `setVoiceProcessingEnabled(true)`。入力と再生を同じエンジンに通す
 - **保険**：設定で「先生が話している間はマイクを止める」方式に切り替えられる
 - **TTS**：`TTSProvider` プロトコルで差し替え可能にする。最初は ElevenLabs Flash v2.5（文字タイミングを口パクに使う）。オフライン時は AVSpeechSynthesizer
+  - 1 文ぶんの音声（ElevenLabs は MP3、AVSpeechSynthesizer は WAV）を受け取りきってから再生する。出だしは少し遅れるが、MP3 を自前でつなぎながらデコードするより確実（ストリーミング再生は後回し）
+  - ElevenLabs が失敗するか 6 秒以内に返らなければ、その文を AVSpeechSynthesizer で作り直す
+  - 「何文字目まで話したか」は文字タイミングと再生位置から出す（読み始めた文字まで数える。割り込み時に発言を切る位置）
+  - 再生は `SpeechAudioPlayer` で差し替える。エコー対策でマイクと同じ AVAudioEngine に通すときは `EngineClipPlayer` を使う
 - **定型句キャッシュ**：「いいね！」「どれどれ」「休憩しよっか」などは事前に音声を生成して同梱し、待ち時間ゼロで再生する
+  - 一覧は `ios/HomeTeacher/Resources/Phrases/teacher_phrases.json`。音声は `scripts/generate_phrases.mjs` で ElevenLabs から作って同梱する
+  - 同梱の音声がない定型句は、初回起動時に作ってディスクにキャッシュする（オフラインなら AVSpeechSynthesizer の声。あとで ElevenLabs が使えたら作り直す）
 - **相づち**：Sonnet の処理に時間がかかるときは、Haiku の応答か定型句（「お、どれどれ…」）で間をつなぐ
 
 ### ② 「見て」で撮影 → ヒント → Generative UI
