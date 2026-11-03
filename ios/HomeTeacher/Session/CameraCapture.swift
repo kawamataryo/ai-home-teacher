@@ -88,7 +88,12 @@ final class CameraCapture: NSObject, PhotoCapturing {
         session.automaticallyConfiguresApplicationAudioSession = false
     }
 
+    /// カメラがあり、拒否されていない（拒否されていたら撮影ボタンも「見て」の判定も出さない。#66）
     var isAvailable: Bool {
+        Self.hasCamera && SystemPermissions.cameraState != .denied
+    }
+
+    static var hasCamera: Bool {
         AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) != nil
             || AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) != nil
     }

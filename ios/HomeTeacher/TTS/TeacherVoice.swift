@@ -23,6 +23,9 @@ final class TeacherVoice: SpeechOutput {
     private let lipSync: LipSyncPlayer
     private let phraseCache: PhraseCache?
     var primaryTimeout: Duration
+    /// `primary` が失敗したら、この間は `primary` を使わずに `fallback` で話す（#66。つながらない Worker を 1 文ごとに待たない）
+    var primaryCooldown: Duration = .seconds(60)
+    private var primaryFailedAt: ContinuousClock.Instant?
 
     /// 話している文と音声（再生中だけ）
     private var current: (text: String, speech: SynthesizedSpeech)?
@@ -132,12 +135,18 @@ final class TeacherVoice: SpeechOutput {
 
     private func synthesize(_ text: String) async throws -> SynthesizedSpeech {
         let primary = primary
+        if let fallback, let failedAt = primaryFailedAt, ContinuousClock.now - failedAt < primaryCooldown {
+            return try await fallback.synthesizeAll(text)
+        }
         do {
-            return try await withTTSTimeout(primaryTimeout) { try await primary.synthesizeAll(text) }
+            let speech = try await withTTSTimeout(primaryTimeout) { try await primary.synthesizeAll(text) }
+            primaryFailedAt = nil
+            return speech
         } catch {
             // 止められたら予備にも行かない
             if Task.isCancelled { throw CancellationError() }
             guard let fallback else { throw error }
+            primaryFailedAt = .now
             logger.info("\(primary.identifier, privacy: .public) が使えないので \(fallback.identifier, privacy: .public) で話す: \(String(describing: error), privacy: .public)")
             return try await fallback.synthesizeAll(text)
         }

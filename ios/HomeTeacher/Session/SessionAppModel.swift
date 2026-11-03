@@ -15,8 +15,8 @@ final class AppServices {
 
     init(config: AppConfig?) {
         self.config = config
-        // 設定がなくても画面は動かす（Claude への呼び出しは失敗し、決まり文句で話す）
-        client = WorkerClient(config: config ?? AppConfig(workerBaseURL: URL(string: "http://localhost:8787")!, familyToken: ""))
+        // 設定がなくても画面は動かす（Claude への呼び出しは通信せずにすぐ失敗し、端末の声の決まり文句で話す。#66）
+        client = config.map { WorkerClient(config: $0) } ?? .unconfigured
         let base: SwiftDataMemoryStore
         if !Self.isTestHost, let container = try? SwiftDataMemoryStore.makeContainer() {
             base = SwiftDataMemoryStore(modelContainer: container)
@@ -65,6 +65,10 @@ final class SessionAppModel: AudioEngineLeaseHolder {
     let preferences = SessionPreferences()
     /// 見守り（#30）。画面の「見守りカメラ オン」に使う。台本の発話のときは自己テストが渡したものだけ
     private(set) var watchOver: WatchOver?
+    /// 初めての許可の流れ（#66）。理由を話している間だけある
+    private(set) var onboarding: PermissionOnboarding?
+    /// 拒否されている許可の案内（#66）。なければ nil
+    private(set) var permissionNotice: PermissionNotice?
 
     @ObservationIgnored let services: AppServices
     @ObservationIgnored private var microphone: MicrophoneSpeechInput?
@@ -73,8 +77,11 @@ final class SessionAppModel: AudioEngineLeaseHolder {
     /// 作り直したあとに出す、使っている認識エンジン
     @ObservationIgnored private var audioLabel = ""
 
-    init(services: AppServices) {
+    @ObservationIgnored private let permissions: any PermissionAuthorizing
+
+    init(services: AppServices, permissions: any PermissionAuthorizing = SystemPermissions()) {
         self.services = services
+        self.permissions = permissions
     }
 
     /// マイクと先生の声を用意して、まとめ役を作る。`scriptedInput` を渡すとマイクを使わない（自己テスト・表示確認）
@@ -89,6 +96,13 @@ final class SessionAppModel: AudioEngineLeaseHolder {
             player = AudioClipPlayer()
             audioStatus = "マイクなし（台本の発話）"
         } else {
+            // いきなりシステムのダイアログを出さず、先生が理由を話してから聞く（#66）
+            if !PermissionOnboarding.pending(permissions).isEmpty {
+                let flow = PermissionOnboarding(authorizer: permissions, voice: makeVoice(player: AudioClipPlayer()))
+                onboarding = flow
+                await flow.run()
+                onboarding = nil
+            }
             let mic = MicrophoneSpeechInput()
             microphone = mic
             input = mic
@@ -108,18 +122,16 @@ final class SessionAppModel: AudioEngineLeaseHolder {
             }
         }
 
-        let system = SystemTTSProvider()
-        let primary: any TTSProvider = services.config == nil ? system : ElevenLabsTTSProvider(client: services.client)
-        let voice = TeacherVoice(
-            primary: primary,
-            fallback: services.config == nil ? nil : system,
-            player: player,
-            lipSync: lipSync,
-            phraseCache: try? PhraseCache()
-        )
+        let voice = makeVoice(player: player)
+        // カメラだけ拒否なら、撮影と見守りは使わずに声の会話を続ける（#66）
+        let cameraAllowed = permissions.state(of: .camera) != .denied
+        if scriptedInput == nil {
+            let states = Dictionary(uniqueKeysWithValues: AppPermission.allCases.map { ($0, permissions.state(of: $0)) })
+            permissionNotice = PermissionNotice(states: states, speechInputFailed: !isMicrophoneAvailable)
+        }
         // 見守りは前のカメラ（ActivityWatcher）。「見て」の撮影の前後で見守りのカメラを止めて戻す
-        var camera: (any PhotoCapturing)? = scriptedInput == nil ? CameraCapture() : nil
-        let watching = watchOver ?? (scriptedInput == nil ? makeWatchOver(clock: clock) : nil)
+        var camera: (any PhotoCapturing)? = scriptedInput == nil && cameraAllowed ? CameraCapture() : nil
+        let watching = watchOver ?? (scriptedInput == nil && cameraAllowed ? makeWatchOver(clock: clock) : nil)
         if let watching, let base = camera { camera = WatchAwarePhotoCapture(base: base, watchOver: watching) }
         self.watchOver = watching
         let coordinator = StudySessionCoordinator(dependencies: .init(
@@ -139,6 +151,24 @@ final class SessionAppModel: AudioEngineLeaseHolder {
         self.coordinator = coordinator
         audioMonitor?.session = coordinator
         coordinator.listen()
+        // 拒否されているものがあれば、何が使えないかを先生が端末の声で伝える
+        if let permissionNotice {
+            coordinator.trace("許可の案内: \(permissionNotice.parentMessage)")
+            await voice.say(permissionNotice.childLine)
+        }
+    }
+
+    /// 先生の声。Worker の設定がなければ端末の声（AVSpeechSynthesizer）だけで話す
+    private func makeVoice(player: any SpeechAudioPlayer) -> TeacherVoice {
+        let system = SystemTTSProvider()
+        let primary: any TTSProvider = services.config == nil ? system : ElevenLabsTTSProvider(client: services.client)
+        return TeacherVoice(
+            primary: primary,
+            fallback: services.config == nil ? nil : system,
+            player: player,
+            lipSync: lipSync,
+            phraseCache: try? PhraseCache()
+        )
     }
 
     private func makeWatchOver(clock: any ConversationClock) -> WatchOver {

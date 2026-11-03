@@ -67,8 +67,10 @@ struct StudySessionCoordinatorTests {
         // 用意がないので Worker は 500 を返す
         await h.coordinator.start()
         #expect(await eventually { h.coordinator.completedReplies >= 1 })
-        #expect(h.voice.spoken == [StudySessionCoordinator.openingFallback])
+        // つながらないので、端末の声で「調子が悪い」と伝えてから始める（#66）
+        #expect(h.voice.spoken == [StudySessionCoordinator.troubleLine, StudySessionCoordinator.openingFallback])
         #expect(h.coordinator.lastReplyFromWorker == false)
+        #expect(h.coordinator.connectionProblem == .server)
     }
 
     @Test func 話している途中で割り込まれたら残りの文は話さない() async throws {
