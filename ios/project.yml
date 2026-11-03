@@ -1,0 +1,54 @@
+name: HomeTeacher
+options:
+  bundleIdPrefix: com.kawamataryo
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
+targets:
+  HomeTeacher:
+    type: application
+    platform: iOS
+    sources:
+      - HomeTeacher
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kawamataryo.HomeTeacher
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "AI家庭教師"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "先生と声で話すためにマイクを使います。"
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "話した言葉を文字にするために音声認識を使います。"
+        INFOPLIST_KEY_NSCameraUsageDescription: "問題やノートを先生に見せるためにカメラを使います。"
+        INFOPLIST_FILE: HomeTeacher/Resources/Info.plist
+        CODE_SIGN_STYLE: Automatic
+  HomeTeacherTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - HomeTeacherTests
+    dependencies:
+      - target: HomeTeacher
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.kawamataryo.HomeTeacherTests
+schemes:
+  HomeTeacher:
+    build:
+      targets:
+        HomeTeacher: all
+        HomeTeacherTests: [test]
+    test:
+      targets:
+        - HomeTeacherTests

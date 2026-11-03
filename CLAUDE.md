@@ -19,3 +19,12 @@
 - 写真・音声はサーバーに保存しない。保存するのは文字の情報だけ
 - 先生は答えをそのまま言わない（ヒントの段階は spec の §3②）
 - 既存ゲームのキャラクターや素材を真似しない
+
+## コマンド
+
+### iOS
+
+- プロジェクト生成（`ios/project.yml` が正。`.xcodeproj` はコミットしない）: `cd ios && xcodegen generate`
+- 初回のみ: `cp ios/Config/Secrets.xcconfig.example ios/Config/Secrets.xcconfig`
+- テスト: `cd ios && xcodebuild test -project HomeTeacher.xcodeproj -scheme HomeTeacher -destination 'platform=iOS Simulator,name=iPad Pro 11-inch (M5)'`
+- ファイルを追加・削除したら `xcodegen generate` をやり直す

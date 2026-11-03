@@ -31,3 +31,6 @@ coverage/
 
 # Claude Code (local only)
 .claude/settings.local.json
+
+# XcodeGen で生成する（ios/project.yml が正）
+ios/*.xcodeproj/
