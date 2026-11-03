@@ -145,7 +145,7 @@ struct TeacherVoiceTests {
     }
 
     @Test func 定型句はキャッシュの音声をすぐ再生する() async {
-        let cache = PhraseCache(phrases: [.init(key: "iine", text: "いいね！")], directory: nil)
+        let cache = PhraseCache(phrases: [.init(key: "iine", text: "いいね！")], bundle: .withoutBundledPhrases, directory: nil)
         let cached = SynthesizedSpeech(text: "いいね！", provider: "elevenlabs", format: .mp3, audio: Data([9]), alignment: evenAlignment("いいね！"))
         cache.store(cached, for: .init(key: "iine", text: "いいね！"))
         let primary = MockTTSProvider()
@@ -161,7 +161,7 @@ struct TeacherVoiceTests {
 
     @Test func キャッシュにない定型句は合成してキャッシュに入れる() async {
         let phrase = PhraseCache.Phrase(key: "doredore", text: "どれどれ")
-        let cache = PhraseCache(phrases: [phrase], directory: nil)
+        let cache = PhraseCache(phrases: [phrase], bundle: .withoutBundledPhrases, directory: nil)
         let primary = MockTTSProvider()
         let voice = voice(primary: primary, cache: cache)
 

@@ -22,7 +22,7 @@ struct PhraseCacheTests {
     }
 
     @Test func 文末の句読点と空白を無視して引く() {
-        let cache = PhraseCache(phrases: [.init(key: "iine", text: "いいね！"), .init(key: "doredore", text: "お、どれどれ…")], directory: nil)
+        let cache = PhraseCache(phrases: [.init(key: "iine", text: "いいね！"), .init(key: "doredore", text: "お、どれどれ…")], bundle: .withoutBundledPhrases, directory: nil)
         #expect(cache.phrase(for: "いいね")?.key == "iine")
         #expect(cache.phrase(for: " いいね！！ ")?.key == "iine")
         #expect(cache.phrase(for: "お、どれどれ")?.key == "doredore")
@@ -37,13 +37,13 @@ struct PhraseCacheTests {
         defer { try? FileManager.default.removeItem(at: directory) }
         let phrase = PhraseCache.Phrase(key: "iine", text: "いいね！")
         let speech = SynthesizedSpeech(text: "いいね！", provider: "system", format: .wav, audio: Data([1, 2]), alignment: evenAlignment("いいね！"))
-        PhraseCache(phrases: [phrase], directory: directory).store(speech, for: phrase)
+        PhraseCache(phrases: [phrase], bundle: .withoutBundledPhrases, directory: directory).store(speech, for: phrase)
 
-        let reopened = PhraseCache(phrases: [phrase], directory: directory)
+        let reopened = PhraseCache(phrases: [phrase], bundle: .withoutBundledPhrases, directory: directory)
         #expect(reopened.speech(for: "いいね") == speech)
 
         // 一覧の文が変わったら古い音声は使わない
-        let edited = PhraseCache(phrases: [.init(key: "iine", text: "いいねえ！")], directory: directory)
+        let edited = PhraseCache(phrases: [.init(key: "iine", text: "いいねえ！")], bundle: .withoutBundledPhrases, directory: directory)
         #expect(edited.speech(for: "いいねえ") == nil)
     }
 
@@ -55,13 +55,13 @@ struct PhraseCacheTests {
         // オフライン: ElevenLabs が失敗するので予備の声で作る
         let offline = MockTTSProvider(identifier: "elevenlabs", behavior: .fail(URLError(.notConnectedToInternet)))
         let system = MockTTSProvider(identifier: "system")
-        let cache = PhraseCache(phrases: phrases, directory: directory)
+        let cache = PhraseCache(phrases: phrases, bundle: .withoutBundledPhrases, directory: directory)
         #expect(await cache.prepare(primary: offline, fallback: system) == 2)
         #expect(cache.speech(for: "なるほど")?.provider == "system")
 
         // オンラインになったら ElevenLabs で作り直す。ElevenLabs のものがあれば作らない
         let online = MockTTSProvider(identifier: "elevenlabs")
-        let next = PhraseCache(phrases: phrases, directory: directory)
+        let next = PhraseCache(phrases: phrases, bundle: .withoutBundledPhrases, directory: directory)
         #expect(await next.prepare(primary: online, fallback: system) == 2)
         #expect(next.speech(for: "なるほど")?.provider == "elevenlabs")
         #expect(await next.prepare(primary: online, fallback: system) == 0)
@@ -80,7 +80,7 @@ struct PhraseCacheTests {
         """
         try Data(json.utf8).write(to: directory.appending(path: "iine.json"))
 
-        let cache = PhraseCache(phrases: [.init(key: "iine", text: "いいね！")], directory: directory)
+        let cache = PhraseCache(phrases: [.init(key: "iine", text: "いいね！")], bundle: .withoutBundledPhrases, directory: directory)
         let speech = try #require(cache.speech(for: "いいね！"))
         #expect(speech.format == .mp3)
         #expect(speech.audio == MP3Fixture.tone)
@@ -91,7 +91,7 @@ struct PhraseCacheTests {
         let phrases = (0..<5).map { PhraseCache.Phrase(key: "p\($0)", text: "ことば\($0)") }
         let offline = MockTTSProvider(identifier: "elevenlabs", behavior: .fail(URLError(.notConnectedToInternet)))
         let system = MockTTSProvider(identifier: "system")
-        let cache = PhraseCache(phrases: phrases, directory: nil)
+        let cache = PhraseCache(phrases: phrases, bundle: .withoutBundledPhrases, directory: nil)
         #expect(await cache.prepare(primary: offline, fallback: system) == 5)
         #expect(offline.requests.count == 1)
         #expect(system.requests.count == 5)
