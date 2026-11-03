@@ -5,16 +5,6 @@ import SwiftData
 // 形は Worker の同期 API（worker/README.md の POST /v1/sessions・PUT /v1/memory）に揃える。
 // SwiftData の @Model は Sendable ではないので、ストアの外とは下の値型（〜Record）でやりとりする。
 
-/// 問題の種類（spec §3②）。同期 API の `problems[].kind` と揃える。
-enum ProblemKind: String, Codable, Sendable, CaseIterable {
-    /// 資料・グラフの読み取り
-    case reading
-    /// 算数・理科的思考
-    case thinking
-    /// 作文・記述
-    case writing
-}
-
 /// セッションで取り組んだ1問。
 struct ProblemRecord: Codable, Equatable, Sendable {
     var kind: ProblemKind
