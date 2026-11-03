@@ -35,6 +35,8 @@ targets:
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "話した言葉を文字にするために音声認識を使います。"
         INFOPLIST_KEY_NSCameraUsageDescription: "問題やノートを先生に見せるためと、勉強中の見守り（手の動きと顔があるかだけを iPad の中で見ます。映像は送らず保存もしません）にカメラを使います。"
         INFOPLIST_FILE: HomeTeacher/Resources/Info.plist
+        # アイコンの元は avatar/build_icon.py（Blender でレンダリング）
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
   HomeTeacherTests:
     type: bundle.unit-test
