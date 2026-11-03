@@ -71,7 +71,12 @@ actor TeacherBrain {
                 try await self.run(into: continuation)
                 continuation.finish()
             } catch {
-                continuation.finish(throwing: error)
+                // 割り込みで止めたときはエラーにせず、静かに終える
+                if Task.isCancelled {
+                    continuation.finish()
+                } else {
+                    continuation.finish(throwing: error)
+                }
             }
         }
         currentTask = task
@@ -125,6 +130,7 @@ actor TeacherBrain {
     private func run(into continuation: AsyncThrowingStream<String, Error>.Continuation) async throws {
         var continuations = 0
         while true {
+            try Task.checkCancellation()
             let turn = try await streamOnce(makeRequest(), into: continuation)
             guard turn.calledTools, !turn.spokeText, continuations < Self.maxToolContinuations else { return }
             continuations += 1
@@ -171,6 +177,8 @@ actor TeacherBrain {
                 break
             }
         }
+        // 止められて終わったときは、途中の文を流さない
+        try Task.checkCancellation()
         // message_stop が来ずに終わった場合も残りを流す
         for sentence in splitter.flush() { continuation.yield(sentence) }
         return result

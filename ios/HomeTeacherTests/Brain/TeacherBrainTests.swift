@@ -205,4 +205,42 @@ struct TeacherBrainTests {
         let last = await brain.history.messages.last
         #expect(last?.content == [.toolResult(toolUseID: "toolu_1", content: "未対応のツールです。")])
     }
+
+    @Test func 通信中に止めたら途中の文を流さずに静かに終わる() async throws {
+        let delta = "data: " + SSEFixture.json([
+            "type": "content_block_delta", "index": 0, "delta": ["type": "text_delta", "text": "どれどれ。表の"],
+        ])
+        let transport = HangingTransport(lines: [delta])
+        let client = WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: transport)
+        let brain = TeacherBrain(client: client, systemPrompt: "s")
+
+        var iterator = await brain.respond(to: "これ見て").makeAsyncIterator()
+        #expect(try await iterator.next() == "どれどれ。")
+        await brain.cancel()
+        // 「表の」は流れず、エラーにもならずに終わる
+        #expect(try await iterator.next() == nil)
+        // 届いた分は履歴に残る（このあと再生した位置で切り詰める）
+        #expect(await brain.history.lastAssistantText == "どれどれ。表の")
+        #expect(await transport.requestCount == 1)
+    }
+
+    @Test func ツールだけの返事の途中で止めたら続きを呼ばない() async throws {
+        // tool_use の block は終わったが、message_stop の前で止める
+        let lines = SSEFixture.toolStream(text: "", inputJSON: Self.flagInput)
+            .split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+            .filter { !$0.contains("message_stop") }
+        let transport = HangingTransport(lines: lines)
+        let client = WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: transport)
+        let brain = TeacherBrain(client: client, systemPrompt: "s")
+
+        var iterator = await brain.respond(to: "x").makeAsyncIterator()
+        // フラグが記録されるまで待つ
+        for _ in 0..<1000 where await brain.sessionFlags.needsReview.isEmpty {
+            await Task.yield()
+        }
+        #expect(await brain.sessionFlags.needsReview.count == 1)
+        await brain.cancel()
+        #expect(try await iterator.next() == nil)
+        #expect(await transport.requestCount == 1)
+    }
 }
