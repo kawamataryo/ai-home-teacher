@@ -3,12 +3,7 @@ import Foundation
 // Worker の同期 API（worker/README.md「同期 API」）とやりとりする形。
 // サーバーの入力は .strict() なので、サーバーが付けるフィールド（updated_at、problems[].id）は送らない。
 
-/// 問題の種類（spec §3②）。
-enum ProblemKind: String, Codable, Sendable, CaseIterable {
-    case reading
-    case thinking
-    case writing
-}
+// ProblemKind と MemoryCategory は Memory/MemoryModels.swift のものを使う（rawValue は同期 API と同じ）。
 
 /// セッションで取り組んだ1問。
 struct ProblemDTO: Codable, Equatable, Sendable {
@@ -132,16 +127,6 @@ struct SessionDTO: Codable, Equatable, Sendable {
         try c.encode(flags, forKey: .flags)
         try c.encode(problems, forKey: .problems)
     }
-}
-
-/// 記憶のカテゴリ（spec §5 の memories.category）。
-enum MemoryCategory: String, Codable, Sendable, CaseIterable {
-    /// 好きなこと
-    case likes
-    /// 最近の出来事
-    case events
-    /// 苦手な単元
-    case weakPoints = "weak_points"
 }
 
 /// サーバーに保存された記憶の1件。
