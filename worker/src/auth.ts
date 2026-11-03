@@ -1,16 +1,28 @@
 // 家族トークンの認証。
-// いまは secret の FAMILY_TOKEN と比べるだけ。#29 で D1 発行のトークンに置き換える予定なので、
-// 判定はこの関数 1 つにまとめておく。
+// トークンから「どの家族か」を解決する処理はこのファイルの resolveFamily 1 つにまとめる。
+// いまは secret の FAMILY_TOKEN だけを見て、マイグレーションで作る家族 'default' に対応させる。
+// #29 で D1 に保存した発行済みトークンも、ここで引けるようにする。
 
-export async function isAuthorized(
+// FAMILY_TOKEN に対応する家族（migrations/0001_init.sql で作成）
+export const BOOTSTRAP_FAMILY_ID = "default";
+
+export async function resolveFamily(
   authorizationHeader: string | undefined | null,
-  expectedToken: string | undefined,
-): Promise<boolean> {
-  // secret が未設定なら必ず拒否する（"" と "" が一致して通ってしまうのを防ぐ）
-  if (!expectedToken) return false;
-  const match = /^Bearer\s+(.+)$/i.exec(authorizationHeader ?? "");
-  if (!match) return false;
-  return timingSafeEqualString(match[1].trim(), expectedToken);
+  env: { FAMILY_TOKEN?: string },
+): Promise<string | null> {
+  const token = bearerToken(authorizationHeader);
+  if (!token) return null;
+  // secret が未設定なら比べない（"" と "" が一致して通ってしまうのを防ぐ）
+  if (env.FAMILY_TOKEN && (await timingSafeEqualString(token, env.FAMILY_TOKEN))) {
+    return BOOTSTRAP_FAMILY_ID;
+  }
+  return null;
+}
+
+function bearerToken(header: string | undefined | null): string | null {
+  const match = /^Bearer\s+(.+)$/i.exec(header ?? "");
+  const token = match?.[1].trim();
+  return token ? token : null;
 }
 
 // 定数時間比較。両方を SHA-256 にしてから比べるので、長さの違いも漏れない。
