@@ -17,15 +17,14 @@ protocol ActivityWatching: AnyObject {
     func stop() async
 }
 
-/// 「今、声をかけるべきか」。JevNudgeJudge（Jev が使えなければ規則）か、規則だけ
+/// 「今、声をかけるべきか」。本番は規則（RuleNudgeJudge）、テストと自己テストはモックに差し替える
 @MainActor
 protocol NudgeJudging: AnyObject {
     func shouldSpeakUp(_ context: NudgeContext) async -> Bool
 }
 
-extension JevNudgeJudge: NudgeJudging {}
-
-/// Jev を使わないときの規則（`JevNudgeJudge.ruleShouldSpeakUp`）
+/// 「今、声をかけるべきか」の規則。材料が数（止まった分数・最後に話してからの分数）と段階だけなので、
+/// Jev には聞かずコードで決める（Jev は数の比較が苦手で、「〜すべきか」の決定を聞くのも公式の勧めに反する）
 @MainActor
 final class RuleNudgeJudge: NudgeJudging {
     let stalledMinutesThreshold: Double
@@ -35,7 +34,15 @@ final class RuleNudgeJudge: NudgeJudging {
     }
 
     func shouldSpeakUp(_ context: NudgeContext) async -> Bool {
-        JevNudgeJudge.ruleShouldSpeakUp(context, stalledMinutesThreshold: stalledMinutesThreshold)
+        Self.shouldSpeakUp(context, stalledMinutesThreshold: stalledMinutesThreshold)
+    }
+
+    /// 問題に取り組んでいる最中に、顔は画面の前にあるのに手が一定時間止まっていたら声をかける。
+    /// 先生が 1 分以内に話したばかりなら待つ
+    nonisolated static func shouldSpeakUp(_ context: NudgeContext, stalledMinutesThreshold: Double = 3) -> Bool {
+        guard context.phase == .working, context.isFacePresent else { return false }
+        if let since = context.minutesSinceTeacherSpoke, since < 1 { return false }
+        return context.minutesStalled >= stalledMinutesThreshold
     }
 }
 
@@ -115,15 +122,9 @@ final class WatchOver: WatchOverControlling {
         watcher.onSample = { [weak self] in self?.handle($0) }
     }
 
-    /// Jev が使えれば JevNudgeJudge（使えなければ規則）、なければ規則だけで判断する
-    static func judgeFactory(decisions: TeacherDecisions?) -> @MainActor (StallDetector.Configuration) -> any NudgeJudging {
-        { configuration in
-            if let decisions {
-                JevNudgeJudge(decisions: decisions, stalledMinutesThreshold: configuration.stallMinutes)
-            } else {
-                RuleNudgeJudge(stalledMinutesThreshold: configuration.stallMinutes)
-            }
-        }
+    /// 声をかけるかの判定を作る（止まった分数のしきい値は設定から）
+    static func judgeFactory() -> @MainActor (StallDetector.Configuration) -> any NudgeJudging {
+        { configuration in RuleNudgeJudge(stalledMinutesThreshold: configuration.stallMinutes) }
     }
 
     // MARK: - セッション

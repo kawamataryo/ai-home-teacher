@@ -14,55 +14,77 @@ struct AnswerJudgeTests {
         TutoringState(analysis: analysis, ladder: HintLadder(analysis: analysis), leakGuard: AnswerLeakGuard(analysis: analysis))
     }
 
-    /// 意図と正しそうかの答え（Jev の実際の形）
-    static func jevAnswer(intent: String, score: Double) -> String {
-        #"{"model":"jev-1.14.0","answers":{"intent":{"type":"choice","choice":"\#(intent)","confidence":0.9,"probabilities":{"\#(intent)":0.9}},"answer_correctness":{"type":"score","score":\#(score),"confidence":0.9,"probabilities":{"0":0.1,"1":0.1,"2":0.8}}},"usage":{"input_tokens":200,"output_tokens":4}}"#
+    private typealias Key = TeacherDecisions.Key
+
+    /// 答えの判定の答え（Jev の実際の形。発話のほかの判断と同じリクエストで返る）
+    static func jevAnswer(gives: Double, matches: Double, help: Double = 0.05) -> String {
+        DecisionFixture.nouls([
+            Key.addressed: 0.9, Key.complete: 0.9, Key.capture: 0.05, Key.help: help, Key.givesAnswer: gives, Key.matchesAnswer: matches,
+        ])
     }
 
-    private func judge(_ transport: MockTransport) -> AnswerJudge {
-        AnswerJudge(decisions: DecisionFixture.decisions(transport))
+    private func judge(_ transport: any HTTPTransport) -> AnswerJudge {
+        AnswerJudge(cache: DecisionFixture.cache(transport))
     }
 
-    @Test func 正答を言えばJevに聞かずに正解() async {
+    @Test func 正答を言えばJevを待たずに正解() async {
         let transport = MockTransport(body: "{}")
         for utterance in ["24平方センチ！", "わかった、24cm²だ", "答えは二十四平方センチメートル"] {
-            let result = await judge(transport).judge(utterance, tutoring: Self.tutoring(), teacherLastSaid: nil)
+            let result = await judge(transport).judge(utterance, tutoring: Self.tutoring())
             #expect(result == AnswerJudgement(verdict: .correct, source: .rule), "\(utterance)")
         }
         #expect(await transport.requests.isEmpty)
     }
 
-    @Test func 助けを求める発話は答えではない() async {
+    @Test func 助けを求める言い方は答えではない() async {
         let transport = MockTransport(body: "{}")
-        let result = await judge(transport).judge("わかんない、答え教えて", tutoring: Self.tutoring(), teacherLastSaid: nil)
-        #expect(result.verdict == .notAnAnswer)
+        let result = await judge(transport).judge("わかんない、答え教えて", tutoring: Self.tutoring())
+        #expect(result == AnswerJudgement(verdict: .notAnAnswer, source: .rule, asksForHelp: true))
         #expect(await transport.requests.isEmpty)
     }
 
+    @Test func 言い方で拾えない助けを求める発話はJevで拾う() async {
+        let transport = MockTransport(body: Self.jevAnswer(gives: 0.02, matches: 0.03, help: 0.95))
+        let result = await judge(transport).judge("これってどうやるの", tutoring: Self.tutoring())
+        #expect(result == AnswerJudgement(verdict: .notAnAnswer, source: .jev, asksForHelp: true))
+    }
+
     @Test(arguments: [
-        // 実測（2026-11-03、jev-latest）に近い値
-        ("答え", 1.99, AnswerVerdict.correct),   // 「にじゅうよん！」
-        ("答え", 0.05, .wrong),                  // 「答えは20平方センチ？」
-        ("答え", 0.36, .notAnAnswer),            // 「4と6」（途中の考え）
-        ("答え", 1.36, .notAnAnswer),            // 「4かける6」
-        ("質問", 1.99, .correct),                // 「24かな？」を聞く形で
-        ("質問", 0.10, .notAnAnswer),            // 質問は違う答えにしない
-        ("雑談", 0.56, .notAnAnswer),
+        // 実測（2026-11-03、jev-1.14.0、英語の質問）に近い値
+        (0.98, 0.99, AnswerVerdict.correct),   // 「にじゅうよん」「24かな？」
+        (0.96, 0.02, .wrong),                  // 「18かな」
+        (0.06, 0.31, .notAnAnswer),            // 「4と6をかけるの？」（途中の考え）
+        (0.55, 0.99, .notAnAnswer),            // 答えを言っているか迷う
+        (0.95, 0.5, .notAnAnswer),             // 同じか迷う
+        (0.01, 0.03, .notAnAnswer),            // 「お腹すいた」
     ])
-    func Jevの意図と正しそうかで決める(intent: String, score: Double, expected: AnswerVerdict) async throws {
-        let transport = MockTransport(body: Self.jevAnswer(intent: intent, score: score))
-        let result = await judge(transport).judge("にじゅうよん", tutoring: Self.tutoring(), teacherLastSaid: "面積はどうやって求める？")
+    func Jevの答えを言っているかと正答と同じかで決める(gives: Double, matches: Double, expected: AnswerVerdict) async throws {
+        let transport = MockTransport(body: Self.jevAnswer(gives: gives, matches: matches))
+        let cache = DecisionFixture.cache(transport)
+        cache.teacherLastSaid = "面積はどうやって求める？"
+        let result = await AnswerJudge(cache: cache).judge("にじゅうよん", tutoring: Self.tutoring())
         #expect(result == AnswerJudgement(verdict: expected, source: .jev))
 
-        // 1 回のリクエストで、意図と正しそうかをまとめて聞く
+        // 発話のほかの判断と 1 回のリクエストでまとめて聞く
         #expect(await transport.requests.count == 1)
         let body = try await DecisionFixture.requestJSON(transport)
         let questions = try #require(body["questions"] as? [String: Any])
-        #expect(Set(questions.keys) == [TeacherDecisions.Key.intent, TeacherDecisions.Key.correctness])
+        #expect(Set(questions.keys) == [Key.addressed, Key.complete, Key.capture, Key.help, Key.givesAnswer, Key.matchesAnswer])
         let state = try #require(body["state"] as? [String: String])
         #expect(state["correct_answer"] == "24cm²")
-        #expect(state["child_answer"] == "にじゅうよん")
+        #expect(state["utterance"] == "にじゅうよん")
         #expect(state["teacher_last_said"] == "面積はどうやって求める？")
+    }
+
+    @Test func 先に聞いてあれば待たずに使う() async {
+        let transport = MockTransport(body: Self.jevAnswer(gives: 0.98, matches: 0.99))
+        let cache = DecisionFixture.cache(transport)
+        // StudySessionCoordinator が問題を揃え、言い終わったかを聞くついでに答えの判定も聞いてある
+        cache.problem = AnswerJudge.problemContext(Self.tutoring())
+        _ = await JevEndOfUtteranceDecider(cache: cache).isUtteranceComplete("にじゅうよん")
+        let result = await AnswerJudge(cache: cache).judge("にじゅうよん", tutoring: Self.tutoring())
+        #expect(result.verdict == .correct)
+        #expect(await transport.requests.count == 1)
     }
 
     @Test(arguments: [
@@ -74,30 +96,30 @@ struct AnswerJudgeTests {
     ])
     func Jevが使えなければ数の答えだけを規則で見る(utterance: String, expected: AnswerVerdict) async {
         let transport = MockTransport(status: 500, body: "{}")
-        let result = await judge(transport).judge(utterance, tutoring: Self.tutoring(), teacherLastSaid: nil)
+        let result = await judge(transport).judge(utterance, tutoring: Self.tutoring())
         #expect(result == AnswerJudgement(verdict: expected, source: .fallback))
     }
 
     @Test func Jevがなければ規則だけ() async {
-        let result = await AnswerJudge(decisions: nil).judge("20平方センチ", tutoring: Self.tutoring(), teacherLastSaid: nil)
+        let result = await AnswerJudge(cache: nil).judge("20平方センチ", tutoring: Self.tutoring())
         #expect(result == AnswerJudgement(verdict: .wrong, source: .fallback))
     }
 
     @Test func 言葉の答えはJevなしでは違うと決めない() async {
         let word = ProblemAnalysis(kind: .reading, problemSummary: "いちばん多い月", answer: "8月", answerVariants: ["八月"], hintSteps: [])
         let wordText = ProblemAnalysis(kind: .reading, problemSummary: "都道府県", answer: "東京", hintSteps: [])
-        #expect(await AnswerJudge(decisions: nil).judge("5月", tutoring: Self.tutoring(word), teacherLastSaid: nil).verdict == .wrong)
-        #expect(await AnswerJudge(decisions: nil).judge("大阪", tutoring: Self.tutoring(wordText), teacherLastSaid: nil).verdict == .notAnAnswer)
+        #expect(await AnswerJudge(cache: nil).judge("5月", tutoring: Self.tutoring(word)).verdict == .wrong)
+        #expect(await AnswerJudge(cache: nil).judge("大阪", tutoring: Self.tutoring(wordText)).verdict == .notAnAnswer)
     }
 
     @Test func 作文と解けたあとは判定しない() async {
-        let transport = MockTransport(body: Self.jevAnswer(intent: "答え", score: 0))
+        let transport = MockTransport(body: Self.jevAnswer(gives: 0.98, matches: 0.02))
         let essay = ProblemAnalysis(kind: .writing, problemSummary: "夏休みの思い出", answer: "", hintSteps: [])
-        #expect(await judge(transport).judge("海に行った", tutoring: Self.tutoring(essay), teacherLastSaid: nil).verdict == .notAnAnswer)
+        #expect(await judge(transport).judge("海に行った", tutoring: Self.tutoring(essay)).verdict == .notAnAnswer)
 
         var solved = Self.tutoring()
         solved.ladder.handle(.solved)
-        #expect(await judge(transport).judge("10", tutoring: solved, teacherLastSaid: nil).verdict == .notAnAnswer)
+        #expect(await judge(transport).judge("10", tutoring: solved).verdict == .notAnAnswer)
         #expect(await transport.requests.isEmpty)
     }
 
@@ -164,8 +186,11 @@ final class ScriptedAnswerJudge: AnswerJudging {
 
     init(_ verdicts: [AnswerVerdict]) { self.verdicts = verdicts }
 
-    func judge(_ utterance: String, tutoring: TutoringState, teacherLastSaid: String?) async -> AnswerJudgement {
+    func judge(_ utterance: String, tutoring: TutoringState) async -> AnswerJudgement {
         utterances.append(utterance)
-        return AnswerJudgement(verdict: verdicts.isEmpty ? .notAnAnswer : verdicts.removeFirst(), source: .jev)
+        return AnswerJudgement(
+            verdict: verdicts.isEmpty ? .notAnAnswer : verdicts.removeFirst(), source: .jev,
+            asksForHelp: HelpRequestDetector.isHelpRequest(utterance)
+        )
     }
 }

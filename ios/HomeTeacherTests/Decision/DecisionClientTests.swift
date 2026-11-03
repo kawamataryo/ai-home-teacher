@@ -27,7 +27,7 @@ struct DecisionClientTests {
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer token-123")
 
         let json = try await DecisionFixture.requestJSON(transport)
-        #expect(json["model"] as? String == "jev-latest")
+        #expect(json["model"] as? String == DecisionClient.defaultModel)
         #expect(json["state"] as? [String: String] == ["utterance": "これ見て"])
         let questions = try #require(json["questions"] as? [String: [String: Any]])
         #expect(Set(questions.keys) == ["a", "b", "c"])

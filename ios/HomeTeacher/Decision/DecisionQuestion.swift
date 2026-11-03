@@ -4,7 +4,7 @@ import Foundation
 // https://docs.typesafe.ai/api/system-one で確認した形:
 //
 //   POST https://api.typesafe.ai/v1/systemone（アプリは Worker の /v1/decide を呼び、Worker がそのまま中継する）
-//   リクエスト: { "model": "jev-latest", "state": <文字列 | オブジェクト | 配列>, "questions": { <名前>: <質問> } }
+//   リクエスト: { "model": "jev-1.14.0", "state": <文字列 | オブジェクト | 配列>, "questions": { <名前>: <質問> } }
 //     - 真偽:   { "type": "noul", "instructions": "...", "criteria": { "true": "...", "false": "..." }? }
 //               ※ spec や Vercel AI SDK では `boolean` と呼ぶが、TypeSafe のネイティブ API での型名は `noul`
 //     - 選択:   { "type": "choice", "instructions": "..."?, "criteria": { <選択肢名>: <説明> } }（1〜255 個）

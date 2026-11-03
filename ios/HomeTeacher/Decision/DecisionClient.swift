@@ -22,7 +22,8 @@ enum DecisionError: Error, Equatable {
 /// 失敗・タイムアウトのときは nil を返す。呼び出し側は規則ベースの判定に切り替える。
 struct DecisionClient: Sendable {
     static let path = "/v1/decide"
-    static let defaultModel = "jev-latest"
+    /// しきい値を調整したモデルに固定する（エイリアスは新しい版が出ると答えが変わる。公式の Models の注意）
+    static let defaultModel = "jev-1.14.0"
     static let defaultTimeout: Duration = .milliseconds(800)
 
     let worker: WorkerClient
@@ -91,7 +92,10 @@ struct DecisionClient: Sendable {
             }
         }
         let latency = clock.now - start
-        log(answers.count == questions.count ? "ok" : "partial-\(answers.count)/\(questions.count)")
+        // 確率はしきい値の調整に使う（子どもの発話は出さない）
+        let summary = answers.keys.sorted().compactMap { key in answers[key]?.probability.map { "\(key)=\(String(format: "%.2f", $0))" } }
+        let outcome = answers.count == questions.count ? "ok" : "partial-\(answers.count)/\(questions.count)"
+        log("\(outcome) model=\(response.model ?? "?") \(summary.joined(separator: " "))")
         return DecisionResult(answers: answers, model: response.model, latency: latency)
     }
 
