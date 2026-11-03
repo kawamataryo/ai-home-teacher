@@ -192,12 +192,14 @@
 | 実機（ユーザー） | マイク・聞き取り・割り込み・エコー・カメラ・Vision | `実機確認` ラベルの issue にチェックリストを書き、ユーザーが iPad で確認する |
 
 - 初日の実機確認は最大のリスクから：① SpeechAnalyzer で日本語が使えるか、② voice processing でエコーが十分に消えるか（割り込みが成立するか）
+  - 2026-11-03 の結果（iPad Air 13-inch M2 / iOS 27.0.1、#9 の自動検証）：SpeechTranscriber は ja-JP に対応し端末内モデルも導入済み。voice processing ON で先生の声の混入率 0%、OFF で 34%。voice processing は必須。再生中の子どもの声が通るか（割り込み）は未確認
+  - 実機では AVSpeechSynthesizer の終端バッファや AVAudioPlayerNode の再生完了コールバックが来ないことがあるため、待つ処理には必ずタイムアウトを入れる
 
 ## 7. リスクと対策
 
 | リスク | 対策 |
 | --- | --- |
-| SpeechAnalyzer が日本語非対応 | SFSpeechRecognizer（端末内モード）にフォールバック |
+| SpeechAnalyzer が日本語非対応 | 実機で対応を確認済み（#9）。念のため SFSpeechRecognizer（端末内モード）へのフォールバックは残す |
 | エコーで割り込みが誤作動する | 割り込みのしきい値を上げる → だめなら「話している間はマイクを止める」方式 |
 | 応答が遅く会話が不自然 | 文単位で TTS、定型句キャッシュ、相づち、Haiku の先行応答 |
 | Claude が答えを言ってしまう | 正答は「先生のメモ」に隠し、出力を Jev / 規則で検査してから話す |
