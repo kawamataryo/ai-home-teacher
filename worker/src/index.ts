@@ -1,5 +1,8 @@
 import { Hono } from "hono";
-import { isAuthorized } from "./auth";
+import { resolveFamily } from "./auth";
+import { dashboard } from "./dashboard";
+import type { AppEnv } from "./env";
+import { sync } from "./sync";
 import {
   ALLOWED_MODELS,
   ANTHROPIC_URL,
@@ -9,22 +12,19 @@ import {
   TYPESAFE_URL,
 } from "./upstream";
 
-export type Env = {
-  ANTHROPIC_API_KEY: string;
-  ELEVENLABS_API_KEY: string;
-  TYPESAFE_API_KEY: string;
-  FAMILY_TOKEN: string;
-  ELEVENLABS_VOICE_ID: string;
-};
+export type { Env } from "./env";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<AppEnv>();
 
 app.use("/v1/*", async (c, next) => {
-  if (!(await isAuthorized(c.req.header("Authorization"), c.env.FAMILY_TOKEN))) {
-    return c.json({ error: "unauthorized" }, 401);
-  }
+  const familyId = await resolveFamily(c.req.header("Authorization"), c.env);
+  if (!familyId) return c.json({ error: "unauthorized" }, 401);
+  c.set("familyId", familyId);
   await next();
 });
+
+app.route("/v1", sync);
+app.route("/dashboard", dashboard);
 
 app.post("/v1/claude", async (c) => {
   const body = await readJson(c.req.raw);
