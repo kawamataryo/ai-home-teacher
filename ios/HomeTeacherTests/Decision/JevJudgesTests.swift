@@ -82,8 +82,8 @@ struct JevJudgesTests {
 
     // MARK: - 言い終わったか
 
-    @Test(arguments: [(0.9, true), (0.7, true), (0.6, false), (0.1, false)])
-    func 言い終わったのははいのときだけ(_ p: Double, _ complete: Bool) async {
+    @Test(arguments: [(0.9, true), (0.8, true), (0.76, false), (0.1, false)])
+    func 言い終わったのは高い確率のときだけ(_ p: Double, _ complete: Bool) async {
         let decider = JevEndOfUtteranceDecider(cache: Self.cache([Key.complete: p]))
         #expect(await decider.isUtteranceComplete("えっと、24かな") == complete)
     }

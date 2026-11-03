@@ -76,6 +76,8 @@ struct TeacherDecisions: Sendable {
         static let yes = 0.7
         /// これ以下なら「いいえ」
         static let no = 0.3
+        /// 言い終わったとみなして無音を待たずに区切る確率。途中で区切ると子どもの話をさえぎるので、ほかより高くする
+        static let complete = 0.8
     }
 
     /// 状況の説明。どの発話の state にも入れる

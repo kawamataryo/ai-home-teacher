@@ -42,8 +42,8 @@ final class JevAddressingJudge: AddressingJudge {
 // MARK: - 言い終わったか
 
 /// 言い終わったかを Jev で判断する。ついでに発話のほかの判断も先に聞いておく（UtteranceDecisionCache）。
-/// 途中で区切ると子どもの話をさえぎってしまうので、「はい」のときだけ true にする。
-/// 迷う帯と Jev が使えないときは false を返し、ConversationController の無音のタイムアウトに任せる
+/// 途中で区切ると子どもの話をさえぎってしまうので、ほかの判断より高い確率（`Threshold.complete`）のときだけ true にする。
+/// それ以外と Jev が使えないときは false を返し、ConversationController の無音のタイムアウトに任せる
 @MainActor
 final class JevEndOfUtteranceDecider: EndOfUtteranceDecider {
     let cache: UtteranceDecisionCache
@@ -57,7 +57,7 @@ final class JevEndOfUtteranceDecider: EndOfUtteranceDecider {
 
     func isUtteranceComplete(_ transcript: String) async -> Bool {
         guard let p = await cache.analysis(for: transcript, within: timeout)?.utteranceComplete else { return false }
-        return DecisionReading(p) == .yes
+        return p >= TeacherDecisions.Threshold.complete
     }
 }
 

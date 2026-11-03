@@ -240,6 +240,8 @@ final class StudySessionCoordinator {
         teacherNote = nil
         problems = []
         tutoring = nil
+        // 前のセッションで先生が最後に話した文を、新しいセッションの発話の判断に持ち込まない
+        decisionCache?.teacherLastSaid = nil
         board = nil
         boardReveal = nil
         lastReplySentences = []
