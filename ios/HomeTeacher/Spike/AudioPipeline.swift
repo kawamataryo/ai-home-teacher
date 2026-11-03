@@ -65,10 +65,16 @@ final class AudioPipeline: @unchecked Sendable {
         guard let first = buffers.first else { return }
         engine.disconnectNodeOutput(player)
         engine.connect(player, to: engine.mainMixerNode, format: first.format)
+        // 再生完了のコールバックが来ない場合に備え、音声の長さ + 1 秒で打ち切る
+        let frames = buffers.reduce(0.0) { $0 + Double($1.frameLength) }
+        let seconds = frames / first.format.sampleRate + 1
+        let once = OnceFlag()
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            let finish: @Sendable () -> Void = { if once.take() { cont.resume() } }
+            DispatchQueue.global().asyncAfter(deadline: .now() + seconds, execute: finish)
             for (i, b) in buffers.enumerated() {
                 if i == buffers.count - 1 {
-                    player.scheduleBuffer(b, completionCallbackType: .dataPlayedBack) { _ in cont.resume() }
+                    player.scheduleBuffer(b, completionCallbackType: .dataPlayedBack) { _ in finish() }
                 } else {
                     player.scheduleBuffer(b)
                 }
@@ -82,5 +88,18 @@ final class AudioPipeline: @unchecked Sendable {
         var sum: Float = 0
         for i in 0..<Int(buffer.frameLength) { sum += data[i] * data[i] }
         return (sum / Float(buffer.frameLength)).squareRoot()
+    }
+}
+
+/// 一度だけ true を返すフラグ（コールバックとタイムアウトの二重 resume を防ぐ）。
+final class OnceFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var taken = false
+
+    func take() -> Bool {
+        lock.withLock {
+            defer { taken = true }
+            return !taken
+        }
     }
 }

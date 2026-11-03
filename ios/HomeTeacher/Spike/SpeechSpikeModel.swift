@@ -98,7 +98,9 @@ final class SpeechSpikeModel {
         let before = transcript
         status = "再生中…（黙って聞いてください）"
         let buffers = await synthesize(Self.echoSentence)
+        trace("合成完了 buffers=\(buffers.items.count) frames=\(buffers.items.reduce(0) { $0 + Int($1.frameLength) })")
         await pipeline.play(buffers)
+        trace("再生完了")
         try? await Task.sleep(for: .seconds(2))
         let during = String(transcript.dropFirst(before.count))
         let leak = EchoScore.leakage(played: Self.echoSentence, recognized: during)
@@ -108,6 +110,7 @@ final class SpeechSpikeModel {
 
     /// AVAudioPCMBuffer は Sendable ではないので、合成コールバックから受け渡すために包む。
     private final class BufferBox: @unchecked Sendable {
+        let lock = NSLock()
         var items: [AVAudioPCMBuffer] = []
         var done = false
     }
@@ -117,17 +120,22 @@ final class SpeechSpikeModel {
         utterance.voice = AVSpeechSynthesisVoice(language: "ja-JP")
         let box = BufferBox()
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-            synthesizer.write(utterance) { buffer in
-                guard !box.done else { return }
-                guard let pcm = buffer as? AVAudioPCMBuffer, pcm.frameLength > 0 else {
+            // 終端（長さ 0 のバッファ）が来ない端末があるため、10 秒で打ち切る
+            let finish: @Sendable () -> Void = {
+                let shouldResume = box.lock.withLock { () -> Bool in
+                    guard !box.done else { return false }
                     box.done = true
-                    cont.resume()
-                    return
+                    return true
                 }
-                box.items.append(pcm)
+                if shouldResume { cont.resume() }
+            }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 10, execute: finish)
+            synthesizer.write(utterance) { buffer in
+                guard let pcm = buffer as? AVAudioPCMBuffer, pcm.frameLength > 0 else { finish(); return }
+                box.lock.withLock { if !box.done { box.items.append(pcm) } }
             }
         }
-        return PCMBuffers(items: box.items)
+        return PCMBuffers(items: box.lock.withLock { box.items })
     }
 
     /// issue に貼るための結果レポート。
@@ -157,16 +165,34 @@ final class SpeechSpikeModel {
 
     /// 起動引数 `-autoSpike` で、人が話さなくても測れる項目を自動で実行する。
     /// 推奨エンジンでエコーキャンセル ON / OFF の両方を試し、結果をログと Documents/spike-report.txt に出す。
+    /// 自動検証の進み具合を Documents/spike-trace.txt に追記する（どこで止まったかを Mac から見るため）。
+    func trace(_ message: String) {
+        guard let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let url = dir.appending(path: "spike-trace.txt")
+        let line = "\(Date().formatted(.iso8601)) \(message)\n"
+        if let h = try? FileHandle(forWritingTo: url) {
+            h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close()
+        } else {
+            try? line.write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+
     static var isAutoRun: Bool { ProcessInfo.processInfo.arguments.contains("-autoSpike") }
 
     func runAutomatic() async {
+        trace("開始 engine=\(engine.rawValue)")
         for vp in [true, false] {
             voiceProcessing = vp
+            trace("聞き取り開始 vp=\(vp)")
             await startListening()
+            trace("聞き取り開始後 isListening=\(isListening) status=\(status)")
             // SpeechAnalyzer の日本語モデルのダウンロードと準備を待つ
             try? await Task.sleep(for: .seconds(4))
+            trace("エコーテスト開始")
             await runEchoTest()
+            trace("エコーテスト後 status=\(status)")
             await stopListening()
+            trace("停止")
         }
         let text = report
         print("SPIKE_REPORT_BEGIN\n\(text)\nSPIKE_REPORT_END")
