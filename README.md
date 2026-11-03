@@ -6,13 +6,13 @@
 
 [Built with Claude: Japan 2026](https://cerebralvalley.ai/events/~/e/built-with-claude-japan2026) 参加作品です（概要は [docs/submission.md](docs/submission.md)）。
 
-<img src="docs/screenshots/session-speaking.png" alt="学習セッション画面：ボクセル風の先生と、黒板の手順カード" width="420">
+<img src="docs/screenshots/session-speaking.png" alt="学習セッション画面：ボクセル風の先生と、黒板の手順カード" width="380"> <img src="docs/screenshots/boards-eval/after/01-ratio-sale.png" alt="黒板の割合の帯図。答えの部分は？で隠れている" width="420">
 
 ## できること
 
 - **声だけで会話**：キーボード不要。「ねえ先生」で話しかけ、先生が話している途中でも割り込める
 - **「これ見て」で問題を見せる**：撮影した問題を Claude が読み取り、答えを言わずに段階的なヒントを出す。最後のひと言は子どもに言わせる
-- **図で説明**：手順カード・線分図・面積図・数直線・表・グラフなどを黒板に出す（Generative UI）
+- **図で説明**：撮影した問題でも会話の途中でも、黒板に図を出す（手順カード・線分図・面積図・割合の帯図・ベン図など11種類、Generative UI）。話に合わせて1つずつ見せ、答えは書かない
 - **そばにいる先生**：うなずき・考え中・ほめるなどの表情と、声に合わせた口の動き
 - **時間の声かけと雑談**：集中25分＋休憩5分。休憩中は雑談もできる
 - **覚えている**：前回の内容や好きなことを覚えていて、始まりと終わりにふり返る
