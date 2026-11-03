@@ -9,7 +9,7 @@ export const SEPARATOR = "\n\n---\n\n";
 export const DEFAULT_VARIABLES = { teacher_name: "ハル" };
 // アプリの SessionMode.label と揃える。
 export const SESSION_MODE_LABELS = { study: "勉強中", rest: "休憩中" };
-export const CONVERSATION_PARTS = ["teacher", "hint_ladder", "safety", "small_talk"];
+export const CONVERSATION_PARTS = ["teacher", "hint_ladder", "safety", "small_talk", "board_talk"];
 
 export function render(template, variables) {
   return Object.entries(variables).reduce(
@@ -27,7 +27,7 @@ export function teacherNoteSection(note) {
   return `# 先生のメモ（子どもには見せない・読み上げない）\n\n${note}`;
 }
 
-// teacher → hint_ladder → safety → small_talk の順。前回のこと（opening.md に差し込む）があれば足し、
+// teacher → hint_ladder → safety → small_talk → board_talk の順。前回のこと（opening.md に差し込む）があれば足し、
 // 先生のメモがあれば最後に足す。
 export function conversationSystemPrompt({ mode = "study", teacherNote, previousSession, variables = {} } = {}) {
   const label = SESSION_MODE_LABELS[mode];
@@ -46,6 +46,13 @@ export function loadTool(name) {
   return JSON.parse(readFileSync(join(promptsDir, "tools", `${name}.json`), "utf8"));
 }
 
+// 黒板の show_board。アプリの BoardTools.conversationTool と同じもの（Swift から書き出した evals/fixtures/board_tools.json）。
+export function showBoardTool() {
+  const fixture = JSON.parse(readFileSync(join(promptsDir, "..", "evals", "fixtures", "board_tools.json"), "utf8"));
+  return fixture.analyzer_request.tools.find((t) => t.name === "show_board");
+}
+
+// アプリの PromptLibrary.conversationTools と同じ順。
 export function conversationTools() {
-  return [loadTool("flag_for_parent")];
+  return [loadTool("flag_for_parent"), showBoardTool()];
 }

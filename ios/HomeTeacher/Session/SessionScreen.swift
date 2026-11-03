@@ -140,6 +140,9 @@ private struct SessionContent: View {
             let size = Self.boardDesignSize
             let scale = min(geometry.size.width / size.width, geometry.size.height / size.height)
             BoardView(content: coordinator.board ?? .text(Self.boardHint(phase: coordinator.phase)))
+                .boardReveal(coordinator.boardReveal)
+                // 図が替わるときは、消して書き直すように入れ替える
+                .animation(.spring(duration: 0.45), value: coordinator.board)
                 .frame(width: size.width, height: size.height)
                 .scaleEffect(scale)
                 .frame(width: geometry.size.width, height: geometry.size.height)

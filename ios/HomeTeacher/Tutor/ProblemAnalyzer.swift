@@ -61,7 +61,11 @@ struct ProblemAnalyzer: Sendable {
         - hint_steps：下の「ヒントの出し方」の段階に合わせて、段階ごとの問いかけを順に書く。どの段階にも正答そのものは書かない。4段目は、答えの手前で「ということは？」と子どもに言わせる形で終える
         - 写真に問題が複数あるときは、会話から子どもが聞いている問題を選ぶ。わからなければ最初の問題
         - 写真が読めないときも report_analysis を呼び、problem_summary にそのことを書き、answer は空文字にする
+        - 黒板：report_analysis と同じ返事で、ヒントの段階1〜2で子どもに見せる図を show_board で必ず1つ出す（部品カタログで表せないときだけ render_svg）。図にも answer の数や言葉は書かず、答えのところは「？」にする。写真が読めないときは図を出さない
         """
+
+    /// 図も頼む一文。頼まないと Sonnet は report_analysis だけを呼び、図を出さなかった（#70 の評価で 0/10）
+    static let boardRequest = "あわせて、子どもに見せる黒板の図を show_board（表せなければ render_svg）で1つ出してください。"
 
     /// Sonnet に渡すシステムプロンプト。分析の指示 → ヒントの出し方 →（黒板を使うなら）部品カタログ。
     func systemPrompt() throws -> String {
@@ -90,7 +94,7 @@ struct ProblemAnalyzer: Sendable {
             これまでの会話：
             \(talk.isEmpty ? "（なし）" : talk)
 
-            この写真の問題を分析して、必ず report_analysis ツールを呼んで報告してください（文章だけで答えないこと）。
+            この写真の問題を分析して、必ず report_analysis ツールを呼んで報告してください（文章だけで答えないこと）。\(includeBoardTools ? "\n" + Self.boardRequest : "")
             """
         var tools = [AnalysisTool.definition]
         if includeBoardTools { tools += BoardTools.all }

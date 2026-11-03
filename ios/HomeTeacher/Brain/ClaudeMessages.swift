@@ -79,9 +79,11 @@ struct ToolDefinition: Equatable, Sendable, Codable {
     let name: String
     let description: String
     let inputSchema: JSONValue
+    /// strict tool use にするか。nil なら送らない（prompts/tools/*.json は書いていない）
+    var strict: Bool? = nil
 
     private enum CodingKeys: String, CodingKey {
-        case name, description
+        case name, description, strict
         case inputSchema = "input_schema"
     }
 }

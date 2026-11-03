@@ -65,7 +65,8 @@ struct ProblemAnalyzerTests {
 
         let tools = try #require(body["tools"] as? [[String: Any]])
         #expect(tools.map { $0["name"] as? String } == ["report_analysis", "show_board", "render_svg"])
-        #expect(tools.allSatisfy { $0["strict"] as? Bool == true })
+        // show_board は strict にすると API が 400（grammar is too large）を返すので外す
+        #expect(tools.map { $0["strict"] as? Bool } == [true, false, true])
 
         let system = try #require(body["system"] as? String)
         #expect(system.contains("report_analysis"))

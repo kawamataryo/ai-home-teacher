@@ -26,6 +26,9 @@ enum BoardComponent: Equatable, Sendable {
     case barChart(BarChart)
     case highlightImage(HighlightImage)
     case essayOutline(EssayOutline)
+    case vennDiagram(VennDiagram)
+    case timeline(BoardTimeline)
+    case percentBar(PercentBar)
 
     enum Kind: String, CaseIterable, Sendable {
         case stepCards = "step_cards"
@@ -36,6 +39,9 @@ enum BoardComponent: Equatable, Sendable {
         case barChart = "bar_chart"
         case highlightImage = "highlight_image"
         case essayOutline = "essay_outline"
+        case vennDiagram = "venn_diagram"
+        case timeline
+        case percentBar = "percent_bar"
 
         var model: any BoardComponentModel.Type {
             switch self {
@@ -47,6 +53,9 @@ enum BoardComponent: Equatable, Sendable {
             case .barChart: BarChart.self
             case .highlightImage: HighlightImage.self
             case .essayOutline: EssayOutline.self
+            case .vennDiagram: VennDiagram.self
+            case .timeline: BoardTimeline.self
+            case .percentBar: PercentBar.self
             }
         }
     }
@@ -61,6 +70,26 @@ enum BoardComponent: Equatable, Sendable {
         case .barChart: .barChart
         case .highlightImage: .highlightImage
         case .essayOutline: .essayOutline
+        case .vennDiagram: .vennDiagram
+        case .timeline: .timeline
+        case .percentBar: .percentBar
+        }
+    }
+
+    /// 描くものが何もないか（足りないキーを既定値で埋めた結果、中身が空になったとき）。空の図より文字の方が伝わる。
+    var isEmpty: Bool {
+        switch self {
+        case .stepCards(let m): m.steps.isEmpty
+        case .numberLine(let m): m.marks.isEmpty && m.ranges.isEmpty
+        case .areaDiagram(let m): m.parts.isEmpty
+        case .segmentDiagram(let m): m.bars.isEmpty
+        case .table(let m): m.headers.isEmpty && m.rows.isEmpty
+        case .barChart(let m): m.bars.isEmpty
+        case .highlightImage(let m): m.regions.isEmpty
+        case .essayOutline(let m): m.sections.isEmpty
+        case .vennDiagram(let m): m.leftLabel.isEmpty && m.rightLabel.isEmpty
+        case .timeline(let m): m.events.isEmpty
+        case .percentBar(let m): m.parts.isEmpty
         }
     }
 
@@ -88,6 +117,9 @@ extension BoardComponent: Codable {
         case .barChart: self = .barChart(try BarChart(from: decoder))
         case .highlightImage: self = .highlightImage(try HighlightImage(from: decoder))
         case .essayOutline: self = .essayOutline(try EssayOutline(from: decoder))
+        case .vennDiagram: self = .vennDiagram(try VennDiagram(from: decoder))
+        case .timeline: self = .timeline(try BoardTimeline(from: decoder))
+        case .percentBar: self = .percentBar(try PercentBar(from: decoder))
         }
     }
 
@@ -103,6 +135,9 @@ extension BoardComponent: Codable {
         case .barChart(let m): try m.encode(to: encoder)
         case .highlightImage(let m): try m.encode(to: encoder)
         case .essayOutline(let m): try m.encode(to: encoder)
+        case .vennDiagram(let m): try m.encode(to: encoder)
+        case .timeline(let m): try m.encode(to: encoder)
+        case .percentBar(let m): try m.encode(to: encoder)
         }
     }
 }
@@ -316,6 +351,77 @@ struct EssayOutline: BoardComponentModel {
                 ("heading", Schema.string("段落の名前（例：はじめ）")),
                 ("points", Schema.array(Schema.string("書くこと（短く）"), description: "書くこと。まだ決まっていなければ「？」")),
             ]), description: "段落（2〜4個）")),
+        ]
+    }
+}
+
+// MARK: - #70 で足した部品（評価で表ばかりになった問題の型）
+
+/// ベン図：2つの集まりの重なり（両方・どちらか・どちらでもない）。
+struct VennDiagram: BoardComponentModel {
+    var universeLabel: String
+    var leftLabel: String
+    var leftOnly: String
+    var rightLabel: String
+    var rightOnly: String
+    var both: String
+    var neither: String
+
+    static let kind = BoardComponent.Kind.vennDiagram
+    static let usage = "ベン図。2つの集まりの重なりを円で見せる（両方にあてはまる・片方だけ・どちらでもない）。集合の人数の問題"
+    static var schemaProperties: [(String, JSONValue)] {
+        [
+            ("universe_label", Schema.string("全体の枠の名前と数（例：クラス 32人）")),
+            ("left_label", Schema.string("左の円の名前と数（例：犬 12人）")),
+            ("left_only", Schema.string("左だけの部分に書く文字（例：犬だけ ？人）")),
+            ("right_label", Schema.string("右の円の名前と数（例：ねこ 9人）")),
+            ("right_only", Schema.string("右だけの部分に書く文字")),
+            ("both", Schema.string("重なりに書く文字（例：両方 4人）")),
+            ("neither", Schema.string("円の外（どちらでもない）に書く文字。無ければ空文字")),
+        ]
+    }
+}
+
+/// 時間の流れ：できごとを左から順に並べ、間にかかった時間を書く。
+struct BoardTimeline: BoardComponentModel {
+    struct Event: Codable, Equatable, Sendable {
+        var time: String
+        var label: String
+        var after: String
+    }
+    var events: [Event]
+
+    static let kind = BoardComponent.Kind.timeline
+    static let usage = "時間の流れ（タイムライン）。できごとを順に並べ、間にかかった時間を矢印に書く。時刻・道のり・作業の順番の問題。1つずつ順に見せられる"
+    static var schemaProperties: [(String, JSONValue)] {
+        [("events", Schema.array(Schema.object([
+            ("time", Schema.string("時刻（例：3時50分、？）。わからなければ「？」")),
+            ("label", Schema.string("できごと（例：学校を出る）")),
+            ("after", Schema.string("次のできごとまでの矢印に書く文字（例：歩いて15分）。最後は空文字")),
+        ]), description: "できごと（2〜6個）。起きた順"))]
+    }
+}
+
+/// 割合の帯図：もとにする量を 100% の帯にし、くらべる量を割合で区切る。
+struct PercentBar: BoardComponentModel {
+    struct Part: Codable, Equatable, Sendable {
+        var percent: Double
+        var label: String
+        var amount: String
+    }
+    var baseLabel: String
+    var parts: [Part]
+
+    static let kind = BoardComponent.Kind.percentBar
+    static let usage = "割合の帯図。もとにする量を 100% の帯にして、割合で区切る（何%引き・何割・全体の何%）。帯の上に量、下に%の目盛りが出る"
+    static var schemaProperties: [(String, JSONValue)] {
+        [
+            ("base_label", Schema.string("帯全体（100%）の説明（例：もとの値段 1200円）")),
+            ("parts", Schema.array(Schema.object([
+                ("percent", Schema.number("この区切りの割合（%。0〜100）")),
+                ("label", Schema.string("区切りの中に書く名前（例：25%引き、はらう分）")),
+                ("amount", Schema.string("区切りの上に書く量（例：？円）。無ければ空文字")),
+            ]), description: "左から並べる区切り（1〜4個）。合わせて100%にする")),
         ]
     }
 }

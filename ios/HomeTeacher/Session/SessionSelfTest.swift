@@ -106,7 +106,9 @@ final class SessionSelfTest {
         let source = coordinator.lastReplyFromWorker == true ? "Worker（Claude）から返事できた" : "Worker から返事できず決まり文句"
         let latency = coordinator.lastReplyLatency.map { "1文目まで \(Int($0 / .milliseconds(1)))ms" } ?? "-"
         let text = coordinator.lastReplyFromWorker == true ? "「\(coordinator.lastReplySentences.joined())」" : ""
-        return "- \(label): \(source)、\(latency) \(text)"
+        // 会話の途中で出した黒板（#70）
+        let board = coordinator.board.map { "、黒板: \(StudySessionCoordinator.describe($0))" } ?? ""
+        return "- \(label): \(source)、\(latency) \(text)\(board)"
     }
 
     /// 答えの判定・ヒントの段階・表情

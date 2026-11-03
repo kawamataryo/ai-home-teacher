@@ -1,0 +1,43 @@
+{
+  "id": "09-venn-pets",
+  "title": "集合（どちらでもない人数）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "犬12人、ねこ9人、両方4人。犬かねこを飼っている人は 12+9-4=17人（両方の4人を2回数えているので1回分ひく）。飼っていない人は 32-17=15人。確かめ：犬だけ8人、ねこだけ5人、両方4人で合計17人。32-17=15。",
+    "answer": "15人",
+    "answer_variants": [
+      "15",
+      "15にん",
+      "十五人"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題で最後に聞かれているのは何かな？「犬もねこも飼っていない人」って、どんな人のことか自分の言葉で言ってみて。",
+      "クラス全体の人数と、犬・ねこ・両方の人数が出てくるよね。「両方4人」は、犬の12人にも、ねこの9人にも入っているかな？そこを考えてみよう。",
+      "まず「犬かねこのどちらか（または両方）を飼っている人」が何人かを出して、それを全体からひく、という順で考えてみよう。12+9だと、両方の人はどうなっちゃうかな？図にかいてもいいよ。",
+      "犬だけの人は12人のうち両方の人をのぞいた数、ねこだけの人も同じように考えよう。犬だけ、ねこだけ、両方を合わせると何人？それを32人からひくと、飼っていない人は？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "クラス32人のうち、犬を飼う人が12人、ねこを飼う人が9人、両方を飼う人が4人。犬もねこも飼っていない人は何人か答える。"
+  },
+  "boards": [],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 8152,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 678,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

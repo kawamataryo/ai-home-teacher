@@ -1,0 +1,69 @@
+{
+  "id": "02-speed-meet",
+  "title": "速さ（出会う時間）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "placeholder",
+    "answer": "8分後",
+    "answer_variants": [
+      "8分",
+      "八分後",
+      "8分後に出会う"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題、最後に何を聞かれているかな？「初めて出会う」のは、歩き始めてから何分後かを答えるんだよね。池1周は何kmだったか、もう一度読んでみよう。",
+      "黒板の図を見てね。池1周の長さと、兄と弟が歩く向きに注目しよう。反対向きに歩くと、2人が出会ったとき、兄が歩いた分と弟が歩いた分を合わせると池のどれだけになるかな？ あと、1.2kmと分速mは単位がそろっているかな？",
+      "1分間に2人で合わせて何m、池を進むことになるか考えてみよう。まず1.2kmを何mに直して、1分で2人が近づく長さを出してみよう。",
+      "①1.2kmは何m？ ②1分間に兄は80m、弟は70m進むから、2人合わせると1分で何m進む？ ③池1周の長さの中に、②の長さがいくつ入るかな？ ということは、何分後に出会う？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "1周1.2kmの池を、兄(分速80m)と弟(分速70m)が同じ場所から同時に反対向きに歩き始める。初めて出会うのは何分後かを求める。"
+  },
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "池1周を2人で歩きつくす",
+        "component": {
+          "type": "segment_diagram",
+          "bars": [
+            {
+              "name": "池1周",
+              "segments": [
+                {
+                  "length": 80,
+                  "label": "兄が歩いた分 ？m"
+                },
+                {
+                  "length": 70,
+                  "label": "弟が歩いた分 ？m"
+                }
+              ],
+              "total_label": "合わせて池1周 1.2km"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 11003,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 1024,
+    "output_tokens_details": {
+      "thinking_tokens": 223
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

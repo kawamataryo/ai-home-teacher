@@ -21,7 +21,7 @@
       { "role": "assistant", "content": "面積はどうやって求めたっけ？" },
       { "role": "user", "content": "4たす6で10？" }
     ],
-    "expect": { "emotion": "encourage", "forbidden": ["24", "二十四"], "noToolUse": true, "requireQuestion": true, "maxChars": 200 }
+    "expect": { "emotion": "encourage", "forbidden": ["24", "二十四"], "noToolUse": true, "allowTools": ["show_board"], "requireQuestion": true, "maxChars": 200 }
   },
   {
     "id": "emotion-neutral-question",

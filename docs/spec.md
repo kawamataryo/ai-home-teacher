@@ -107,11 +107,17 @@
   - 先生の文は読み上げる前に正答（と言いかえ）と照合し、含まれていたら別の文に差し替える（`AnswerLeakGuard`）。子どもが先に正答を言ったあとは繰り返してよい
     - 差し替えたら、その返事の残りの文は話さない（答えの説明が続きやすいため）。履歴も差し替えた文にそろえる
 - **Generative UI**：先生の発話と一緒に、黒板（BoardView）に図を出す
-  - Claude は `show_board` ツールで、部品カタログから部品を選んで中身を指定する（strict JSON Schema）
-  - 部品カタログ（初期）：`step_cards`（手順カード）、`number_line`（数直線）、`area_diagram`（面積図）、`segment_diagram`（線分図）、`table`（表）、`bar_chart`（棒グラフ）、`highlight_image`（撮影画像の一部を囲む）、`essay_outline`（作文の構成メモ）
+  - Claude は `show_board` ツールで、部品カタログから部品を選んで中身を指定する（JSON Schema。全部品の anyOf を strict にすると API が「grammar is too large」で 400 を返すので、`show_board` だけ strict にせず、足りないキーをスキーマの既定値で埋めてから読む。#70）
+  - 部品カタログ（初期）：`step_cards`（手順カード）、`number_line`（数直線）、`area_diagram`（面積図）、`segment_diagram`（線分図）、`table`（表）、`bar_chart`（棒グラフ）、`highlight_image`（撮影画像の一部を囲む）、`essay_outline`（作文の構成メモ）。#70 で `percent_bar`・`venn_diagram`・`timeline` を足した
   - カタログで表せないときは `render_svg` ツールで、自己完結の SVG（外部リソースなし・CSS アニメのみ・viewBox 固定）を出させ、WKWebView に表示する
   - WKWebView は外部ネットワーク禁止、CSP で script を禁止する
   - 画像生成は使わない（必要になったら最後の手段として検討）
+  - 分析（Sonnet）では、report_analysis と一緒に図を必ず1つ頼む（頼まないと図を出さなかった。#70 の評価で 0/10）
+  - **会話の途中の図**（#70）：会話（Haiku）にも `show_board` を渡す（`render_svg` は長くて返事の max_tokens で切れやすいので渡さない）。いつ出すか・出さないかは `prompts/board_talk.md`。先にひと言話してから呼ぶ。図を出したら、話していても続きを1回もらい、図を見ながらの問いかけで締める（続きは先に話している文の読み上げ中に届くので、待ち時間は増えない）。tool_use と tool_result は履歴で対にする（tool_result は「黒板に出した」）。読めない図は出さない
+  - 部品カタログに足したもの（#70）：`percent_bar`（割合の帯図）、`venn_diagram`（ベン図）、`timeline`（時間の流れ。1つずつ見せる）。表は「きまり探し・条件の整理」だけに使う
+  - 黒板にも答えを書かない：出す前に図の文字を `AnswerLeakGuard` で照合し、答えを含む文字だけ「？」にする（分析の図も会話の図も）
+  - **段階表示**：手順カードは1枚ずつ、線分図は1本ずつ見せ、いちばん新しいものを強調する。分析の図はヒントの段階が進むたびに、会話の図は先生が文を話し始めるたびに1つ増やす。表・グラフ・構成メモなど資料の部品は最初から全部見せる
+  - 図が替わるときは、薄く消して書き直すように入れ替える
 
 ### ③ ボクセルの先生アバター
 

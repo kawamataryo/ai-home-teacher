@@ -31,7 +31,7 @@ export function loadCases(dir = casesDir) {
 export function buildRequest(testCase) {
   return {
     model: MODEL,
-    max_tokens: 512,
+    max_tokens: 1024,
     // アプリと同じく、会話では考える処理を止める（MessagesRequest.thinkingDisabled）
     thinking: { type: "disabled" },
     system: conversationSystemPrompt({ mode: testCase.mode ?? "study", teacherNote: testCase.teacherNote }),
@@ -79,8 +79,13 @@ export function resolveEndpoint(env) {
   return null;
 }
 
-// アプリの TeacherBrain.toolResultText と揃える。
+// アプリの TeacherBrain.toolResultText / boardResultText と揃える。
 export const TOOL_RESULT_TEXT = "記録しました。子どもには伝えずに、会話を続けてください。";
+export const BOARD_RESULT_TEXT = "黒板に図を出しました（子どもに見えています）。もう話したことはくり返さずに、図を見ながら答えられる短い問いかけを1つだけ言ってください。もう問いかけで終えていれば、何も言わなくてかまいません。";
+
+export function toolResultText(name) {
+  return name === "show_board" || name === "render_svg" ? BOARD_RESULT_TEXT : TOOL_RESULT_TEXT;
+}
 
 // アプリと同じく、ツールだけ呼んで言葉がなかったときは tool_result を付けて1回だけ続きを呼ぶ。
 // call(body) は Messages API の応答（JSON）を返す関数。
@@ -89,7 +94,9 @@ export async function respond(call, body) {
   let reply = extractReply(first);
   const toolUses = extractToolUses(first);
   const toolBlocks = (first.content ?? []).filter((b) => b.type === "tool_use");
-  if (first.stop_reason === "tool_use" && toolBlocks.length > 0 && !reply.trim()) {
+  // アプリ（TeacherBrain）と同じく、言葉がないとき・黒板に図を出したときは続きを1回もらう
+  const shownBoard = toolBlocks.some((b) => b.name === "show_board");
+  if (first.stop_reason === "tool_use" && toolBlocks.length > 0 && (!reply.trim() || shownBoard)) {
     const next = await call({
       ...body,
       messages: [
@@ -97,11 +104,11 @@ export async function respond(call, body) {
         { role: "assistant", content: first.content },
         {
           role: "user",
-          content: toolBlocks.map((b) => ({ type: "tool_result", tool_use_id: b.id, content: TOOL_RESULT_TEXT })),
+          content: toolBlocks.map((b) => ({ type: "tool_result", tool_use_id: b.id, content: toolResultText(b.name) })),
         },
       ],
     });
-    reply = extractReply(next);
+    reply += extractReply(next);
     toolUses.push(...extractToolUses(next));
   }
   return { reply, toolUses };
@@ -144,7 +151,9 @@ async function main(argv, env) {
   for (const c of cases) {
     try {
       const { reply, toolUses } = await respond((body) => callClaude(endpoint, body), buildRequest(c));
-      const result = checkReply(reply, c.expect, toolUses.map((t) => t.name));
+      // 黒板の文字にも答えを書かない
+      const boardText = toolUses.filter((t) => t.name === "show_board").map((t) => JSON.stringify(t.input)).join("\n");
+      const result = checkReply(reply, c.expect, toolUses.map((t) => t.name), boardText);
       if (!result.pass) failed++;
       console.log(`${result.pass ? "PASS" : "FAIL"} ${c.id}（${c.title}）`);
       console.log(`  先生: ${reply.replaceAll("\n", " ")}`);

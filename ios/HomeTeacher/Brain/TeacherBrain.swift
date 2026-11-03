@@ -1,5 +1,11 @@
 import Foundation
 
+/// 先生の返事の中身。文と、黒板の図（show_board）が届いた順に流れる。
+enum TeacherOutput: Equatable, Sendable {
+    case sentence(String)
+    case board(BoardContent)
+}
+
 enum TeacherBrainError: Error, Equatable {
     /// ストリームの途中で API がエラーを返した。
     case api(type: String, message: String)
@@ -30,6 +36,10 @@ actor TeacherBrain {
     static let maxToolContinuations = 1
     /// tool_result に入れる文。子どもには聞こえない。
     static let toolResultText = "記録しました。子どもには伝えずに、会話を続けてください。"
+    /// 黒板に図を出したときの tool_result。
+    static let boardResultText = "黒板に図を出しました（子どもに見えています）。もう話したことはくり返さずに、図を見ながら答えられる短い問いかけを1つだけ言ってください。もう問いかけで終えていれば、何も言わなくてかまいません。"
+    /// 黒板の図を読めなかったときの tool_result。
+    static let boardFailedText = "図を出せませんでした。黒板にはふれずに、言葉だけで会話を続けてください。"
 
     private let client: WorkerClient
     private(set) var systemPrompt: String
@@ -45,7 +55,7 @@ actor TeacherBrain {
         client: WorkerClient,
         systemPrompt: String,
         model: ClaudeModel = .haiku,
-        maxTokens: Int = 512,
+        maxTokens: Int = 1024,
         tools: [ToolDefinition] = []
     ) {
         self.client = client
@@ -60,12 +70,31 @@ actor TeacherBrain {
         systemPrompt = prompt
     }
 
-    /// 子どもの発話に返事をする。先生の返事を文ごとに流す。
+    /// 子どもの発話に返事をする。先生の返事を文ごとに流す（黒板の図は流さない）。
     /// 受け取った文字は届いたそばから履歴に入るので、途中で止めても履歴には途中までが残る。
     func respond(to userText: String) -> AsyncThrowingStream<String, Error> {
+        let outputs = respondWithBoards(to: userText)
+        let (stream, continuation) = AsyncThrowingStream<String, Error>.makeStream()
+        let task = Task {
+            do {
+                for try await output in outputs {
+                    if case .sentence(let sentence) = output { continuation.yield(sentence) }
+                }
+                continuation.finish()
+            } catch {
+                continuation.finish(throwing: error)
+            }
+        }
+        continuation.onTermination = { _ in task.cancel() }
+        return stream
+    }
+
+    /// 子どもの発話に返事をする。文と、黒板の図（show_board を呼んだとき）を届いた順に流す。
+    /// 割り込みで捨てる返事の図も一緒に捨てられるよう、文と同じ流れに入れる。
+    func respondWithBoards(to userText: String) -> AsyncThrowingStream<TeacherOutput, Error> {
         currentTask?.cancel()
         history.appendUser(userText)
-        let (stream, continuation) = AsyncThrowingStream<String, Error>.makeStream()
+        let (stream, continuation) = AsyncThrowingStream<TeacherOutput, Error>.makeStream()
         let task = Task {
             do {
                 try await self.run(into: continuation)
@@ -127,12 +156,14 @@ actor TeacherBrain {
     }
 
     /// 1回の返事。ツールだけ呼んで言葉がなかったときは、tool_result を付けてもう一度呼ぶ。
-    private func run(into continuation: AsyncThrowingStream<String, Error>.Continuation) async throws {
+    private func run(into continuation: AsyncThrowingStream<TeacherOutput, Error>.Continuation) async throws {
         var continuations = 0
         while true {
             try Task.checkCancellation()
             let turn = try await streamOnce(makeRequest(), into: continuation)
-            guard turn.calledTools, !turn.spokeText, continuations < Self.maxToolContinuations else { return }
+            // 図を出したら、話していても続きを1回もらう（図を見ながらの問いかけで締める）。
+            // 続きのリクエストは、それまでの文を読み上げている間に走るので、待ち時間は増えない
+            guard turn.calledTools, !turn.spokeText || turn.shownBoard, continuations < Self.maxToolContinuations else { return }
             continuations += 1
         }
     }
@@ -140,11 +171,12 @@ actor TeacherBrain {
     private struct TurnResult {
         var spokeText = false
         var calledTools = false
+        var shownBoard = false
     }
 
     private func streamOnce(
         _ request: MessagesRequest,
-        into continuation: AsyncThrowingStream<String, Error>.Continuation
+        into continuation: AsyncThrowingStream<TeacherOutput, Error>.Continuation
     ) async throws -> TurnResult {
         let parser = ClaudeStreamParser()
         var splitter = SentenceSplitter()
@@ -158,20 +190,27 @@ actor TeacherBrain {
             case .textDelta(_, let text):
                 history.appendAssistantText(text)
                 if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { result.spokeText = true }
-                for sentence in splitter.append(text) { continuation.yield(sentence) }
+                for sentence in splitter.append(text) { continuation.yield(.sentence(sentence)) }
             case .toolUseStart(let index, let id, let name):
                 toolUses.start(index: index, id: id, name: name)
             case .inputJSONDelta(let index, let partialJSON):
                 toolUses.append(index: index, partialJSON: partialJSON)
             case .contentBlockStop(let index):
                 if let toolUse = toolUses.stop(index: index) {
-                    handle(toolUse)
+                    // 図より前の文は先に流す（話している文と図の順番をそろえる）
+                    if BoardTools.isBoardTool(toolUse.name) {
+                        for sentence in splitter.flush() { continuation.yield(.sentence(sentence)) }
+                    }
+                    if let board = handle(toolUse) {
+                        continuation.yield(.board(board))
+                        result.shownBoard = true
+                    }
                     result.calledTools = true
                 }
             case .error(let type, let message):
                 throw TeacherBrainError.api(type: type, message: message)
             case .messageStop:
-                for sentence in splitter.flush() { continuation.yield(sentence) }
+                for sentence in splitter.flush() { continuation.yield(.sentence(sentence)) }
                 return result
             default:
                 break
@@ -180,12 +219,13 @@ actor TeacherBrain {
         // 止められて終わったときは、途中の文を流さない
         try Task.checkCancellation()
         // message_stop が来ずに終わった場合も残りを流す
-        for sentence in splitter.flush() { continuation.yield(sentence) }
+        for sentence in splitter.flush() { continuation.yield(.sentence(sentence)) }
         return result
     }
 
     /// ツールの呼び出しを処理し、履歴に tool_use と tool_result を残す（API は対になっていないと受け付けない）。
-    private func handle(_ toolUse: ToolUseAccumulator.ToolUse) {
+    /// 黒板の図なら、出す中身を返す（読めなかった図は出さない。「図をうまく出せなかった」より、言葉だけの方がよい）。
+    private func handle(_ toolUse: ToolUseAccumulator.ToolUse) -> BoardContent? {
         history.append(.assistant, .toolUse(id: toolUse.id, name: toolUse.name, input: toolUse.input))
         switch toolUse.name {
         case ParentFlagTool.name:
@@ -193,8 +233,18 @@ actor TeacherBrain {
                 sessionFlags.record(flag)
             }
             history.append(.user, .toolResult(toolUseID: toolUse.id, content: Self.toolResultText))
+            return nil
+        case let name where BoardTools.isBoardTool(name):
+            let content = BoardTools.content(toolName: name, input: toolUse.input)
+            if case .text = content {
+                history.append(.user, .toolResult(toolUseID: toolUse.id, content: Self.boardFailedText))
+                return nil
+            }
+            history.append(.user, .toolResult(toolUseID: toolUse.id, content: Self.boardResultText))
+            return content
         default:
             history.append(.user, .toolResult(toolUseID: toolUse.id, content: "未対応のツールです。"))
+            return nil
         }
     }
 }

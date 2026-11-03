@@ -1,0 +1,44 @@
+{
+  "id": "06-data-parks",
+  "title": "資料の比較（1つあたりの量）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "公園1か所あたりの人数 = 人口 ÷ 公園の数で求めて比べる。\nA町：24000 ÷ 12 = 2000人\nB町：15000 ÷ 10 = 1500人\n1か所あたりの人数が少ないのは B町（1500人 < 2000人）。答えはB町。",
+    "answer": "B町",
+    "answer_variants": [
+      "B",
+      "Bまち",
+      "B町です",
+      "ビー町"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題は、何を比べて、どちらが少ないかを答える問題かな？最後の一文をもう一回読んで、自分の言葉で言ってみて。",
+      "「公園1か所あたりの人数」というのは、人口と公園の数のどちらも使うよ。A町とB町、それぞれの人口と公園の数を問題から見つけて言ってみよう。",
+      "「1か所あたり」は、全部の人数を公園の数で等しく分けたときの、1か所分の人数のことだよ。わり算で考えられそう。何を何でわればいいかな？",
+      "まずA町。人口を公園の数でわると、1か所あたり何人になる？次にB町も同じように計算してみよう。2つの数を比べて、少ないのはどっちかな？ということは？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "A町（人口24000人・公園12か所）とB町（人口15000人・公園10か所）で、公園1か所あたりの人数が少ないのはどちらかを答える。"
+  },
+  "boards": [],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 8133,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 641,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

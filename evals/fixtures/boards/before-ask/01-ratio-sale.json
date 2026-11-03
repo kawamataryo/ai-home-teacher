@@ -1,0 +1,79 @@
+{
+  "id": "01-ratio-sale",
+  "title": "割合（何%引き）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": true,
+  "analysis": {
+    "analysis": "もとの値段1200円の25%を引く。25%引き＝もとの値段の(100−25)=75%をはらう。1200×0.75=900円。別解：1200×0.25=300円が値引き額、1200−300=900円。答えは900円。",
+    "answer": "900円",
+    "answer_variants": [
+      "900",
+      "900えん",
+      "九百円"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題、最後に何を答えればいいんだっけ？「いくらはらえばよいか」だよね。「25%引き」ってどういう意味か、自分の言葉で言ってみて？",
+      "問題の中で大事な数はどれかな？「1200円」と「25%」に注目しよう。25%は、何に対する割合かな？黒板の図を見て、もとの値段のどこが引かれるか考えてみよう。",
+      "もとの値段を100%とした線の図をかいてみよう。25%引かれたら、のこりは何%になるかな？または、25%分の値段を先に出して、ひく方法もあるよ。どちらでやってみたい？",
+      "まず、もとの値段の25%は何円か計算してみよう（25%は小数や分数だとどう表せる？）。それを1200円から引くと、はらうお金は…ということは？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "1200円の絵の具セットが、もとの値段の25%引きで売られている。ゆうきさんがはらう金額はいくらか。"
+  },
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "25%引きって、どこが引かれる？",
+        "component": {
+          "type": "segment_diagram",
+          "bars": [
+            {
+              "name": "もとの値段",
+              "segments": [
+                {
+                  "length": 4,
+                  "label": "1200円（100%）"
+                }
+              ],
+              "total_label": ""
+            },
+            {
+              "name": "セールの日",
+              "segments": [
+                {
+                  "length": 1,
+                  "label": "25%引き"
+                },
+                {
+                  "length": 3,
+                  "label": "はらう分＝？"
+                }
+              ],
+              "total_label": "もとの値段が100%"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 8199,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 1079,
+    "output_tokens_details": {
+      "thinking_tokens": 260
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

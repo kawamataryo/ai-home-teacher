@@ -1,0 +1,44 @@
+{
+  "id": "02-speed-meet",
+  "title": "速さ（出会う時間）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "池1周は1.2km=1200m。反対向きに歩くので、2人の進む道のりの合計が1周分(1200m)になったときに出会う。1分間に近づく道のり=80+70=150m。1200÷150=8分後。確かめ：兄80×8=640m、弟70×8=560m、合計1200m。",
+    "answer": "8分後",
+    "answer_variants": [
+      "8分",
+      "8分後",
+      "八分後",
+      "8"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題、何を答えればいいかな？最後の一文を読んで、自分の言葉で言ってみよう。また、池の1周の長さと2人の速さの単位は同じかな？",
+      "2人が反対向きに歩くと、2人が歩いた道のりを合わせると、池のどんなところまでいけば出会えるのかな？池の絵をかいて、2人の動きを矢印で考えてみよう。",
+      "1分たつと、兄は80m、弟は70m進むよね。2人の間のきょりは、1分で合わせて何mちぢまるかな？1周の長さは、まずmにそろえておこう。",
+      "1周は1200m。1分で2人合わせて進む道のりを出せたら、1200mの中にそれが何回分入るか考えよう。ためしに数分後の2人の道のりの合計をたしかめてもいいよ。それでは、出会うのは何分後ということかな？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "1周1.2kmの池を、兄(分速80m)と弟(分速70m)が同じ場所から反対向きに同時に歩き始める。初めて出会うのは何分後か答える。"
+  },
+  "boards": [],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 8148,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 684,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "id": "01-ratio-sale",
+  "title": "割合（何%引き）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "もとの値段1200円の25%引きなので、ねだんは 100%−25%＝75% になる。1200×0.75＝900円。別解：1200×0.25＝300円が値引き額、1200−300＝900円。答えは900円。",
+    "answer": "900円",
+    "answer_variants": [
+      "900",
+      "900えん",
+      "九百円"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題、最後に何を聞かれているかな？「いくらはらえばよいか」ということは、安くなったあとの値段かな、もとの値段かな？自分の言葉で言ってみて。",
+      "問題の中の「1200円」と「25%引き」に注目しよう。「25%引き」って、どういう意味だと思う？もとの値段のうちの何%分が安くなるのかな？",
+      "割合の考え方を使おう。もとの値段を100%として、そこから25%引くと、はらう値段はもとの値段の何%になるかな？または、安くなる金額を先に出して、あとで引く方法もあるよ。好きなほうで考えてみて。",
+      "一緒にたどろう。①もとの値段1200円が100%。②25%引きなので、はらう値段は何%になる？③その割合を、1200円にかけるとどうなる？（%を小数にすると考えやすいよ）。計算してみて、ゆうきさんがはらう金額は、ということは？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "1200円の絵の具セットがもとの値段の25%引きで売られているとき、ゆうきさんがはらう金額はいくらかを求める問題。"
+  },
+  "boards": [],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 8146,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 665,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

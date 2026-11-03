@@ -1,0 +1,89 @@
+{
+  "id": "04-pattern-matchsticks",
+  "title": "規則性（マッチ棒の正方形）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "正方形を1個ふやすごとに、棒は3本ずつふえる（1個目だけ4本、あとは3本ずつ）。式は 4 + 3×(10-1) = 31。または 3×10+1 = 31。確かめ：1個→3×1+1=4、2個→7、3個→10で合う。10個のとき31本。",
+    "answer": "31本",
+    "answer_variants": [
+      "31",
+      "31本いる",
+      "三十一本"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題で最後に答えるのは何かな？ 正方形が何個のときの、何の数を聞かれているか、自分の言葉で言ってみよう。",
+      "問題に書いてある、1個・2個・3個のときの棒の本数を見てみよう。正方形が1個ふえると、棒の本数は何本ふえているかな？ 黒板の表を見てね。",
+      "10個まで全部かくのは大変だよね。『1個ふえるごとに同じ本数ずつふえる』というきまりを使えないかな？ 1個のときの4本は、あとのふえ方とちがうところがないか考えてみよう。",
+      "1個目は4本。そこから2個目、3個目…と、10個目になるまでに何回ふやすことになるかな？ ふやす本数と回数をかけて、はじめの4本にたすと…ということは、棒は何本になる？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "同じ長さの棒で正方形を横一列につなげる。1個で4本、2個で7本、3個で10本。正方形を10個つなげるときの棒の本数を求める。"
+  },
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "ふえ方のきまりを見つけよう",
+        "component": {
+          "type": "table",
+          "headers": [
+            "正方形の数（個）",
+            "棒の数（本）"
+          ],
+          "rows": [
+            [
+              "1",
+              "4"
+            ],
+            [
+              "2",
+              "7"
+            ],
+            [
+              "3",
+              "10"
+            ],
+            [
+              "4",
+              "？"
+            ],
+            [
+              "10",
+              "？"
+            ]
+          ],
+          "highlight_cells": [
+            {
+              "row": 3,
+              "column": 1
+            },
+            {
+              "row": 4,
+              "column": 1
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 10992,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 973,
+    "output_tokens_details": {
+      "thinking_tokens": 122
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

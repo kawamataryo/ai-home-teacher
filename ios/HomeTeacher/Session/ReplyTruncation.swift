@@ -88,14 +88,21 @@ final class SpokenReplyTracker: SpeechOutput {
         current = nil
     }
 
+    /// 文を話し始めるたびに呼ぶ（黒板の段階表示を、話している文に合わせる）
+    var onSentenceStart: (() -> Void)?
+
     func speak(_ text: String) async {
         let id = generation
         current = text
+        onSentenceStart?()
         await voice.speak(text)
         guard id == generation else { return }
         finished.append(text)
         current = nil
     }
+
+    /// いま文を話しているか
+    var isSpeaking: Bool { current != nil }
 
     func snapshot(playedInCurrent: Int) -> SpokenSnapshot {
         SpokenSnapshot(finished: finished, current: current, playedInCurrent: current == nil ? 0 : playedInCurrent)

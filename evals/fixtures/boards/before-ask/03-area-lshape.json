@@ -1,0 +1,52 @@
+{
+  "id": "03-area-lshape",
+  "title": "図形の面積（L字形）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": true,
+  "analysis": {
+    "analysis": "元の長方形の面積は 6×8=48cm²。切り取った長方形は 2×3=6cm²。残りは 48−6=42cm²。L字を2つの長方形に分けても同じ(例:たて4×よこ8=32 と たて2×よこ5=10 で合計42)。",
+    "answer": "42cm²",
+    "answer_variants": [
+      "42",
+      "42㎠",
+      "42平方センチメートル",
+      "四十二cm²"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題で最後に求めるのは何かな？問題の最後の一文を読んで、自分の言葉で言ってみよう。",
+      "もとの紙の大きさと、切り取った部分の大きさは、それぞれどの数字かな？黒板の図で、切り取った角のところを見てみよう。",
+      "L字を一度に考えるのはむずかしいね。『大きな長方形から、切り取った長方形をひく』という考え方ができないかな？",
+      "まず、もとの長方形の面積は何cm²？つぎに、切り取った長方形の面積は？その2つをどう使えば、残った紙の面積が出るかな。ということは、残った紙の面積は？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "たて6cm、よこ8cmの長方形の紙の右上の角から、たて2cm、よこ3cmの長方形を切り取ってL字にした。残った紙の面積は何cm²か求める。"
+  },
+  "boards": [
+    {
+      "name": "render_svg",
+      "input": {
+        "caption": "右上の角を切り取ったL字の紙。色のついた部分を切り取ったよ。",
+        "svg": "<svg viewBox=\"0 0 600 420\" xmlns=\"http://www.w3.org/2000/svg\"><polygon points=\"80,60 330,60 330,135 480,135 480,340 80,340\" fill=\"#3d6b4f\" stroke=\"#ffffff\" stroke-width=\"4\"/><rect x=\"330\" y=\"60\" width=\"150\" height=\"75\" fill=\"none\" stroke=\"#ffd966\" stroke-width=\"4\" stroke-dasharray=\"10,8\"/><text x=\"405\" y=\"108\" font-size=\"26\" fill=\"#ffd966\" text-anchor=\"middle\">切り取る</text><text x=\"280\" y=\"210\" font-size=\"32\" fill=\"#ffffff\" text-anchor=\"middle\">残った紙 ？cm²</text><text x=\"280\" y=\"385\" font-size=\"28\" fill=\"#ffffff\" text-anchor=\"middle\">よこ 8cm</text><text x=\"55\" y=\"205\" font-size=\"28\" fill=\"#ffffff\" text-anchor=\"end\">たて</text><text x=\"55\" y=\"238\" font-size=\"28\" fill=\"#ffffff\" text-anchor=\"end\">6cm</text><text x=\"405\" y=\"45\" font-size=\"24\" fill=\"#ffd966\" text-anchor=\"middle\">よこ 3cm</text><text x=\"500\" y=\"105\" font-size=\"24\" fill=\"#ffd966\">たて 2cm</text></svg>"
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 8190,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 1151,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

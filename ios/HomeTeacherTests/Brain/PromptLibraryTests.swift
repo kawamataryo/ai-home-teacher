@@ -25,14 +25,14 @@ struct PromptLibraryTests {
         #expect(text.contains("答えをそのまま言わない"))
     }
 
-    @Test func 会話用はteacherとhint_ladderとsafetyとsmall_talkをこの順につなぐ() throws {
+    @Test func 会話用はteacherとhint_ladderとsafetyとsmall_talkとboard_talkをこの順につなぐ() throws {
         let library = PromptLibrary()
         let prompt = try library.conversationSystemPrompt()
         let parts = prompt.components(separatedBy: PromptLibrary.separator)
         let mode = ["session_mode": "勉強中"]
         #expect(parts == [
             try library.load(.teacher), try library.load(.hintLadder), try library.load(.safety),
-            try library.load(.smallTalk, variables: mode),
+            try library.load(.smallTalk, variables: mode), try library.load(.boardTalk),
         ])
         #expect(!prompt.contains("先生のメモ（子どもには"))
         #expect(!prompt.contains("{{"))
@@ -55,10 +55,20 @@ struct PromptLibraryTests {
         #expect(safety.contains("要確認"))
     }
 
-    @Test func 会話用のツールはflag_for_parent() throws {
+    @Test func 会話用のツールはflag_for_parentとshow_board() throws {
         let tools = try PromptLibrary().conversationTools()
-        #expect(tools.map(\.name) == ["flag_for_parent"])
+        #expect(tools.map(\.name) == ["flag_for_parent", "show_board"])
         #expect(tools[0].inputSchema["type"]?.stringValue == "object")
+        // show_board は strict にすると 400（grammar is too large）。render_svg は会話では使わない
+        #expect(tools[1].strict == false)
+        #expect(tools[1].inputSchema == ShowBoardInput.schema)
+    }
+
+    @Test func 会話で図を出すときと出さないときのルールがある() throws {
+        let text = try PromptLibrary().raw(.boardTalk)
+        for keyword in ["show_board", "図を出すとき", "図を出さないとき", "答えは書かない", "先にひと言話してから"] {
+            #expect(text.contains(keyword), "\(keyword) がない")
+        }
     }
 
     @Test func 知らないツールはエラー() {

@@ -1,0 +1,43 @@
+{
+  "id": "04-pattern-matchsticks",
+  "title": "規則性（マッチ棒の正方形）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "dummy",
+    "answer": "31本",
+    "answer_variants": [
+      "31",
+      "31本いる",
+      "三十一本"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題で、最後に答えるのは何かな？ 「正方形を何個つなげたとき」の「何」を求めるのか、もう一度読んで言ってみよう。",
+      "正方形が1個、2個、3個のときの棒の本数に注目しよう。1個ふえるごとに、棒は何本ずつふえているかな？ 表にしてならべてみてもいいよ。",
+      "ふえ方のきまりを使おう。最初の1個は4本。そのあと1個ふやすたびに、同じ本数ずつふえるよ。『最初の4本』と『あとからふえる分』に分けて考えてみよう。",
+      "2個目から10個目までは、正方形を何回ふやすことになるかな？ 1回ふやすと3本ふえるから、ふえる本数は全部で何本かな？ それを最初の4本にたすと、ということは、棒は何本になる？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "同じ長さの棒で正方形を横一列につなげる。1個のとき4本、2個で7本、3個で10本。正方形を10個つなげるときの棒の本数を求める。"
+  },
+  "boards": [],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 8137,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 576,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

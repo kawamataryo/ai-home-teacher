@@ -43,7 +43,7 @@ enum SVGSandbox {
         <meta http-equiv="Content-Security-Policy" content="\(csp)">\
         <meta name="viewport" content="width=device-width,initial-scale=1">\
         <style>html,body{margin:0;height:100%;background:transparent;overflow:hidden}\
-        body{display:flex;align-items:center;justify-content:center}\
+        body{display:flex;align-items:center;justify-content:center;font-family:"Hiragino Maru Gothic ProN",-apple-system,sans-serif}\
         svg{width:100%;height:100%}</style>\
         </head><body>\(svg)</body></html>
         """

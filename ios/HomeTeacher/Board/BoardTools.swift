@@ -65,11 +65,15 @@ enum BoardTools {
         """
 
     /// show_board のツール定義（`tools` 配列の1要素）。
+    ///
+    /// strict にはしない。全部品の anyOf を strict にすると、API が「The compiled grammar is too large」で 400 を返す
+    /// （2026-11-03 に本番の Worker で確認。部品ごとの小さなツール 8 つに分けても同じ）。
+    /// そのかわり、受け取った入力の足りないキーは、スキーマから既定値で埋めてから読む（`SchemaDefaults`）。
     static var showBoard: JSONValue {
         .object([
             "name": .string(showBoardName),
             "description": .string(showBoardDescription),
-            "strict": .bool(true),
+            "strict": .bool(false),
             "input_schema": ShowBoardInput.schema,
         ])
     }
@@ -96,6 +100,16 @@ enum BoardTools {
     /// 黒板のツールすべて。
     static var all: [JSONValue] { [showBoard, renderSVG] }
 
+    static func isBoardTool(_ name: String) -> Bool {
+        name == showBoardName || name == renderSVGName
+    }
+
+    /// 会話（Haiku）に渡す黒板のツール。show_board だけを渡す。
+    /// render_svg は SVG が長く、返事の max_tokens に収まらず途中で切れやすいので、分析（Sonnet）だけで使う。
+    static var conversationTool: ToolDefinition {
+        ToolDefinition(name: showBoardName, description: showBoardDescription, inputSchema: ShowBoardInput.schema, strict: false)
+    }
+
     /// `tools` にそのまま入れられる JSON（キー順固定）。
     static func toolsJSON() throws -> Data {
         try JSONValue.array(all).jsonData()
@@ -118,7 +132,11 @@ enum BoardTools {
     static func content(toolName: String, input: Data) -> BoardContent {
         switch toolName {
         case showBoardName:
-            if let decoded = try? makeDecoder().decode(ShowBoardInput.self, from: input) {
+            // strict ではないので、キーが足りない・型が違う入力も来る。スキーマに合わせて直してから読む
+            if let raw = try? JSONDecoder().decode(JSONValue.self, from: input),
+               let filled = try? SchemaDefaults.fill(raw, schema: ShowBoardInput.schema).jsonData(),
+               let decoded = try? makeDecoder().decode(ShowBoardInput.self, from: filled),
+               !decoded.component.isEmpty {
                 return .component(title: decoded.title, decoded.component)
             }
         case renderSVGName:
