@@ -45,8 +45,11 @@ final class StudySessionCoordinator {
         var library = PromptLibrary()
         /// Jev（TypeSafe AI）。nil なら規則ベースだけで判定する
         var decisions: TeacherDecisions?
-        /// 設定画面の値（話している間のマイクの扱い）。始めるときに読む
+        /// 設定画面の値（話している間のマイクの扱い・カメラ）。始めるときに読む
         var preferences: SessionPreferences?
+        /// カメラ（#15）。nil なら撮影しない
+        var camera: (any PhotoCapturing)?
+        var countdown: (any CountdownPlaying)?
         var now: @Sendable () -> Date = { Date() }
     }
 
@@ -58,6 +61,16 @@ final class StudySessionCoordinator {
     static let reflectionFiller = "今日もおつかれさま。ちょっとふり返るね。"
     /// 最初のひと言を作るときに、子どもの発話のかわりに送る文
     static let openingTrigger = "（勉強スタート）"
+    /// 撮る前のひと言（定型句なので待たずに話せる）
+    static let captureLead = "どれどれ"
+    /// 見せたいとはっきり言う言い方
+    static let lookPhrases = ["見て", "みて", "見せ", "みせ"]
+    /// 分析を待つ間（定型句）
+    static let analysisFiller = "ちょっと考えるね"
+    /// 写真を分析したあと、返事を作るときに子どもの発話のかわりに送る文
+    static let photoShownTrigger = "（ノートの写真を先生に見せた）"
+    static let captureFailedLine = "ごめん、うまく撮れなかった。もう一回見せてくれる？"
+    static let analysisFailedLine = "ごめん、写真がよく見えなかった。もう一回撮ってみようか？"
 
     // MARK: - 画面に出すもの
 
@@ -70,6 +83,12 @@ final class StudySessionCoordinator {
     private(set) var sessionMode: SessionMode = .study
     private(set) var timer: FocusTimer?
     private(set) var statusMessage: String?
+    /// 撮影から分析までの間
+    private(set) var isCapturing = false
+    /// 撮る前のカウントダウンの数（3, 2, 1）
+    private(set) var captureCountdown: Int?
+    /// 撮影できるか（カメラがある）
+    var canCapture: Bool { deps.camera?.isAvailable == true }
     let avatar = AvatarController()
     var settings = Settings()
 
@@ -116,6 +135,9 @@ final class StudySessionCoordinator {
     @ObservationIgnored private(set) var teacherNote: String?
     /// このセッションで取り組んだ問題（ふり返りに渡す）
     @ObservationIgnored private(set) var problems: [ProblemRecord] = []
+    /// いま一緒に取り組んでいる問題（分析の結果・ヒントの段階・答え漏れの検査）
+    @ObservationIgnored private(set) var tutoring: TutoringState?
+    @ObservationIgnored private var captureJudge: (any CaptureRequestJudge)?
 
     init(dependencies: Dependencies) {
         self.deps = dependencies
@@ -166,6 +188,7 @@ final class StudySessionCoordinator {
         sessionMode = .study
         teacherNote = nil
         problems = []
+        tutoring = nil
         board = nil
         lastReplySentences = []
         trace("セッション開始")
@@ -192,8 +215,10 @@ final class StudySessionCoordinator {
             let judge = JevAddressingJudge(decisions: decisions, fallback: CallWordAddressingJudge(callWords: conversation.callWords))
             addressingJudge = judge
             endDecider = JevEndOfUtteranceDecider(decisions: decisions)
+            captureJudge = JevCaptureRequestJudge(decisions: decisions)
         } else {
             addressingJudge = nil
+            captureJudge = CaptureRequestDetector()
         }
         let controller = ConversationController(
             input: deps.input, output: tracker, clock: deps.clock, settings: conversation,
@@ -236,7 +261,8 @@ final class StudySessionCoordinator {
                 Task { await self.end() }
                 return
             }
-            startReply(to: text, fallback: Self.replyFallback)
+            await noteTutoringTurn(text)
+            startReply(to: text, fallback: Self.replyFallback, captureCheck: captureCheck(for: text))
         case .utteranceIgnored(let text):
             trace("先生への発話ではないとみなした: 「\(text)」")
             if VoiceCommand.parse(text) == .end { Task { await self.end() } }
@@ -283,17 +309,20 @@ final class StudySessionCoordinator {
     }
 
     /// 返事を作り始める。1 文目が届くまでは考え中のまま
-    private func startReply(to text: String, fallback: String) {
+    ///
+    /// `captureCheck` があれば（撮影の依頼かを Jev / 規則で判定中）、1 文目を話す前に答えを待ち、
+    /// 撮影の依頼なら返事を捨てて撮影に移る（判定と返事の生成を並べて、待ち時間を増やさない）
+    private func startReply(to text: String, fallback: String, captureCheck: Task<Bool, Never>? = nil) {
         replyGeneration += 1
         let generation = replyGeneration
         // 割り込みが返事のタスクより先に来ても捨てられるよう、ここで印を付ける
         inFlightReply = generation
         replyTask = Task { [weak self] in
-            await self?.runReply(to: text, fallback: fallback, generation: generation)
+            await self?.runReply(to: text, fallback: fallback, generation: generation, captureCheck: captureCheck)
         }
     }
 
-    private func runReply(to text: String, fallback: String, generation: Int) async {
+    private func runReply(to text: String, fallback: String, generation: Int, captureCheck: Task<Bool, Never>?) async {
         guard let brain, let controller else { return }
         defer { if inFlightReply == generation { inFlightReply = nil } }
         // 前の返事の切り詰めが終わってから、新しい発話を履歴に足す
@@ -306,23 +335,69 @@ final class StudySessionCoordinator {
         let (sentences, continuation) = AsyncStream<String>.makeStream()
         var speakTask: Task<SpeakOutcome, Never>?
         var spoken: [String] = []
+        /// 読み上げる前の文（答え漏れで差し替える前）。履歴の位置を出すのに使う
+        var originals: [String] = []
+        var blockedReplacement: String?
+        var wantsCapture = false
         var failure: (any Error)?
         do {
             for try await sentence in stream {
                 guard generation == replyGeneration else { break }
+                if speakTask == nil, let captureCheck, await captureCheck.value {
+                    wantsCapture = true
+                    break
+                }
+                guard generation == replyGeneration else { break }
+                // 答えを先に言ってしまう文は、読み上げる前に差し替える（AnswerLeakGuard）
+                var line = sentence
+                if case .blocked(let replacement)? = tutoring?.leakGuard.check(sentence) {
+                    line = replacement
+                    blockedReplacement = replacement
+                    trace("答えを言いそうな文を差し替えた")
+                }
                 if speakTask == nil {
                     let latency = deps.clock.now - acceptedAt
                     lastReplyLatency = latency
                     trace("1文目まで \(latency.formatted(.units(allowed: [.milliseconds])))")
                     speakTask = Task { await controller.speak(sentences) }
                 }
-                spoken.append(sentence)
-                continuation.yield(sentence)
+                spoken.append(line)
+                continuation.yield(line)
+                if blockedReplacement != nil { break }
+                originals.append(sentence)
             }
         } catch {
             failure = error
         }
         continuation.finish()
+
+        if speakTask == nil, !wantsCapture, failure == nil, let captureCheck, generation == replyGeneration {
+            wantsCapture = await captureCheck.value
+        }
+        if wantsCapture, generation == replyGeneration {
+            // 作りかけの返事は捨てて撮影へ（子どもの発話は履歴に残し、写真のあとにもう一度返事を作る）
+            inFlightReply = nil
+            await brain.cancel()
+            let messages = await brain.history.messages
+            if let count = ReplyTruncation.targetCount(messages: messages, spoken: SpokenSnapshot(finished: [], playedInCurrent: 0)) {
+                await brain.truncateLastReply(toCharacterCount: count)
+            }
+            trace("撮影の依頼とみなした")
+            await runCapture()
+            return
+        }
+        if let blockedReplacement {
+            // 残りの文（答えの説明が続きやすい）は話さない。履歴も差し替えた文にそろえる
+            await brain.cancel()
+            let messages = await brain.history.messages
+            if let last = messages.last, last.role == .assistant {
+                let count = ReplyTruncation.characterCount(
+                    in: last.text, spoken: SpokenSnapshot(finished: originals, playedInCurrent: 0)
+                )
+                await brain.truncateLastReply(toCharacterCount: count)
+            }
+            await brain.recordTeacherUtterance(blockedReplacement)
+        }
 
         if speakTask == nil {
             // 1 文も話さなかった
@@ -341,6 +416,113 @@ final class StudySessionCoordinator {
         let outcome = await speakTask?.value
         trace("返事: \(spoken.joined()) → \(outcome.map { "\($0)" } ?? "-")")
         completedReplies += 1
+    }
+
+    // MARK: - 撮影と問題の分析（#15）
+
+    /// 「これ見て」などの撮影の依頼かを判定し始める。カメラがなければ判定しない
+    private func captureCheck(for text: String) -> Task<Bool, Never>? {
+        guard let judge = captureJudge, deps.camera?.isAvailable == true, !isCapturing else { return nil }
+        // 問題を見たあとの「わかんない」はヒントを求める発話。「見て」と言われたときだけ撮り直す
+        if tutoring != nil, HelpRequestDetector.isHelpRequest(text),
+           !CaptureRequestDetector.matches(text, patterns: Self.lookPhrases) {
+            return nil
+        }
+        return Task { await judge.isCaptureRequest(text) }
+    }
+
+    /// 画面の撮影ボタン
+    func captureFromButton() async {
+        guard phase == .active, !isCapturing, conversationState == .idle else { return }
+        await runCapture()
+    }
+
+    /// どれどれ → カウントダウン → 撮影 → 縮めて送る（送ったら捨てる）→ 分析 → ヒントの段階と先生のメモ → 黒板 → 返事
+    private func runCapture() async {
+        guard let camera = deps.camera, let brain, let controller, !isCapturing else { return }
+        isCapturing = true
+        defer {
+            isCapturing = false
+            captureCountdown = nil
+        }
+        avatar.send(.lookAtNotebook)
+        let position = deps.preferences?.cameraPosition ?? .back
+        let preparing = Task { try await camera.prepare(position: position) }
+        await controller.speak(Self.captureLead)
+        do {
+            try await preparing.value
+            await deps.countdown?.countdown(from: 3) { [weak self] in self?.captureCountdown = $0 }
+            captureCountdown = nil
+            // 写真はこの中だけで持つ。縮めた JPEG も送ったあとは持たない（spec §3②）
+            let jpeg = try await Self.capturedJPEG(camera)
+            trace("撮影した（\(jpeg.count / 1024)KB）")
+            let filler = Task { await controller.speak(Self.analysisFiller) }
+            let analyzer = ProblemAnalyzer(client: deps.client, library: deps.library)
+            let result = try await analyzer.analyze(jpegData: jpeg, conversation: await brain.history.messages)
+            _ = await filler.value
+            await applyAnalysis(result)
+            avatar.send(.lookAwayFromNotebook)
+            guard phase == .active else { return }
+            startReply(to: Self.photoShownTrigger, fallback: Self.replyFallback)
+        } catch {
+            avatar.send(.lookAwayFromNotebook)
+            trace("撮影か分析に失敗: \(error)")
+            let line = error is CameraError ? Self.captureFailedLine : Self.analysisFailedLine
+            await brain.recordTeacherUtterance(line)
+            await controller.speak(line)
+        }
+    }
+
+    /// 撮って、長辺 2048px の JPEG にする
+    private static func capturedJPEG(_ camera: any PhotoCapturing) async throws -> Data {
+        let photo = try await camera.capture()
+        guard let data = ImageResizer.jpegData(from: photo) else { throw CameraError.captureFailed }
+        return data
+    }
+
+    /// 分析の結果を、ヒントの段階・先生のメモ・黒板・ふり返り用の問題の記録に入れる
+    private func applyAnalysis(_ result: AnalysisResult) async {
+        let analysis = result.analysis
+        var ladder = HintLadder(analysis: analysis)
+        // 作文を一緒に組み立てたあとに撮ったなら、書いたものの講評に進む
+        if analysis.kind == .writing, tutoring?.ladder.kind == .writing {
+            ladder.handle(.submittedWriting)
+        }
+        tutoring = TutoringState(analysis: analysis, ladder: ladder, leakGuard: AnswerLeakGuard(analysis: analysis))
+        problems.append(ProblemRecord(
+            kind: analysis.kind, summary: analysis.problemSummary, solvedBySelf: false,
+            hintLevelReached: ladder.level, createdAt: deps.now()
+        ))
+        board = result.boards.first ?? .text(analysis.problemSummary)
+        trace("分析した: \(analysis.kind.rawValue)「\(analysis.problemSummary)」黒板 \(result.boards.count) 枚")
+        await updateTeacherNote()
+    }
+
+    /// 子どもの発話でヒントの段階を進める（答えを自分で言えた・助けを求めた）
+    private func noteTutoringTurn(_ text: String) async {
+        guard var state = tutoring else { return }
+        var changed = false
+        if state.leakGuard.noteChildUtterance(text) {
+            state.ladder.handle(.solved)
+            changed = true
+        } else if HelpRequestDetector.isHelpRequest(text) {
+            changed = state.ladder.handle(.askedForHelp)
+        }
+        tutoring = state
+        guard changed else { return }
+        trace("ヒントの段階: \(state.ladder.level)/\(state.ladder.stages.count)\(state.ladder.isSolved ? "（自分で解けた）" : "")")
+        await updateTeacherNote()
+    }
+
+    private func updateTeacherNote() async {
+        guard let state = tutoring else { return }
+        if var last = problems.last {
+            last.hintLevelReached = state.ladder.level
+            last.solvedBySelf = state.ladder.isSolved
+            problems[problems.count - 1] = last
+        }
+        teacherNote = TeacherNote.make(analysis: state.analysis, ladder: state.ladder)
+        await rebuildSystemPrompt()
     }
 
     private func handleTimer(_ event: FocusTimerEvent) async {
@@ -522,4 +704,11 @@ final class StudySessionCoordinator {
         if traceLines.count > 200 { traceLines.removeFirst(traceLines.count - 200) }
         onTrace?(message)
     }
+}
+
+/// いま一緒に取り組んでいる問題
+struct TutoringState: Sendable {
+    var analysis: ProblemAnalysis
+    var ladder: HintLadder
+    var leakGuard: AnswerLeakGuard
 }

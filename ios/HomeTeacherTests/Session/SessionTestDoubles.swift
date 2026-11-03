@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 @testable import HomeTeacher
 
 /// パス（と、まとめて受け取るか 1 行ずつか）ごとに応答を返すモック。
@@ -150,13 +151,14 @@ final class SessionHarness {
     init(
         settings: StudySessionCoordinator.Settings = .init(),
         preferences: SessionPreferences? = nil,
+        camera: (any PhotoCapturing)? = nil,
         now: Date = Date(timeIntervalSince1970: 1_793_000_000)
     ) throws {
         store = MemorySyncStore(base: try SwiftDataMemoryStore.inMemory(), stateStorage: InMemorySyncStateStorage())
         let client = WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: transport)
         coordinator = StudySessionCoordinator(dependencies: .init(
             client: client, input: input, voice: voice, store: store, sync: sync, clock: clock,
-            preferences: preferences, now: { now }
+            preferences: preferences, camera: camera, countdown: InstantCountdown(), now: { now }
         ))
         coordinator.settings = settings
         coordinator.listen()
@@ -203,5 +205,47 @@ extension SessionHarness {
     /// 最後の先生の発言（履歴）
     func lastAssistantText() async -> String? {
         await coordinator.brain?.history.lastAssistantText
+    }
+}
+
+/// 撮影のモック。決まった大きさの画像を返す
+@MainActor
+final class MockCamera: PhotoCapturing {
+    var isAvailable = true
+    var fails = false
+    let size: CGSize
+    private(set) var preparedPositions: [CameraPosition] = []
+    private(set) var captureCount = 0
+
+    init(size: CGSize = CGSize(width: 4032, height: 3024)) {
+        self.size = size
+    }
+
+    func prepare(position: CameraPosition) async throws {
+        preparedPositions.append(position)
+    }
+
+    func capture() async throws -> UIImage {
+        captureCount += 1
+        if fails { throw CameraError.captureFailed }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+        }
+    }
+}
+
+/// 待たずに数えるカウントダウン
+@MainActor
+final class InstantCountdown: CountdownPlaying {
+    private(set) var ticks: [Int] = []
+
+    func countdown(from start: Int, onTick: @escaping @MainActor (Int) -> Void) async {
+        for n in stride(from: start, through: 1, by: -1) {
+            ticks.append(n)
+            onTick(n)
+        }
     }
 }

@@ -109,7 +109,10 @@ final class SessionAppModel {
             sync: services.sync,
             clock: clock,
             decisions: services.decisions,
-            preferences: preferences
+            preferences: preferences,
+            // 自己テスト・表示確認（台本の発話）のときはカメラを使わない
+            camera: scriptedInput == nil ? CameraCapture() : nil,
+            countdown: SystemSoundCountdown()
         ))
         self.coordinator = coordinator
         coordinator.listen()
