@@ -81,12 +81,15 @@ struct NumberLineScale {
         var lo = model.min.isFinite ? model.min : 0
         var hi = model.max.isFinite ? model.max : 1
         if lo > hi { swap(&lo, &hi) }
+        // 幅があふれる（±1e308 など）ときは描けないので 0〜1 にする
+        if !(hi - lo).isFinite || abs(lo) > 1e12 || abs(hi) > 1e12 { (lo, hi) = (0, 1) }
         if hi - lo < 1e-9 { hi = lo + 1 }
         var step = model.step.isFinite ? abs(model.step) : 0
         if step < 1e-9 || (hi - lo) / step > Double(Self.maxTicks) {
             step = (hi - lo) / 10
         }
-        let count = Int(((hi - lo) / step).rounded(.down))
+        let raw = ((hi - lo) / step).rounded(.down)
+        let count = raw.isFinite ? Swift.min(Swift.max(Int(raw), 1), Self.maxTicks) : 10
         lower = lo
         upper = hi
         ticks = (0...count).map { lo + Double($0) * step }

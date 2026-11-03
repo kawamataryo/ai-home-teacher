@@ -6,7 +6,7 @@ import Testing
 @MainActor
 struct BoardRenderTests {
     @Test func 数直線はおかしな値でも目盛りが増えすぎない() {
-        let cases: [(Double, Double, Double)] = [(0, 1, 0), (5, 1, 1), (0, 1_000_000, 0.001), (3, 3, 1), (0, .nan, -1)]
+        let cases: [(Double, Double, Double)] = [(0, 1, 0), (5, 1, 1), (0, 1_000_000, 0.001), (3, 3, 1), (0, .nan, -1), (-1e308, 1e308, 1), (-.infinity, .infinity, 1)]
         for (lo, hi, step) in cases {
             let s = NumberLineScale(NumberLine(min: lo, max: hi, step: step, unit: "", marks: [], ranges: []))
             #expect(s.lower < s.upper)
