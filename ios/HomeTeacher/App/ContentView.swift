@@ -1,33 +1,20 @@
 import SwiftUI
 
+/// 最初の画面。ふだんは学習セッション画面。
+/// 起動引数で検証用の画面に切り替える（`-autoSpike` などは #9 の検証画面、`-autoSession` はセッションの自己テスト）。
 struct ContentView: View {
-    let config: AppConfig?
-
-    @State private var path: [String] = SpeechSpikeModel.isAutoRun ? ["spike"] : []
+    let services: AppServices
 
     var body: some View {
-        NavigationStack(path: $path) {
-            VStack(spacing: 24) {
-                Text("AI家庭教師")
-                    .font(.largeTitle.bold())
-                if let config {
-                    Label("接続先: \(config.workerBaseURL.absoluteString)", systemImage: "network")
-                        .foregroundStyle(.secondary)
-                } else {
-                    Label("Secrets.xcconfig が未設定です", systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.orange)
-                }
-                NavigationLink("音声の実機検証（#9）") { SpeechSpikeView() }
-                    .buttonStyle(.borderedProminent)
-                NavigationLink("集中・休憩タイマー（確認用）") { FocusTimerPreviewScreen() }
-                NavigationLink("先生ギャラリー（デバッグ）") { AvatarGalleryView() }
-            }
-            .padding()
-            .navigationDestination(for: String.self) { _ in SpeechSpikeView() }
+        if AppServices.isTestHost {
+            // ユニットテストのホストとして起動したときは、マイクを開かない
+            Color.clear
+        } else if SpeechSpikeModel.isAutoRun {
+            NavigationStack { SpeechSpikeView() }
+        } else if SessionSelfTest.isEnabled {
+            SessionSelfTestView(services: services)
+        } else {
+            SessionScreen(model: SessionAppModel(services: services), preview: SessionPreviewState.fromLaunchArguments())
         }
     }
-}
-
-#Preview {
-    ContentView(config: AppConfig(workerBaseURL: URL(string: "http://localhost:8787")!, familyToken: "preview"))
 }
