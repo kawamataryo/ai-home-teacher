@@ -9,7 +9,7 @@ struct TeacherDecisionsTests {
     @Test func 判断はどれもはいいいえで聞く() {
         let questions = [
             TeacherDecisions.addressedQuestion, TeacherDecisions.completeQuestion, TeacherDecisions.captureQuestion,
-            TeacherDecisions.helpQuestion, TeacherDecisions.givesAnswerQuestion, TeacherDecisions.matchesAnswerQuestion,
+            TeacherDecisions.helpQuestion, TeacherDecisions.breakQuestion, TeacherDecisions.finishQuestion, TeacherDecisions.givesAnswerQuestion, TeacherDecisions.matchesAnswerQuestion,
         ]
         for question in questions {
             guard case let .boolean(instructions, whenTrue, whenFalse) = question else { Issue.record("noul ではない"); continue }
@@ -44,7 +44,7 @@ struct TeacherDecisionsTests {
         #expect(state["situation"] == TeacherDecisions.situation)
         #expect(state["problem"] == nil)
         let questions = try #require(json["questions"] as? [String: [String: Any]])
-        #expect(Set(questions.keys) == [Key.addressed, Key.complete, Key.capture, Key.help])
+        #expect(Set(questions.keys) == [Key.addressed, Key.complete, Key.capture, Key.help, Key.breakRequest, Key.finishRequest])
         #expect(questions.values.allSatisfy { $0["type"] as? String == "noul" })
     }
 
@@ -62,7 +62,7 @@ struct TeacherDecisionsTests {
         #expect(state["problem"] == "たて3cm、横8cmの長方形の面積")
         #expect(state["correct_answer"] == "24")
         let questions = try #require(json["questions"] as? [String: [String: Any]])
-        #expect(questions.count == 6)
+        #expect(questions.count == 8)
     }
 
     @Test func Jevが使えなければnil() async {

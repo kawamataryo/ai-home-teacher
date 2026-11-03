@@ -78,6 +78,14 @@ final class FocusTimer {
         eventContinuation.yield(.resumed)
     }
 
+    /// 集中の途中で休憩に入る（子どもが「休憩したい」と言った）。集中の途中でなければ何もせず false
+    @discardableResult
+    func startBreakNow() -> Bool {
+        guard status == .running, phase == .focus else { return false }
+        begin(.rest)
+        return true
+    }
+
     /// 止める（学習セッションの終了）
     func stop() {
         guard status != .stopped else { return }

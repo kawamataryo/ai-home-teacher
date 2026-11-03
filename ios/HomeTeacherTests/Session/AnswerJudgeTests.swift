@@ -69,7 +69,9 @@ struct AnswerJudgeTests {
         #expect(await transport.requests.count == 1)
         let body = try await DecisionFixture.requestJSON(transport)
         let questions = try #require(body["questions"] as? [String: Any])
-        #expect(Set(questions.keys) == [Key.addressed, Key.complete, Key.capture, Key.help, Key.givesAnswer, Key.matchesAnswer])
+        #expect(Set(questions.keys) == [
+            Key.addressed, Key.complete, Key.capture, Key.help, Key.breakRequest, Key.finishRequest, Key.givesAnswer, Key.matchesAnswer,
+        ])
         let state = try #require(body["state"] as? [String: String])
         #expect(state["correct_answer"] == "24cm²")
         #expect(state["utterance"] == "にじゅうよん")
