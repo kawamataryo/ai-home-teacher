@@ -35,3 +35,6 @@ coverage/
 
 # XcodeGen で生成する（ios/project.yml が正）
 ios/*.xcodeproj/
+
+# 先生の声の聞き比べ（scripts/compare_voices.mjs の既定の出力先）
+voice-compare/

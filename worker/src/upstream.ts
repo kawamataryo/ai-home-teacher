@@ -21,3 +21,38 @@ export const ELEVENLABS_MODEL = "eleven_flash_v2_5";
 // TypeSafe AI（Jev）: 2026-11-03 に https://docs.typesafe.ai/introduction/quickstart で確認。
 //   POST https://api.typesafe.ai/v1/systemone、Authorization: Bearer <API_KEY>
 export const TYPESAFE_URL = "https://api.typesafe.ai/v1/systemone";
+
+// Azure Neural TTS: 2026-11-03 に公式ドキュメント
+// https://learn.microsoft.com/azure/ai-services/speech-service/rest-text-to-speech で確認。
+//   POST https://{region}.tts.speech.microsoft.com/cognitiveservices/v1、認証ヘッダーは
+//   Ocp-Apim-Subscription-Key、body は SSML（Content-Type: application/ssml+xml）。
+//   X-Microsoft-OutputFormat と User-Agent は必須。レスポンスは音声のバイト列だけで、文字タイミングは返らない。
+//   無料枠（F0）は 1 分に 20 リクエストまで（speech-services-quotas-and-limits）。
+export const AZURE_DEFAULT_REGION = "japaneast";
+export const AZURE_DEFAULT_VOICE = "ja-JP-NanamiNeural";
+export const AZURE_OUTPUT_FORMAT = "audio-24khz-48kbitrate-mono-mp3";
+export const AZURE_USER_AGENT = "ai-home-teacher-worker";
+
+export function azureTtsUrl(region: string): string {
+  return `https://${encodeURIComponent(region)}.tts.speech.microsoft.com/cognitiveservices/v1`;
+}
+
+// 声の名前（ja-JP-NanamiNeural など）。SSML の属性に入れるので、形が違うものは受け付けない
+export function isAzureVoiceName(name: string): boolean {
+  return /^[a-z]{2,3}-[A-Z]{2}-[A-Za-z0-9]+Neural$/.test(name);
+}
+
+// 1 文を SSML にする。算数の「3 < 5」などで SSML が壊れないよう、本文は XML の特殊文字を逃がす
+export function azureSsml(text: string, voice: string): string {
+  const lang = voice.split("-").slice(0, 2).join("-");
+  return `<speak version="1.0" xml:lang="${lang}"><voice name="${voice}">${escapeXml(text)}</voice></speak>`;
+}
+
+export function escapeXml(text: string): string {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}

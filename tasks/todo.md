@@ -58,3 +58,11 @@
 
 - 実機（iPad Air 13-inch M2）の自己テスト `-autoSession` で、本番 Worker 経由の会話 → 図 → 正誤判定と表情 → ふり返り → D1 同期まで通る
 - 本番でしか出ない不具合が3つあった（tool_choice の強制、strict スキーマの大きさ、thinking で返事が空）。モックのテストだけでは足りず、本番に1回は当てる確認が要る
+
+## 2026-11-03 先生の声を Azure に切り替えられるように（#98）
+
+- [x] Worker に `/v1/tts/azure`（REST・SSML・MP3）
+- [x] アプリに `AzureTTSProvider`。`TTS_PROVIDER`（elevenlabs / azure）で切り替え、既定は ElevenLabs
+- [x] 定型句は今の声で作ったものを同梱より先に使う
+- [x] 聞き比べスクリプト `scripts/compare_voices.mjs`
+- [ ] Azure のキーを登録して聞き比べ・実機確認 — ユーザー

@@ -7,6 +7,8 @@ import OSLog
 /// 音声は次の順に探し、見つかればネットワークなしですぐ再生できる:
 /// 1. 同梱の `phrase_<key>.json`（`scripts/generate_phrases.mjs` で ElevenLabs から作ってリポジトリに入れたもの）
 /// 2. ディスクのキャッシュ（`prepare` で初回起動時に作る。Worker が使えなければ AVSpeechSynthesizer の声）
+/// ただし `preferredProvider`（いま先生の声に使っている TTS）で作ったものがあれば、そちらを先に使う
+/// （Azure に切り替えたのに、定型句だけ同梱の ElevenLabs の声で話さないように）。
 ///
 /// どちらも中身は `SynthesizedSpeech` の JSON（音声は base64）。文が一覧と違えば古いものとして使わない。
 @MainActor
@@ -23,18 +25,27 @@ final class PhraseCache {
     private let bundle: Bundle
     /// nil ならディスクに書かない（テスト用）
     private let directory: URL?
+    /// 先に使う声（`TTSProvider.identifier`）。nil なら見つけた順
+    private let preferredProvider: String?
     private var loaded: [String: SynthesizedSpeech] = [:]
     private let logger = Logger(subsystem: "com.kawamataryo.HomeTeacher", category: "PhraseCache")
 
-    init(phrases: [Phrase], bundle: Bundle = .main, directory: URL? = PhraseCache.defaultDirectory) {
+    init(
+        phrases: [Phrase], bundle: Bundle = .main, directory: URL? = PhraseCache.defaultDirectory, preferredProvider: String? = nil
+    ) {
         self.phrases = phrases
         self.bundle = bundle
         self.directory = directory
+        self.preferredProvider = preferredProvider
     }
 
     /// 同梱の一覧で作る
-    convenience init(bundle: Bundle = .main, directory: URL? = PhraseCache.defaultDirectory) throws {
-        try self.init(phrases: Self.loadManifest(bundle: bundle), bundle: bundle, directory: directory)
+    convenience init(
+        bundle: Bundle = .main, directory: URL? = PhraseCache.defaultDirectory, preferredProvider: String? = nil
+    ) throws {
+        try self.init(
+            phrases: Self.loadManifest(bundle: bundle), bundle: bundle, directory: directory, preferredProvider: preferredProvider
+        )
     }
 
     static func loadManifest(bundle: Bundle = .main) throws -> [Phrase] {
@@ -76,11 +87,10 @@ final class PhraseCache {
 
     func speech(for phrase: Phrase) -> SynthesizedSpeech? {
         if let speech = loaded[phrase.key] { return speech }
-        let found = [bundledURL(for: phrase), diskURL(for: phrase)]
+        let candidates = [bundledURL(for: phrase), diskURL(for: phrase)]
             .compactMap { $0 }
-            .lazy
             .compactMap { Self.read($0, expecting: phrase) }
-            .first
+        let found = candidates.first { $0.provider == preferredProvider } ?? candidates.first
         loaded[phrase.key] = found
         return found
     }
@@ -154,11 +164,13 @@ extension PhraseCache {
     /// （Worker の設定がなければ AVSpeechSynthesizer の声だけで作る）。テストのホストとして起動したときは何もしない
     static func warmUp(config: AppConfig?) async {
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
-        guard let cache = try? PhraseCache() else { return }
         let system = SystemTTSProvider()
         if let config {
-            await cache.prepare(primary: ElevenLabsTTSProvider(client: WorkerClient(config: config)), fallback: system)
+            let primary = config.ttsProvider.makeProvider(client: WorkerClient(config: config))
+            guard let cache = try? PhraseCache(preferredProvider: primary.identifier) else { return }
+            await cache.prepare(primary: primary, fallback: system)
         } else {
+            guard let cache = try? PhraseCache() else { return }
             await cache.prepare(primary: system, fallback: nil)
         }
     }

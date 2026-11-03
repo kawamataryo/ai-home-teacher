@@ -21,6 +21,38 @@ struct PhraseCacheTests {
         }
     }
 
+    @Test func いまの声で作ったものを同梱の音声より先に使う() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        // アプリ本体には ElevenLabs で作った定型句が同梱されている
+        let phrases = try PhraseCache.loadManifest()
+        let phrase = try #require(phrases.first)
+        let bundled = try #require(PhraseCache(phrases: phrases, bundle: .main, directory: nil).speech(for: phrase))
+        #expect(bundled.provider == "elevenlabs")
+
+        let azure = SynthesizedSpeech(text: phrase.text, provider: "azure", format: .mp3, audio: Data([1, 2]), alignment: nil)
+        PhraseCache(phrases: phrases, bundle: .main, directory: directory).store(azure, for: phrase)
+
+        // Azure を使っているなら、ディスクの Azure の声を使う
+        #expect(PhraseCache(phrases: phrases, bundle: .main, directory: directory, preferredProvider: "azure").speech(for: phrase) == azure)
+        // ElevenLabs に戻したら、同梱の ElevenLabs の声に戻る
+        #expect(PhraseCache(phrases: phrases, bundle: .main, directory: directory, preferredProvider: "elevenlabs").speech(for: phrase) == bundled)
+    }
+
+    @Test func Azureに切り替えたら同梱のElevenLabsの定型句をAzureで作り直す() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let phrases = Array(try PhraseCache.loadManifest().prefix(2))
+        let azure = MockTTSProvider(identifier: "azure")
+        let cache = PhraseCache(phrases: phrases, bundle: .main, directory: directory, preferredProvider: "azure")
+        #expect(await cache.prepare(primary: azure, fallback: nil) == 2)
+
+        // 次の起動では作り直さない（ディスクの Azure の声を使う）
+        let next = PhraseCache(phrases: phrases, bundle: .main, directory: directory, preferredProvider: "azure")
+        #expect(await next.prepare(primary: azure, fallback: nil) == 0)
+        #expect(phrases.allSatisfy { next.speech(for: $0)?.provider == "azure" })
+    }
+
     @Test func 文末の句読点と空白を無視して引く() {
         let cache = PhraseCache(phrases: [.init(key: "iine", text: "いいね！"), .init(key: "doredore", text: "お、どれどれ…")], bundle: .withoutBundledPhrases, directory: nil)
         #expect(cache.phrase(for: "いいね")?.key == "iine")

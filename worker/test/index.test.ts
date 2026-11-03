@@ -197,6 +197,77 @@ describe("/v1/tts", () => {
   });
 });
 
+describe("/v1/tts/azure", () => {
+  const azureEnv: Env = { ...env, AZURE_SPEECH_KEY: "test-azure" };
+
+  function azureCall(): { url: string; headers: Headers; body: string } {
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    return { url, headers: new Headers(init.headers), body: init.body as string };
+  }
+
+  it("既定の地域と声で Azure の REST を呼び、MP3 をそのまま返す", async () => {
+    const mp3 = new Uint8Array([0xff, 0xfb, 0x10, 0xc4]);
+    fetchMock.mockResolvedValueOnce(new Response(mp3, { status: 200, headers: { "content-type": "audio/mpeg" } }));
+    const res = await post("/v1/tts/azure", { text: "こんにちは" }, AUTH, azureEnv);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("audio/mpeg");
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(mp3);
+
+    const call = azureCall();
+    expect(call.url).toBe("https://japaneast.tts.speech.microsoft.com/cognitiveservices/v1");
+    expect(call.headers.get("ocp-apim-subscription-key")).toBe("test-azure");
+    expect(call.headers.get("content-type")).toBe("application/ssml+xml");
+    expect(call.headers.get("x-microsoft-outputformat")).toBe("audio-24khz-48kbitrate-mono-mp3");
+    expect(call.headers.get("user-agent")).toBeTruthy();
+    expect(call.headers.get("authorization")).toBeNull();
+    expect(call.body).toBe(
+      '<speak version="1.0" xml:lang="ja-JP"><voice name="ja-JP-NanamiNeural">こんにちは</voice></speak>',
+    );
+  });
+
+  it("本文の XML の特殊文字を逃がす（算数の不等号で SSML が壊れない）", async () => {
+    await post("/v1/tts/azure", { text: "3 < 5 & 5 > 3 \"だよ\" 'ね'" }, AUTH, azureEnv);
+    expect(azureCall().body).toContain(">3 &lt; 5 &amp; 5 &gt; 3 &quot;だよ&quot; &apos;ね&apos;</voice>");
+  });
+
+  it("vars の地域と声、リクエストの voice で差し替わる", async () => {
+    const e: Env = { ...azureEnv, AZURE_SPEECH_REGION: "eastus", AZURE_TTS_VOICE: "ja-JP-KeitaNeural" };
+    await post("/v1/tts/azure", { text: "はい" }, AUTH, e);
+    const first = azureCall();
+    expect(first.url).toBe("https://eastus.tts.speech.microsoft.com/cognitiveservices/v1");
+    expect(first.body).toContain('<voice name="ja-JP-KeitaNeural">');
+
+    fetchMock.mockClear();
+    await post("/v1/tts/azure", { text: "はい", voice: "ja-JP-AoiNeural" }, AUTH, e);
+    expect(azureCall().body).toContain('<voice name="ja-JP-AoiNeural">');
+  });
+
+  it("声の名前の形が違えば 400（SSML の属性に入れないため）", async () => {
+    const res = await post("/v1/tts/azure", { text: "はい", voice: '"><x/>' }, AUTH, azureEnv);
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("text がなければ 400", async () => {
+    const res = await post("/v1/tts/azure", {}, AUTH, azureEnv);
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("キーが未設定なら上流を呼ばずに 503", async () => {
+    const res = await post("/v1/tts/azure", { text: "はい" });
+    expect(res.status).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("上流の 429 をそのまま返す（アプリは端末の声に切り替える）", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("", { status: 429 }));
+    const res = await post("/v1/tts/azure", { text: "はい" }, AUTH, azureEnv);
+    expect(res.status).toBe(429);
+  });
+});
+
 describe("/v1/decide", () => {
   it("TypeSafe AI に TypeSafe のキーで転送する（家族トークンは流さない）", async () => {
     const req = {

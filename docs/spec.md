@@ -38,14 +38,15 @@
                            │ HTTPS (家族トークン)
 ┌──────────── Cloudflare Worker (TypeScript) ──────────┐
 │  /v1/claude   … Anthropic API への中継 (SSE パススルー) │
-│  /v1/tts      … TTS への中継 (WebSocket / ストリーミング) │
+│  /v1/tts      … ElevenLabs への中継 (文字タイミング付き)   │
+│  /v1/tts/azure … Azure Neural TTS への中継 (MP3 のみ)    │
 │  /v1/decide   … TypeSafe AI Decision API への中継        │
 │  /v1/sessions, /v1/memory … 学習記録・記憶の保存 (D1)   │
 │  /dashboard   … 親向け Web ダッシュボード (Google ログイン) │
 └──────────────────────────────────────────────────────┘
 ```
 
-- API キー（Anthropic / ElevenLabs / TypeSafe AI）はすべて Worker の secret に置く。アプリには入れない
+- API キー（Anthropic / ElevenLabs / Azure Speech / TypeSafe AI）はすべて Worker の secret に置く。アプリには入れない
 - アプリと Worker の間は、親がダッシュボードで発行する「家族トークン」で認証する（自分の家庭用なので簡易でよい）
 
 ## 3. 機能仕様
@@ -69,6 +70,9 @@
 - **エコー対策**：AVAudioEngine の `setVoiceProcessingEnabled(true)`。入力と再生を同じエンジンに通す
 - **保険**：設定で「先生が話している間はマイクを止める」方式に切り替えられる
 - **TTS**：`TTSProvider` プロトコルで差し替え可能にする。最初は ElevenLabs Flash v2.5（文字タイミングを口パクに使う）。オフライン時は AVSpeechSynthesizer
+  - 先生の声は `Secrets.xcconfig` の `TTS_PROVIDER` で選ぶ（#98）: `elevenlabs`（既定）/ `azure`。費用を抑えたいときは Azure Neural TTS（ja-JP、既定の声は `ja-JP-NanamiNeural`）。書き換えてビルドし直せば ElevenLabs に戻る
+  - Azure は REST（`cognitiveservices/v1`）で 1 文ずつ MP3 を作る。文字タイミングは返らないので、音声の長さを文字数で均等に割って推定し、口パクと割り込みの位置に使う（ElevenLabs より口の動きは粗い。Viseme が欲しくなったら WebSocket / Speech SDK を検討）
+  - Azure の無料枠（F0）は 1 分に 20 リクエストまで。1 文 1 リクエストなので、初回起動の定型句づくりや早口の会話で超えると 429 になり、60 秒は端末の声になる。日常使いは S0（従量課金）にする
   - 1 文ぶんの音声（ElevenLabs は MP3、AVSpeechSynthesizer は WAV）を受け取りきってから再生する。出だしは少し遅れるが、MP3 を自前でつなぎながらデコードするより確実（ストリーミング再生は後回し）
   - ElevenLabs が失敗するか 6 秒以内に返らなければ、その文を AVSpeechSynthesizer で作り直す
   - 「何文字目まで話したか」は文字タイミングと再生位置から出す（読み始めた文字まで数える。割り込み時に発言を切る位置）
@@ -76,12 +80,13 @@
 - **定型句キャッシュ**：「いいね！」「どれどれ」「休憩しよっか」などは事前に音声を生成して同梱し、待ち時間ゼロで再生する
   - 一覧は `ios/HomeTeacher/Resources/Phrases/teacher_phrases.json`。音声は `scripts/generate_phrases.mjs` で ElevenLabs から作って同梱する
   - 同梱の音声がない定型句は、初回起動時に作ってディスクにキャッシュする（オフラインなら AVSpeechSynthesizer の声。あとで ElevenLabs が使えたら作り直す）
+  - 同梱の音声は ElevenLabs の声。`TTS_PROVIDER = azure` のときは初回起動時に Azure の声で作り直してディスクに置き、そちらを先に使う（先生の声が定型句だけ変わらないように）
 - **相づち**：Sonnet の処理に時間がかかるときは、Haiku の応答か定型句（「お、どれどれ…」）で間をつなぐ
 - **初めての許可**（#66）：いきなりシステムのダイアログを出さない。まだ聞いていない許可だけを、マイク → 音声認識 → カメラ（カメラがある端末だけ）の順に、先生が理由を話してから「いいよ」のボタンで聞く。状態は毎回 OS の許可の状態から決める
   - 拒否されたとき：先生が端末の声で何が使えないかを伝え（「お父さん・お母さんに、設定アプリで許可してもらってね」）、画面の上に保護者向けの案内と「設定アプリを開く」を出す。カメラだけ拒否なら撮影と見守りを止めて、声の会話は続ける。音声認識の拒否は、聞き取りを始められなかったときだけ伝える
 - **つながらないとき**（#66）：Worker / Claude の失敗（オフライン・5xx・401・時間切れ）では固まらない。先生が定型句「ちょっと調子が悪いみたい。」（端末に音声がある）→「もう一回言ってみて」で聞き直す。画面には保護者向けに理由を出す（401 なら FAMILY_TOKEN、設定がなければ Secrets.xcconfig）。つながったら消す
   - 返事の 1 文目が 3 秒来なければ「ちょっと考えるね」でつなぎ、流れが 15 秒止まったら諦めて聞き直す（途中で止まったら話せたところまで話してから。話していない文字は履歴から消す）。写真の分析は 60 秒、ふり返りは 30 秒で諦める（ふり返りは決まり文句にして保存はする）
-  - 先生の声（ElevenLabs）が一度失敗したら、60 秒は AVSpeechSynthesizer だけで話す（文ごとに 6 秒待たない）
+  - 先生の声（ElevenLabs / Azure）が一度失敗したら、60 秒は AVSpeechSynthesizer だけで話す（文ごとに 6 秒待たない）
   - `Secrets.xcconfig` がなくてもビルド・起動できる。Worker を呼ばずにすぐ失敗し、端末の声だけで動く
 
 ### ② 「見て」で撮影 → ヒント → Generative UI

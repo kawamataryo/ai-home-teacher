@@ -8,6 +8,8 @@ actor MockTransport: HTTPTransport {
         var body: String
         /// あれば応答の代わりにこのエラーを投げる（オフラインなど）。
         var error: URLError.Code?
+        /// あれば `body` の代わりにこのバイト列を返す（音声など、文字にできない本文）。
+        var bytes: Data?
 
         /// 通信エラー（URLError）を投げる応答。
         static func failure(_ code: URLError.Code) -> Response {
@@ -34,7 +36,7 @@ actor MockTransport: HTTPTransport {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let response = next(for: request)
         if let code = response.error { throw URLError(code) }
-        return (Data(response.body.utf8), http(request, response.status))
+        return (response.bytes ?? Data(response.body.utf8), http(request, response.status))
     }
 
     /// URLSession の `lines` と同じく、空行は落として1行ずつ流す。

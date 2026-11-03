@@ -1,6 +1,8 @@
 # このファイルを .dev.vars にコピーして値を入れる（.dev.vars は gitignore 済み）
 ANTHROPIC_API_KEY=
 ELEVENLABS_API_KEY=
+# Azure Neural TTS を使うときだけ（アプリの TTS_PROVIDER = azure）。Speech リソースの「キーとエンドポイント」のキー
+AZURE_SPEECH_KEY=
 TYPESAFE_API_KEY=
 # 最初の 1 台をつなぐための予備の家族トークン（ダッシュボードで発行したものも使える）
 FAMILY_TOKEN=

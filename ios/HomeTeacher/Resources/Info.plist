@@ -6,6 +6,8 @@
 	<string>$(WORKER_BASE_URL)</string>
 	<key>FamilyToken</key>
 	<string>$(FAMILY_TOKEN)</string>
+	<key>TTSProvider</key>
+	<string>$(TTS_PROVIDER)</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
