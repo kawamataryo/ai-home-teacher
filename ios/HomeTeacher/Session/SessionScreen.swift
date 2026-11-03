@@ -12,7 +12,8 @@ struct SessionScreen: View {
     /// 表示確認用に固定する状態（起動引数 `-sessionPreview`）。nil ならふつうに動かす
     var preview: SessionPreviewState?
     @State private var showsDebugMenu = false
-    @State private var showsSettings = false
+    /// 起動引数 `-showSettings` なら設定を開いた状態で始める（設定画面の表示確認用）
+    @State private var showsSettings = ProcessInfo.processInfo.arguments.contains("-showSettings")
 
     var body: some View {
         NavigationStack {

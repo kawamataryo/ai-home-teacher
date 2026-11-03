@@ -18,6 +18,8 @@ enum PromptName: String, CaseIterable, Sendable {
     case opening
     /// 終わり：ふり返りと記憶の作り方（SessionReflector）（spec §3④）
     case reflection
+    /// 時間での声かけの言い回しを変える（NudgeRephraser）（spec §3④）
+    case nudgeVariation = "nudge_variation"
 }
 
 /// 学習セッションの今の状態。プロンプトの `{{session_mode}}` に入る。
