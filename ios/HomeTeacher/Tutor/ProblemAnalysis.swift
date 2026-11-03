@@ -107,9 +107,10 @@ enum AnalysisTool {
         ])
     }
 
-    /// `tool_choice`：report_analysis を必ず呼ばせる。
+    /// `tool_choice`：`auto`。いまのモデルは `type: "tool"` / `"any"`（ツールの強制）を受け付けない（実機で 400）。
+    /// 呼ぶかどうかはモデルに任せ、プロンプトで report_analysis を必ず呼ぶよう指示し、呼ばれなければ1回やり直す。
     static var toolChoice: JSONValue {
-        .object(["type": .string("tool"), "name": .string(name)])
+        .object(["type": .string("auto")])
     }
 
     static func decode(_ input: JSONValue) throws -> ProblemAnalysis {
