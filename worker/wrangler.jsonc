@@ -7,8 +7,20 @@
   "vars": {
     // ElevenLabs の既定の声。実際に使う voice ID に置き換える（秘密情報ではない）
     "ELEVENLABS_VOICE_ID": "REPLACE_WITH_VOICE_ID"
-  }
+  },
+  // セッション要約と記憶（文字だけ）。`npx wrangler d1 create ai-home-teacher` の出力の
+  // database_id に置き換える（秘密情報ではない）。手順は README.md
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ai-home-teacher",
+      "database_id": "REPLACE_WITH_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ]
   // secret（値はリポジトリに入れない）:
-  //   ANTHROPIC_API_KEY, ELEVENLABS_API_KEY, TYPESAFE_API_KEY, FAMILY_TOKEN
+  //   ANTHROPIC_API_KEY, ELEVENLABS_API_KEY, TYPESAFE_API_KEY, FAMILY_TOKEN,
+  //   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SESSION_SECRET, PARENT_EMAILS（公開リポジトリなので vars に書かない）
+  //   DEV_AUTH_BYPASS はローカルの .dev.vars 専用。ここにも本番の secret にも入れない
   //   本番は `wrangler secret put <NAME>`、ローカルは .dev.vars
 }
