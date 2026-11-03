@@ -1,13 +1,18 @@
 import RealityKit
 import SwiftUI
 
-/// 先生のアバターを RealityKit で表示するビュー
+/// 先生のアバターを RealityKit で表示するビュー。`state` に合わせて動く
+///
+/// 会話とつなぐときは `AvatarController` にできごと（`AvatarEvent`）を送り、
+/// `AvatarView(state: controller.state)` で表示する。
 struct AvatarView: View {
+    var state: AvatarState = .idle
     /// 確認用に口のテクスチャを固定する（nil ならふだんの口）
     var mouthTextureName: String? = nil
-    var eyes: EyeShape = .open
 
     @State private var model: TeacherModel?
+    @State private var animator: AvatarAnimator?
+    @State private var updateSubscription: EventSubscription?
     @State private var loadError: String?
 
     var body: some View {
@@ -15,7 +20,7 @@ struct AvatarView: View {
             content.camera = .virtual
             let camera = PerspectiveCamera()
             camera.camera.fieldOfViewInDegrees = 35
-            camera.look(at: [0, 0.6, 0], from: [0.7, 0.9, 3.0], relativeTo: nil)
+            camera.look(at: [0, 0.65, 0], from: [0.7, 0.95, 3.2], relativeTo: nil)
             content.add(camera)
 
             let sun = DirectionalLight()
@@ -26,15 +31,22 @@ struct AvatarView: View {
             do {
                 let loaded = try await TeacherModel.load()
                 try await loaded.preloadFaceTextures()
-                content.add(loaded.entity)
-                loaded.setEyes(eyes)
+                let animator = AvatarAnimator(model: loaded)
+                animator.setState(state)
                 loaded.setMouthTexture(named: mouthTextureName ?? "face_mouth_closed")
-                model = loaded
+                content.add(animator.rig)
+                updateSubscription = content.subscribe(to: SceneEvents.Update.self) { event in
+                    MainActor.assumeIsolated {
+                        animator.update(deltaTime: event.deltaTime)
+                    }
+                }
+                self.model = loaded
+                self.animator = animator
             } catch {
                 loadError = "\(error)"
             }
         } update: { _ in
-            model?.setEyes(eyes)
+            animator?.setState(state)
             model?.setMouthTexture(named: mouthTextureName ?? "face_mouth_closed")
         }
         .overlay {
@@ -48,5 +60,5 @@ struct AvatarView: View {
 }
 
 #Preview {
-    AvatarView()
+    AvatarView(state: .praise)
 }
