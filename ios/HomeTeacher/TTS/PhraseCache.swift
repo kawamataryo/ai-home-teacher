@@ -101,21 +101,27 @@ final class PhraseCache {
     ///
     /// `primary`（ElevenLabs）で作ったものがあればそのまま。予備の声（AVSpeechSynthesizer）のものしかなければ
     /// `primary` で作り直してみる。`primary` が失敗したら、何もないものだけ `fallback` で作る。
+    /// 失敗した時点で、残りの定型句にも `primary` は使わない。
     /// - Returns: 新しく作った数
     @discardableResult
     func prepare(primary: any TTSProvider, fallback: (any TTSProvider)?, timeout: Duration = .seconds(10)) async -> Int {
         var created = 0
+        // 一度失敗したら（オフラインなど）残りは primary を試さない。全部の時間切れを待たないため
+        var primaryAvailable = true
         for phrase in phrases {
             if Task.isCancelled { break }
             let existing = speech(for: phrase)
             if existing?.provider == primary.identifier { continue }
-            do {
-                let speech = try await withTTSTimeout(timeout) { try await primary.synthesizeAll(phrase.text) }
-                store(speech, for: phrase)
-                created += 1
-                continue
-            } catch {
-                logger.info("定型句を \(primary.identifier, privacy: .public) で作れなかった \(phrase.key, privacy: .public)")
+            if primaryAvailable {
+                do {
+                    let speech = try await withTTSTimeout(timeout) { try await primary.synthesizeAll(phrase.text) }
+                    store(speech, for: phrase)
+                    created += 1
+                    continue
+                } catch {
+                    primaryAvailable = false
+                    logger.info("定型句を \(primary.identifier, privacy: .public) で作れなかった \(phrase.key, privacy: .public): \(String(describing: error), privacy: .public)")
+                }
             }
             guard existing == nil, let fallback, !Task.isCancelled else { continue }
             if let speech = try? await fallback.synthesizeAll(phrase.text) {
@@ -140,5 +146,20 @@ final class PhraseCache {
               speech.text == phrase.text, !speech.audio.isEmpty
         else { return nil }
         return speech
+    }
+}
+
+extension PhraseCache {
+    /// 起動時に裏で呼ぶ。足りない定型句の音声を作ってディスクにためる
+    /// （Worker の設定がなければ AVSpeechSynthesizer の声だけで作る）。テストのホストとして起動したときは何もしない
+    static func warmUp(config: AppConfig?) async {
+        guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
+        guard let cache = try? PhraseCache() else { return }
+        let system = SystemTTSProvider()
+        if let config {
+            await cache.prepare(primary: ElevenLabsTTSProvider(client: WorkerClient(config: config)), fallback: system)
+        } else {
+            await cache.prepare(primary: system, fallback: nil)
+        }
     }
 }

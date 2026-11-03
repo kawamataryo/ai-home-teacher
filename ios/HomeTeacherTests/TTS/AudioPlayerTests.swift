@@ -54,3 +54,43 @@ struct AudioPlayerTests {
         #expect(clock.now - started < .seconds(1.5))
     }
 }
+
+/// ElevenLabs の MP3（ヘッダーなしのフレーム列）がそのまま再生できるか
+@MainActor
+struct MP3PlaybackTests {
+    private func mp3(_ audio: Data) -> SynthesizedSpeech {
+        SynthesizedSpeech(text: "あ", provider: "elevenlabs", format: .mp3, audio: audio, alignment: nil)
+    }
+
+    @Test func AVAudioPlayerがヘッダーなしのMP3を読める() throws {
+        let player = try AVAudioPlayer(data: MP3Fixture.tone, fileTypeHint: TTSAudioFormat.mp3.fileTypeHint)
+        #expect(player.duration > 0.2)
+        // チャンクをつなげただけのものも読める
+        let doubled = try AVAudioPlayer(data: MP3Fixture.tone + MP3Fixture.tone, fileTypeHint: TTSAudioFormat.mp3.fileTypeHint)
+        #expect(doubled.duration > player.duration * 1.5)
+    }
+
+    @Test func EngineClipPlayerがMP3をPCMにできる() throws {
+        let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)!
+        let buffer = try EngineClipPlayer.decode(mp3(MP3Fixture.tone + MP3Fixture.tone), to: format)
+        #expect(Double(buffer.frameLength) / 44_100 > 0.5)
+    }
+
+    @Test func Workerから2つに分かれて届いたMP3をまとめて再生できる() async throws {
+        let bytes = MP3Fixture.tone
+        let mid = bytes.count / 2
+        let body = [
+            elevenLabsChunkJSON(audio: bytes.prefix(mid), alignment: evenAlignment("あい")),
+            elevenLabsChunkJSON(audio: bytes.suffix(from: mid), alignment: evenAlignment("う", offset: 0.2)),
+        ].joined(separator: "\n")
+        let provider = ElevenLabsTTSProvider(
+            client: WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: MockTransport(body: body))
+        )
+        let speech = try await provider.synthesizeAll("あいう")
+        #expect(speech.audio == bytes)
+        let player = try AVAudioPlayer(data: speech.audio, fileTypeHint: speech.format.fileTypeHint)
+        #expect(player.duration > 0.2)
+        // 実際に最後まで再生して戻る
+        try await AudioClipPlayer().play(speech)
+    }
+}

@@ -67,4 +67,33 @@ struct PhraseCacheTests {
         #expect(await next.prepare(primary: online, fallback: system) == 0)
         #expect(online.requests == ["いいね", "なるほど"])
     }
+
+    @Test func scriptsのgenerate_phrasesが書く形式を読める() throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        // generate_phrases.mjs と同じキー（audio は base64、alignment は ElevenLabs の形）
+        let json = """
+        {"text":"いいね！","provider":"elevenlabs","format":"mp3","audio":"\(MP3Fixture.tone.base64EncodedString())",\
+        "alignment":{"characters":["い","い","ね","！"],"character_start_times_seconds":[0,0.1,0.2,0.3],\
+        "character_end_times_seconds":[0.1,0.2,0.3,0.4]}}
+        """
+        try Data(json.utf8).write(to: directory.appending(path: "iine.json"))
+
+        let cache = PhraseCache(phrases: [.init(key: "iine", text: "いいね！")], directory: directory)
+        let speech = try #require(cache.speech(for: "いいね！"))
+        #expect(speech.format == .mp3)
+        #expect(speech.audio == MP3Fixture.tone)
+        #expect(speech.alignment?.characters == ["い", "い", "ね", "！"])
+    }
+
+    @Test func オフラインなら最初の失敗のあとはすぐ予備の声で作る() async {
+        let phrases = (0..<5).map { PhraseCache.Phrase(key: "p\($0)", text: "ことば\($0)") }
+        let offline = MockTTSProvider(identifier: "elevenlabs", behavior: .fail(URLError(.notConnectedToInternet)))
+        let system = MockTTSProvider(identifier: "system")
+        let cache = PhraseCache(phrases: phrases, directory: nil)
+        #expect(await cache.prepare(primary: offline, fallback: system) == 5)
+        #expect(offline.requests.count == 1)
+        #expect(system.requests.count == 5)
+    }
 }
