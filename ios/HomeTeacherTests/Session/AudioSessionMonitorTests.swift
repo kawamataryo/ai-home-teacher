@@ -27,6 +27,10 @@ final class FakeAudioPipeline: AudioRecoveryTarget {
     private(set) var suspendCount = 0
     private(set) var rebuildCount = 0
     private(set) var isRunning = true
+    var isAudioRunning: Bool { isRunning }
+
+    /// 通知なしでシステムにエンジンを止められた（他のアプリから戻ったときなど）
+    func stopBySystem() { isRunning = false }
     var failures = 0
     var holdsRebuild = false
     private var held: CheckedContinuation<Void, Never>?
@@ -151,11 +155,26 @@ struct AudioSessionMonitorTests {
         #expect(await eventually { h.session.log == ["pause", "resume"] })
     }
 
-    @Test func 裏にいた間の中断が遅れて届いても止めない() async {
+    @Test func 裏にいた間の中断が遅れて届いても動いていれば何もしない() async {
         let h = MonitorHarness()
         await h.send(.interruptionBegan(wasSuspended: true))
+        await h.send(.appBecameActive)
         #expect(h.monitor.state == .running)
         #expect(h.pipeline.suspendCount == 0)
+        #expect(h.pipeline.rebuildCount == 0)
+        #expect(h.session.log.isEmpty)
+    }
+
+    @Test func 他のアプリから戻ってエンジンが止まっていたら黙って作り直す() async {
+        let h = MonitorHarness()
+        h.pipeline.stopBySystem()
+        await h.send(.interruptionBegan(wasSuspended: true))
+        await h.send(.appBecameActive)
+        #expect(await eventually { h.monitor.state == .running })
+        #expect(h.pipeline.rebuildCount == 1)
+        #expect(h.pipeline.isRunning)
+        // 一時停止も「おかえり」もしない
+        await h.settle()
         #expect(h.session.log.isEmpty)
     }
 

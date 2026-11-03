@@ -14,11 +14,14 @@ final class MicrophoneSpeechInput: SpeechInput {
     enum StartError: LocalizedError {
         case microphoneDenied
         case noRecognizer
+        /// 始めている間に止められた（中断・作り直しのタイムアウト）
+        case superseded
 
         var errorDescription: String? {
             switch self {
             case .microphoneDenied: "マイクが許可されていません（設定 > プライバシー > マイク）"
             case .noRecognizer: "日本語の音声認識を始められませんでした"
+            case .superseded: "聞き取りを始めている間に止められました"
             }
         }
     }
@@ -81,11 +84,18 @@ final class MicrophoneSpeechInput: SpeechInput {
         )
 
         for kind in kinds {
+            // 認識エンジンの開始を待っている間に止められた（作り直しがタイムアウトして、次の試みが始まった）。
+            // パイプラインと feed はもう次の試みのものなので触らない
+            guard current == generation else { throw StartError.superseded }
             let recognizer: any LiveRecognizer = kind == .sfSpeechRecognizer ? SFRecognizer() : AnalyzerRecognizer(kind: kind)
             feed.set(recognizer)
             do {
                 try await recognizer.start(inputFormat: pipeline.inputFormat) { [weak self] text, isFinal in
                     Task { @MainActor in self?.receiveText(text, isFinal: isFinal, generation: current) }
+                }
+                guard current == generation else {
+                    await recognizer.stop()
+                    throw StartError.superseded
                 }
                 self.recognizer = recognizer
                 recognizerKind = kind
@@ -93,7 +103,10 @@ final class MicrophoneSpeechInput: SpeechInput {
                 isRunning = true
                 logger.info("聞き取りを開始: \(kind.rawValue, privacy: .public)")
                 return kind
+            } catch StartError.superseded {
+                throw StartError.superseded
             } catch {
+                guard current == generation else { throw StartError.superseded }
                 feed.set(nil)
                 logger.error("\(kind.rawValue, privacy: .public) を始められなかった: \(String(describing: error), privacy: .public)")
             }

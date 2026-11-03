@@ -116,6 +116,8 @@ final class NotificationAudioSessionEvents: AudioSessionEventSource {
 /// 止めて作り直せる音声（本番はマイク + 先生の声のプレイヤー。テストでは偽物）
 @MainActor
 protocol AudioRecoveryTarget: AnyObject {
+    /// いまエンジンと認識が動いているか（裏に回ったあとなど、通知が来ないままシステムに止められていることがある）
+    var isAudioRunning: Bool { get }
     /// エンジンと認識を止める（すぐ返す）
     func suspendAudio()
     /// エンジン（タップ・voice processing・再生ノード）と認識を作り直して動かす
@@ -222,14 +224,19 @@ final class AudioSessionMonitor {
         logger.info("音声の出来事: \(String(describing: event), privacy: .public)（状態: \(String(describing: self.state), privacy: .public)）")
         switch event {
         case .interruptionBegan(let wasSuspended):
-            // 裏にいた間の中断が戻ってから遅れて届いたもの。もう終わっているので止めない
-            guard !wasSuspended else { return }
+            // 裏にいた間の中断が戻ってから遅れて届いたもの。もう終わっているので一時停止はせず、止まっていれば作り直す
+            guard !wasSuspended else { recoverIfStopped(); return }
             beginInterruption()
         case .interruptionEnded(let shouldResume):
             guard shouldResume else { return }
             resumeFromInterruption()
         case .appBecameActive:
-            if state == .failed { recover() } else { resumeFromInterruption() }
+            switch state {
+            case .failed: recover()
+            // 他のアプリから戻った。終わりの通知が来ないまま、エンジンが止められていることがある
+            case .running: recoverIfStopped()
+            case .interrupted, .rebuilding, .yielded: resumeFromInterruption()
+            }
         case .routeChanged, .engineConfigurationChanged:
             guard event.isRouteOrConfigurationChange, state == .running else { return }
             if let settledAt, clock.now - settledAt < timing.settleTime { return }
@@ -290,6 +297,13 @@ final class AudioSessionMonitor {
             pausedSession = true
             Task { await session.pauseForAudioInterruption() }
         }
+    }
+
+    /// 動いているはずなのにエンジンが止まっていたら、黙って作り直す（セッションは止めない）
+    private func recoverIfStopped() {
+        guard state == .running, !target.isAudioRunning else { return }
+        logger.info("エンジンが止められていたので作り直す")
+        recover()
     }
 
     private func resumeFromInterruption() {
@@ -424,9 +438,12 @@ final class SessionAudioRecovery: AudioRecoveryTarget {
         microphone.suspend()
     }
 
+    var isAudioRunning: Bool { microphone.isRunning && microphone.engine.isRunning }
+
     func rebuildAudio() async throws {
-        player.detach()
+        // エンジンを止めてから再生ノードを外す
         microphone.suspend()
+        player.detach()
         let kind = try await microphone.resume()
         player.reattach()
         onRebuilt?(kind)
