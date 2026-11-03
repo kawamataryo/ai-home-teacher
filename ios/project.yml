@@ -18,6 +18,10 @@ targets:
     platform: iOS
     sources:
       - HomeTeacher
+      # リポジトリ直下の prompts/ をフォルダごと同梱する（Bundle の prompts/ から読む）
+      - path: ../prompts
+        type: folder
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kawamataryo.HomeTeacher

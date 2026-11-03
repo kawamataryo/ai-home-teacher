@@ -1,0 +1,91 @@
+import Foundation
+@testable import HomeTeacher
+
+/// 決まった応答を返し、送られたリクエストを記録するモック。
+actor MockTransport: HTTPTransport {
+    struct Response: Sendable {
+        var status: Int = 200
+        var body: String
+    }
+
+    private var responses: [Response]
+    private(set) var requests: [URLRequest] = []
+
+    init(responses: [Response]) {
+        self.responses = responses
+    }
+
+    init(status: Int = 200, body: String) {
+        self.init(responses: [Response(status: status, body: body)])
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let response = next(for: request)
+        return (Data(response.body.utf8), http(request, response.status))
+    }
+
+    /// URLSession の `lines` と同じく、空行は落として1行ずつ流す。
+    func lines(for request: URLRequest) async throws -> (AsyncThrowingStream<String, Error>, HTTPURLResponse) {
+        let response = next(for: request)
+        let lines = response.body.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+        let stream = AsyncThrowingStream<String, Error> { continuation in
+            for line in lines { continuation.yield(line) }
+            continuation.finish()
+        }
+        return (stream, http(request, response.status))
+    }
+
+    /// 送られた本文。
+    func requestBodies() -> [Data] {
+        requests.compactMap(\.httpBody)
+    }
+
+    private func next(for request: URLRequest) -> Response {
+        requests.append(request)
+        return responses.isEmpty ? Response(status: 500, body: "no more responses") : responses.removeFirst()
+    }
+
+    private func http(_ request: URLRequest, _ status: Int) -> HTTPURLResponse {
+        HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!
+    }
+}
+
+/// SSE のフィクスチャを組み立てる。
+enum SSEFixture {
+    static func textStream(_ deltas: [String], stopReason: String = "end_turn") -> String {
+        var events = [
+            #"event: message_start"#,
+            #"data: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"claude-haiku-5-5"}}"#,
+            "",
+            #"event: content_block_start"#,
+            #"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            "",
+            #"event: ping"#,
+            #"data: {"type":"ping"}"#,
+            "",
+        ]
+        for delta in deltas {
+            events += ["event: content_block_delta", "data: " + json([
+                "type": "content_block_delta", "index": 0,
+                "delta": ["type": "text_delta", "text": delta],
+            ]), ""]
+        }
+        events += [
+            #"event: content_block_stop"#,
+            #"data: {"type":"content_block_stop","index":0}"#,
+            "",
+            #"event: message_delta"#,
+            "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"\(stopReason)\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":10}}",
+            "",
+            #"event: message_stop"#,
+            #"data: {"type":"message_stop"}"#,
+            "",
+        ]
+        return events.joined(separator: "\n")
+    }
+
+    static func json(_ object: [String: Any]) -> String {
+        let data = try! JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        return String(decoding: data, as: UTF8.self)
+    }
+}
