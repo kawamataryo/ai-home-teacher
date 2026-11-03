@@ -92,6 +92,8 @@ final class WatchOver: WatchOverControlling {
     @ObservationIgnored private var cameraTask: Task<Void, Never>?
     @ObservationIgnored private var checkInTask: Task<Void, Never>?
     @ObservationIgnored private var consentDeadline: ContinuousClock.Instant?
+    /// 返事がないまま待ち受けの時間が過ぎたら閉じる（閉じないと次の声かけができない）
+    @ObservationIgnored private var consentExpiry: (any ScheduledAction)?
     @ObservationIgnored private var isSuspendedForCapture = false
     /// 席を立ったので見守りがタイマーを止めた（戻ったら動かすのはこのときだけ）
     @ObservationIgnored private(set) var pausedTimer = false
@@ -233,6 +235,7 @@ final class WatchOver: WatchOverControlling {
         switch event {
         case .stalled(let minutes):
             trace("見守り: 手が \(Self.format(minutes)) 分止まっている")
+            if let deadline = consentDeadline, clock.now > deadline { endConsentWindow() }
             guard checkInTask == nil, consentDeadline == nil else { return }
             checkInTask = Task { [weak self] in
                 await self?.checkIn(minutes: minutes)
@@ -270,9 +273,16 @@ final class WatchOver: WatchOverControlling {
         guard self.host != nil else { return }
         consentDeadline = clock.now + Self.consentWindow
         isAwaitingConsent = true
+        consentExpiry = clock.schedule(after: Self.consentWindow) { [weak self] in
+            guard let self, self.isAwaitingConsent else { return }
+            self.trace("見守り: 声かけに返事がなかった（また見守る）")
+            self.endConsentWindow()
+        }
     }
 
     private func endConsentWindow() {
+        consentExpiry?.cancel()
+        consentExpiry = nil
         consentDeadline = nil
         isAwaitingConsent = false
     }

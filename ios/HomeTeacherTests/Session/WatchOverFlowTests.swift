@@ -138,6 +138,23 @@ struct WatchOverFlowTests {
         #expect(!rig.watchOver.isAwaitingConsent)
     }
 
+    @Test func 声かけに返事がなければまた止まったときにもう一度聞く() async throws {
+        let rig = try Rig(configuration: .minutes(2))
+        await rig.startSession()
+        _ = await eventually { rig.watchOver.isWatching }
+        await rig.feed(Self.still, seconds: 125)
+        #expect(await eventually { rig.watchOver.isAwaitingConsent })
+        #expect(rig.h.voice.spoken.filter { $0 == WatchOver.checkInLines[1] }.count == 1)
+        // 返事がないまま 30 秒過ぎたら待ち受けを閉じる
+        await rig.feed(Self.still, seconds: 31)
+        #expect(!rig.watchOver.isAwaitingConsent)
+        // 声かけ（会話が動いた）から数え直して、また 2 分止まったら聞く
+        await rig.feed(Self.still, seconds: 100)
+        #expect(await eventually { rig.h.voice.spoken.filter { $0 == WatchOver.checkInLines[1] }.count == 2 })
+        // 遅れて「うん」と言っても、2 回目の声かけへの返事として撮影できる
+        #expect(rig.watchOver.isAwaitingConsent)
+    }
+
     @Test func 声をかけない方がよいと判断したら黙って見守る() async throws {
         let judge = StubNudgeJudge()
         judge.answer = false
