@@ -4,7 +4,7 @@ import UIKit
 
 /// #9 実機スパイク：日本語の音声認識と、再生中のエコー混入を確かめる。
 @MainActor @Observable
-final class SpeechSpikeModel {
+final class SpeechSpikeModel: AudioEngineLeaseHolder {
     /// 先生の声の再生経路。エコーキャンセルが効くのはマイクと同じエンジンを通したときだけかを比べる。
     enum PlaybackRoute: String, CaseIterable, Sendable {
         case enginePCM = "エンジン（合成PCM）"
@@ -57,6 +57,8 @@ final class SpeechSpikeModel {
             return
         }
         do {
+            // 学習セッションのエンジンが動いていたら止めてもらう（エンジンは同時に 1 つだけ。#75）
+            AudioEngineLease.shared.acquire(self)
             try pipeline.configureSession()
             let r: any LiveRecognizer = engine == .sfSpeechRecognizer ? SFRecognizer() : AnalyzerRecognizer(kind: engine)
             recognizer = r
@@ -75,16 +77,31 @@ final class SpeechSpikeModel {
         } catch {
             status = "開始に失敗: \(error.localizedDescription)"
             pipeline.stop()
+            AudioEngineLease.shared.release(self)
         }
     }
 
     func stopListening() async {
         pipeline.stop()
+        engineClipPlayer?.stop()
+        AudioEngineLease.shared.release(self)
         await recognizer?.stop()
         recognizer = nil
         isListening = false
         level = 0
         status = "停止しました"
+    }
+
+    /// 学習セッションがエンジンを取り戻した。すぐ止める
+    func audioLeaseRevoked() {
+        pipeline.stop()
+        engineClipPlayer?.stop()
+        let old = recognizer
+        recognizer = nil
+        isListening = false
+        level = 0
+        status = "学習セッションにマイクを返しました"
+        Task { await old?.stop() }
     }
 
     private func receive(_ text: String, isFinal: Bool) {

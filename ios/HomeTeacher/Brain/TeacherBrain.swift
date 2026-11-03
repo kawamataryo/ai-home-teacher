@@ -151,7 +151,7 @@ actor TeacherBrain {
         }
         return MessagesRequest(
             model: model, maxTokens: maxTokens, system: systemPrompt, messages: messages, stream: true,
-            tools: tools.isEmpty ? nil : tools
+            tools: tools.isEmpty ? nil : tools, thinking: MessagesRequest.thinkingDisabled
         )
     }
 

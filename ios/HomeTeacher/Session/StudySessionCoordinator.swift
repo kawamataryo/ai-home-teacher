@@ -51,6 +51,8 @@ final class StudySessionCoordinator {
         var camera: (any PhotoCapturing)?
         var countdown: (any CountdownPlaying)?
         var now: @Sendable () -> Date = { Date() }
+        /// 子どもの答えの判定（#73）。nil なら `decisions` で `AnswerJudge` を作る
+        var answerJudge: (any AnswerJudging)?
     }
 
     /// 最初のひと言を作れなかったときの決まり文句
@@ -104,6 +106,10 @@ final class StudySessionCoordinator {
     private(set) var lastReplySentences: [String] = []
     /// 話し終えた（または割り込まれた）返事の数。決まり文句で代わりにしたものも数える
     private(set) var completedReplies = 0
+    /// 最後の返事の表情（しるし、または答えの判定で決めたもの）
+    private(set) var lastReplyEmotion: AvatarEmotion = .neutral
+    /// 最後の子どもの発話の答えの判定（問題に取り組み中だけ）
+    private(set) var lastAnswerJudgement: AnswerJudgement?
     private(set) var traceLines: [String] = []
     /// 記録を 1 行出すたびに呼ぶ（自己テストがファイルに書く）
     @ObservationIgnored var onTrace: ((String) -> Void)?
@@ -142,11 +148,17 @@ final class StudySessionCoordinator {
     @ObservationIgnored private var captureJudge: (any CaptureRequestJudge)?
     /// 図を出してから話し始めた文の数（段階表示）
     @ObservationIgnored private var sentencesSinceBoard = 0
+    @ObservationIgnored private let answerJudge: any AnswerJudging
+    /// 次に話し始めるときの表情。話し始めたら neutral に戻す（定型句や声かけに持ち越さない）
+    @ObservationIgnored private var pendingEmotion: AvatarEmotion = .neutral
+    /// 先生のメモを最後に作ったときの出来事（励ましの指示は 1 回の返事だけに効かせる）
+    @ObservationIgnored private var noteReaction: TutoringReaction?
 
     init(dependencies: Dependencies) {
         self.deps = dependencies
         self.tracker = SpokenReplyTracker(voice: dependencies.voice)
         self.openingBuilder = OpeningPromptBuilder(library: dependencies.library)
+        self.answerJudge = dependencies.answerJudge ?? AnswerJudge(decisions: dependencies.decisions)
         tracker.onSentenceStart = { [weak self] in self?.revealOnSentence() }
     }
 
@@ -267,8 +279,12 @@ final class StudySessionCoordinator {
                 Task { await self.end() }
                 return
             }
-            await noteTutoringTurn(text)
-            startReply(to: text, fallback: Self.replyFallback, captureCheck: captureCheck(for: text))
+            let reaction = await noteTutoringTurn(text)
+            // 答えだった発話は撮影の依頼ではない
+            let isAnswer = lastAnswerJudgement.map { $0.verdict != .notAnAnswer } ?? false
+            startReply(
+                to: text, fallback: Self.replyFallback, captureCheck: isAnswer ? nil : captureCheck(for: text), cue: reaction.cue
+            )
         case .utteranceIgnored(let text):
             trace("先生への発話ではないとみなした: 「\(text)」")
             if VoiceCommand.parse(text) == .end { Task { await self.end() } }
@@ -300,6 +316,7 @@ final class StudySessionCoordinator {
         let played = deps.voice.stop()
         let spoken = tracker.snapshot(playedInCurrent: played)
         tracker.invalidate()
+        pendingEmotion = .neutral
         avatar.send(.userStartedSpeaking)
         guard let brain else { return true }
         let task = Task { [weak self] in
@@ -318,17 +335,19 @@ final class StudySessionCoordinator {
     ///
     /// `captureCheck` があれば（撮影の依頼かを Jev / 規則で判定中）、1 文目を話す前に答えを待ち、
     /// 撮影の依頼なら返事を捨てて撮影に移る（判定と返事の生成を並べて、待ち時間を増やさない）
-    private func startReply(to text: String, fallback: String, captureCheck: Task<Bool, Never>? = nil) {
+    ///
+    /// `cue` があれば（解けた・2回まちがえた）、その表情で話す。定型句（すごいじゃん！）は Haiku の 1 文目を待たずに話す
+    private func startReply(to text: String, fallback: String, captureCheck: Task<Bool, Never>? = nil, cue: ReplyCue? = nil) {
         replyGeneration += 1
         let generation = replyGeneration
         // 割り込みが返事のタスクより先に来ても捨てられるよう、ここで印を付ける
         inFlightReply = generation
         replyTask = Task { [weak self] in
-            await self?.runReply(to: text, fallback: fallback, generation: generation, captureCheck: captureCheck)
+            await self?.runReply(to: text, fallback: fallback, generation: generation, captureCheck: captureCheck, cue: cue)
         }
     }
 
-    private func runReply(to text: String, fallback: String, generation: Int, captureCheck: Task<Bool, Never>?) async {
+    private func runReply(to text: String, fallback: String, generation: Int, captureCheck: Task<Bool, Never>?, cue: ReplyCue?) async {
         guard let brain, let controller else { return }
         defer { if inFlightReply == generation { inFlightReply = nil } }
         // 前の返事の切り詰めが終わってから、新しい発話を履歴に足す
@@ -348,10 +367,18 @@ final class StudySessionCoordinator {
         var failure: (any Error)?
         /// 1 文目を話す前に届いた図。撮影に移るなら捨てる
         var pendingBoard: BoardContent?
+        /// 返事の表情。答えの判定で決めたものを先に、なければ Haiku のしるし（[praise] など）で決める
+        var emotion = cue?.emotion
+        if let lead = cue?.lead {
+            pendingEmotion = emotion ?? .neutral
+            speakTask = Task { await controller.speak(sentences) }
+            spoken.append(lead)
+            continuation.yield(lead)
+        }
         do {
             for try await output in stream {
                 guard generation == replyGeneration else { break }
-                let sentence: String
+                let raw: String
                 switch output {
                 case .board(let content):
                     if speakTask == nil {
@@ -361,13 +388,20 @@ final class StudySessionCoordinator {
                     }
                     continue
                 case .sentence(let text):
-                    sentence = text
+                    raw = text
                 }
                 if speakTask == nil, let captureCheck, await captureCheck.value {
                     wantsCapture = true
                     break
                 }
                 guard generation == replyGeneration else { break }
+                // 気持ちのしるしは表情にして、読み上げない（EmotionTag）。しるしだけの文は話さない
+                let (tag, sentence) = EmotionTag.strip(raw)
+                if emotion == nil { emotion = tag }
+                guard !sentence.isEmpty else {
+                    originals.append(raw)
+                    continue
+                }
                 // 答えを先に言ってしまう文は、読み上げる前に差し替える（AnswerLeakGuard）
                 var line = sentence
                 if case .blocked(let replacement)? = tutoring?.leakGuard.check(sentence) {
@@ -375,10 +409,13 @@ final class StudySessionCoordinator {
                     blockedReplacement = replacement
                     trace("答えを言いそうな文を差し替えた")
                 }
-                if speakTask == nil {
+                if lastReplyLatency == nil {
                     let latency = deps.clock.now - acceptedAt
                     lastReplyLatency = latency
                     trace("1文目まで \(latency.formatted(.units(allowed: [.milliseconds])))")
+                }
+                if speakTask == nil {
+                    pendingEmotion = emotion ?? .neutral
                     speakTask = Task { await controller.speak(sentences) }
                     if let board = pendingBoard {
                         presentBoard(board, pace: .sentence)
@@ -388,7 +425,7 @@ final class StudySessionCoordinator {
                 spoken.append(line)
                 continuation.yield(line)
                 if blockedReplacement != nil { break }
-                originals.append(sentence)
+                originals.append(raw)
             }
         } catch {
             failure = error
@@ -437,9 +474,10 @@ final class StudySessionCoordinator {
         if let failure { trace("返事の途中で止まった: \(failure)") }
         lastReplyFromWorker = true
         lastReplySentences = spoken
+        lastReplyEmotion = emotion ?? .neutral
         addressingJudge?.teacherLastSaid = spoken.last
         let outcome = await speakTask?.value
-        trace("返事: \(spoken.joined()) → \(outcome.map { "\($0)" } ?? "-")")
+        trace("返事（表情 \(lastReplyEmotion.rawValue)）: \(spoken.joined()) → \(outcome.map { "\($0)" } ?? "-")")
         completedReplies += 1
     }
 
@@ -483,7 +521,7 @@ final class StudySessionCoordinator {
             trace("撮影した（\(jpeg.count / 1024)KB）")
             let filler = Task { await controller.speak(Self.analysisFiller) }
             let analyzer = ProblemAnalyzer(client: deps.client, library: deps.library)
-            let result = try await analyzer.analyze(jpegData: jpeg, conversation: await brain.history.messages)
+            let result = try await analyzer.analyze(jpegData: jpeg, conversation: EmotionTag.strip(await brain.history.messages))
             _ = await filler.value
             await applyAnalysis(result)
             avatar.send(.lookAwayFromNotebook)
@@ -523,32 +561,42 @@ final class StudySessionCoordinator {
         await updateTeacherNote()
     }
 
-    /// 子どもの発話でヒントの段階を進める（答えを自分で言えた・助けを求めた）
-    private func noteTutoringTurn(_ text: String) async {
-        guard var state = tutoring else { return }
-        var changed = false
+    /// 子どもの発話を答えとして判定し、ヒントの段階を進める（解けた・違う答え・助けを求めた）（#73）
+    private func noteTutoringTurn(_ text: String) async -> TutoringReaction {
+        lastAnswerJudgement = nil
+        guard let current = tutoring else { return .none }
+        let startedAt = deps.clock.now
+        let judgement = await answerJudge.judge(text, tutoring: current, teacherLastSaid: addressingJudge?.teacherLastSaid)
+        // 判定を待つ間に撮り直した・終わったなら使わない
+        guard var state = tutoring, state.analysis == current.analysis else { return .none }
+        lastAnswerJudgement = judgement
         let levelBefore = state.ladder.level
-        if state.leakGuard.noteChildUtterance(text) {
-            state.ladder.handle(.solved)
-            changed = true
-        } else if HelpRequestDetector.isHelpRequest(text) {
-            changed = state.ladder.handle(.askedForHelp)
-        }
+        let reaction = state.react(to: text, verdict: judgement.verdict)
         tutoring = state
-        guard changed else { return }
-        revealOnHintStage(advancedBy: state.ladder.level - levelBefore, solved: state.ladder.isSolved)
-        trace("ヒントの段階: \(state.ladder.level)/\(state.ladder.stages.count)\(state.ladder.isSolved ? "（自分で解けた）" : "")")
-        await updateTeacherNote()
+        if reaction != .none {
+            revealOnHintStage(advancedBy: state.ladder.level - levelBefore, solved: state.ladder.isSolved)
+        }
+        let elapsed = (deps.clock.now - startedAt).formatted(.units(allowed: [.milliseconds]))
+        trace("答えの判定: \(judgement.verdict.rawValue)（\(judgement.source.rawValue)・\(elapsed)）→ \(reaction)")
+        // 励ましの指示は 1 回の返事だけに効かせる（次の発話で消す）
+        let clearsEncouragement = noteReaction == .wrongAttempt(advanced: true)
+        guard reaction != .none || clearsEncouragement else { return reaction }
+        if reaction != .none {
+            trace("ヒントの段階: \(state.ladder.level)/\(state.ladder.stages.count)\(state.ladder.isSolved ? "（自分で解けた）" : "")")
+        }
+        await updateTeacherNote(reaction: reaction)
+        return reaction
     }
 
-    private func updateTeacherNote() async {
+    private func updateTeacherNote(reaction: TutoringReaction? = nil) async {
         guard let state = tutoring else { return }
+        noteReaction = reaction
         if var last = problems.last {
             last.hintLevelReached = state.ladder.level
             last.solvedBySelf = state.ladder.isSolved
             problems[problems.count - 1] = last
         }
-        teacherNote = TeacherNote.make(analysis: state.analysis, ladder: state.ladder)
+        teacherNote = TeacherNote.make(analysis: state.analysis, ladder: state.ladder, reaction: reaction)
         await rebuildSystemPrompt()
     }
 
@@ -598,7 +646,7 @@ final class StudySessionCoordinator {
             startedAt: sessionStartedAt ?? deps.now(),
             endedAt: deps.now(),
             focusMinutes: focusMinutes,
-            transcript: await brain.history.messages,
+            transcript: EmotionTag.strip(await brain.history.messages),
             problems: problems,
             flags: await brain.sessionFlags
         )
@@ -613,7 +661,7 @@ final class StudySessionCoordinator {
             trace("セッションを保存できなかった: \(error)")
         }
         _ = await filler.value
-        await controller.speak(closing)
+        await controller.speak(EmotionTag.strip(closing).text)
 
         if let sync = deps.sync {
             let report = await sync.syncNow(reason: .sessionEnded)
@@ -667,7 +715,13 @@ final class StudySessionCoordinator {
         let previous = conversationState
         guard previous != next else { return }
         conversationState = next
-        for event in Self.avatarEvents(from: previous, to: next) { avatar.send(event) }
+        var emotion = AvatarEmotion.neutral
+        if next == .speaking {
+            emotion = pendingEmotion
+            pendingEmotion = .neutral
+            if emotion != .neutral { trace("先生の表情: \(emotion.rawValue)") }
+        }
+        for event in Self.avatarEvents(from: previous, to: next, emotion: emotion) { avatar.send(event) }
         // 返事を待っている間（最初のひと言の前など、まだ待機のとき）に話し始めた。割り込みの出来事は出ないので、ここで捨てる
         if next == .listening, inFlightReply == replyGeneration {
             Task { await self.dropInFlightReply() }
@@ -675,11 +729,13 @@ final class StudySessionCoordinator {
     }
 
     /// 会話の状態の変わり方から、アバターに送るできごと
-    static func avatarEvents(from previous: ConversationState, to next: ConversationState) -> [AvatarEvent] {
+    static func avatarEvents(
+        from previous: ConversationState, to next: ConversationState, emotion: AvatarEmotion = .neutral
+    ) -> [AvatarEvent] {
         switch next {
         case .listening: [.userStartedSpeaking]
         case .thinking: [.thinkingStarted]
-        case .speaking: [.speakingStarted(emotion: .neutral)]
+        case .speaking: [.speakingStarted(emotion: emotion)]
         case .idle:
             switch previous {
             case .speaking: [.speakingEnded]
@@ -699,16 +755,28 @@ final class StudySessionCoordinator {
         case .idle:
             phase = .idle
             return
-        case .listening, .speaking:
+        case .listening, .speaking, .praise, .encourage:
             phase = .active
             let timer = FocusTimer(clock: deps.clock, settings: settings.timer)
             timer.start()
             self.timer = timer
         }
+        switch preview {
+        case .praise: pendingEmotion = .praise
+        case .encourage: pendingEmotion = .encourage
+        default: break
+        }
         conversationStateChanged(to: preview == .listening ? .listening : .speaking)
-        if preview == .listening {
+        switch preview {
+        case .listening:
             caption = "ねえ先生、この割合の問題がよくわかんない"
-        } else {
+        case .praise:
+            caption = "わかった！24平方センチだ！"
+            board = BoardSamples.content(.stepCards)
+        case .encourage:
+            caption = "じゃあ10平方センチかな？"
+            board = BoardSamples.content(.stepCards)
+        default:
             caption = ""
             board = BoardSamples.content(.stepCards)
             boardReveal = BoardReveal(content: BoardSamples.content(.stepCards), pace: .sentence, initiallyShown: 2)
@@ -757,6 +825,12 @@ final class StudySessionCoordinator {
         }
     }
 
+    /// 分析の結果を、撮影せずに入れる（`-autoSession` の自己テストで、決まった問題に答える台本を流すため）
+    func beginProblem(_ result: AnalysisResult) async {
+        guard phase == .active else { return }
+        await applyAnalysis(result)
+    }
+
     // MARK: - 字幕・記録
 
     private func showCaption(_ text: String) {
@@ -773,6 +847,29 @@ final class StudySessionCoordinator {
         traceLines.append(message)
         if traceLines.count > 200 { traceLines.removeFirst(traceLines.count - 200) }
         onTrace?(message)
+    }
+
+    // MARK: - 音声の中断（#75。AudioSessionMonitor が呼ぶ）
+
+    /// 中断から戻ったときのひと言
+    static let welcomeBackLine = "おかえり！続きやろっか"
+
+    /// 電話・Siri などで音声が中断された。作りかけの返事と聞きかけの発話を捨て、タイマーを止める
+    func pauseForAudioInterruption() async {
+        guard phase == .active else { return }
+        trace("音声が中断された（タイマーを止める）")
+        timer?.pause()
+        // 先に会話を待機に戻す（声を止めたあとで、残りの文に進まないように）
+        controller?.stop()
+        if await dropInFlightReply() == false { deps.voice.stop() }
+    }
+
+    /// 中断から戻った（マイクと先生の声は作り直してある）。タイマーを動かし、声をかける
+    func resumeAfterAudioInterruption() async {
+        guard phase == .active else { return }
+        trace("音声の中断から戻った")
+        timer?.resume()
+        await controller?.speak(Self.welcomeBackLine)
     }
 }
 

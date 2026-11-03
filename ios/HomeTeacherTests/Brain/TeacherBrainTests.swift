@@ -52,6 +52,7 @@ struct TeacherBrainTests {
         #expect(json["system"] as? String == "SYSTEM")
         // 黒板の図（show_board の入力）も返事に入るので、512 では足りない
         #expect(json["max_tokens"] as? Int == 1024)
+        #expect((json["thinking"] as? [String: Any])?["type"] as? String == "disabled")
         #expect(json["tools"] == nil)
 
         let messages = try #require(json["messages"] as? [[String: Any]])
