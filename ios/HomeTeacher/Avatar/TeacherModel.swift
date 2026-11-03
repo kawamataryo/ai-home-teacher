@@ -61,7 +61,7 @@ final class TeacherModel {
 
     /// 顔テクスチャを先に読み込んでおく（差し替えのたびに読み込まないように）
     func preloadFaceTextures(bundle: Bundle = .main) async throws {
-        let names = EyeShape.allCases.map(\.textureName) + Self.mouthTextureNames
+        let names = EyeShape.allCases.map(\.textureName) + MouthShape.allCases.map(\.textureName)
         for name in names where textures[name] == nil {
             textures[name] = try await TextureResource(named: name, in: bundle)
         }
@@ -71,12 +71,9 @@ final class TeacherModel {
         setFaceTexture(shape.textureName, on: .eyes)
     }
 
-    /// 口のテクスチャを差し替える。名前は face_mouth_<a|i|u|e|o|n|closed>
-    func setMouthTexture(named name: String) {
-        setFaceTexture(name, on: .mouth)
+    func setMouth(_ shape: MouthShape) {
+        setFaceTexture(shape.textureName, on: .mouth)
     }
-
-    static let mouthTextureNames = ["a", "i", "u", "e", "o", "n", "closed"].map { "face_mouth_\($0)" }
 
     private func setFaceTexture(_ name: String, on target: TeacherPart) {
         guard currentTextures[target] != name,

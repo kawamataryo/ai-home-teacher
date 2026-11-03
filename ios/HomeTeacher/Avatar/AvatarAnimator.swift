@@ -13,6 +13,12 @@ final class AvatarAnimator {
     private var baseTransforms: [TeacherPart: Transform] = [:]
 
     private(set) var state: AvatarState = .idle
+    /// 口パク。つながっていれば毎フレーム口のテクスチャを差し替える
+    var lipSync: LipSyncPlayer? {
+        didSet { lipSync?.model = model }
+    }
+    /// 確認用に口の形を固定する（口パクより優先）
+    var mouthOverride: MouthShape?
     private var time: Double = 0
     private var stateStartedAt: Double = 0
     private var poseAtChange = AvatarPose()
@@ -56,5 +62,12 @@ final class AvatarAnimator {
         }
         rig.position.y = pose.lift
         model.setEyes(pose.eyes)
+        if let mouthOverride {
+            model.setMouth(mouthOverride)
+        } else if let lipSync {
+            lipSync.update()
+        } else {
+            model.setMouth(.closed)
+        }
     }
 }
