@@ -98,13 +98,41 @@ struct MessagesRequest: Equatable, Sendable, Encodable {
     var tools: [ToolDefinition]? = nil
     /// 拡張思考の設定。会話では `{"type":"disabled"}` にする（下の `thinkingDisabled`）。
     var thinking: JSONValue? = nil
+    /// プロンプトキャッシュを使うか。true なら system を先生のメモの手前で分けてその前の block に、
+    /// リクエストの最上位（自動キャッシュ。伸びていく会話の履歴の最後に付く）にも `cache_control` を付ける。
+    /// 会話はツール ＋ system（約1万トークン）を毎ターン送り直すので、2回目からはキャッシュの読み込み（入力の約1割の単価）になる
+    var cachesPrompt = false
 
     /// 会話（Haiku）では考える処理を止める。止めないと、返事の前に 250〜350 トークン考えて
     /// 最初の一文までが約 2 倍遅くなり（実測 2.1 秒 → 1.1 秒）、max_tokens を考える部分で使い切ると返事が空になる。
     static let thinkingDisabled: JSONValue = .object(["type": .string("disabled")])
 
+    private static let ephemeral: JSONValue = .object(["type": .string("ephemeral")])
+
     private enum CodingKeys: String, CodingKey {
         case model, system, messages, stream, tools, thinking
         case maxTokens = "max_tokens"
+        case cacheControl = "cache_control"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(model, forKey: .model)
+        try c.encode(maxTokens, forKey: .maxTokens)
+        if cachesPrompt {
+            let (head, tail) = PromptLibrary.splitAtTeacherNote(system)
+            var blocks: [JSONValue] = [
+                .object(["type": .string("text"), "text": .string(head), "cache_control": Self.ephemeral]),
+            ]
+            if let tail { blocks.append(.object(["type": .string("text"), "text": .string(tail)])) }
+            try c.encode(blocks, forKey: .system)
+            try c.encode(Self.ephemeral, forKey: .cacheControl)
+        } else {
+            try c.encode(system, forKey: .system)
+        }
+        try c.encode(messages, forKey: .messages)
+        try c.encode(stream, forKey: .stream)
+        try c.encodeIfPresent(tools, forKey: .tools)
+        try c.encodeIfPresent(thinking, forKey: .thinking)
     }
 }
