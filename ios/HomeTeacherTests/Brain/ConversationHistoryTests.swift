@@ -17,7 +17,7 @@ struct ConversationHistoryTests {
         var history = ConversationHistory()
         history.appendUser("これ見て")
         history.appendAssistantText("どれどれ。表の2行目を見てみよう。")
-        history.truncateLastAssistant(toCharacterCount: 5)
+        history.truncateLastReply(toCharacterCount: 5)
         #expect(history.lastAssistantText == "どれどれ。")
         #expect(history.messages.count == 2)
     }
@@ -26,7 +26,7 @@ struct ConversationHistoryTests {
         var history = ConversationHistory()
         history.appendUser("a")
         history.appendAssistantText("👍🏽いいね")
-        history.truncateLastAssistant(toCharacterCount: 2)
+        history.truncateLastReply(toCharacterCount: 2)
         #expect(history.lastAssistantText == "👍🏽い")
     }
 
@@ -34,7 +34,7 @@ struct ConversationHistoryTests {
         var history = ConversationHistory()
         history.appendUser("a")
         history.appendAssistantText("いいね。")
-        history.truncateLastAssistant(toCharacterCount: 100)
+        history.truncateLastReply(toCharacterCount: 100)
         #expect(history.lastAssistantText == "いいね。")
     }
 
@@ -42,27 +42,23 @@ struct ConversationHistoryTests {
         var history = ConversationHistory()
         history.appendUser("先生")
         history.appendAssistantText("なになに？")
-        history.truncateLastAssistant(toCharacterCount: 0)
+        history.truncateLastReply(toCharacterCount: 0)
         #expect(history.messages == [ChatMessage(role: .user, content: [.text("先生")])])
 
         history.appendUser("やっぱりいいや")
         #expect(history.messages == [ChatMessage(role: .user, content: [.text("先生"), .text("やっぱりいいや")])])
     }
 
-    @Test func 間の先生の発言が消えたら前後の子どもの発話をまとめる() {
+    @Test func 最後の子どもの発話より前の返事は切らない() {
         var history = ConversationHistory()
         history.appendUser("1")
         history.appendAssistantText("A")
         history.appendUser("2")
-        history.appendAssistantText("B")
-        history.appendUser("3")
-        // 最後の先生の発言は B
-        history.truncateLastAssistant(toCharacterCount: 0)
-        #expect(history.messages == [
-            ChatMessage(role: .user, content: [.text("1")]),
-            ChatMessage(role: .assistant, content: [.text("A")]),
-            ChatMessage(role: .user, content: [.text("2"), .text("3")]),
-        ])
+        // 最後の返事はまだ届いていない。前の返事 A は残す
+        history.truncateLastReply(toCharacterCount: 0)
+        #expect(history.lastReplyText == "")
+        #expect(history.messages.count == 3)
+        #expect(history.lastAssistantText == "A")
     }
 
     @Test func ツールの呼び出しは切り詰めても残す() {
@@ -70,7 +66,7 @@ struct ConversationHistoryTests {
         history.appendUser("a")
         history.appendAssistantText("うん。")
         history.append(.assistant, .toolUse(id: "t1", name: "x", input: .object([:])))
-        history.truncateLastAssistant(toCharacterCount: 0)
+        history.truncateLastReply(toCharacterCount: 0)
         #expect(history.messages.last == ChatMessage(role: .assistant, content: [
             .toolUse(id: "t1", name: "x", input: .object([:])),
         ]))
@@ -79,7 +75,7 @@ struct ConversationHistoryTests {
     @Test func 先生の発言がなければ何もしない() {
         var history = ConversationHistory()
         history.appendUser("a")
-        history.truncateLastAssistant(toCharacterCount: 0)
+        history.truncateLastReply(toCharacterCount: 0)
         #expect(history.messages.count == 1)
     }
 }
