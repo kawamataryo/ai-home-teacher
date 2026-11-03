@@ -28,3 +28,13 @@
 - 初回のみ: `cp ios/Config/Secrets.xcconfig.example ios/Config/Secrets.xcconfig`
 - テスト: `cd ios && xcodebuild test -project HomeTeacher.xcodeproj -scheme HomeTeacher -destination 'platform=iOS Simulator,name=iPad Pro 11-inch (M5)'`
 - ファイルを追加・削除したら `xcodegen generate` をやり直す
+
+### Worker
+
+```sh
+cd worker
+npm install
+npm test           # vitest
+npm run typecheck  # tsc --noEmit
+npm run dev        # wrangler dev（.dev.vars が必要。例は .dev.vars.example）
+```

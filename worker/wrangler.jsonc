@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ai-home-teacher-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  "vars": {
+    // ElevenLabs の既定の声。実際に使う voice ID に置き換える（秘密情報ではない）
+    "ELEVENLABS_VOICE_ID": "REPLACE_WITH_VOICE_ID"
+  }
+  // secret（値はリポジトリに入れない）:
+  //   ANTHROPIC_API_KEY, ELEVENLABS_API_KEY, TYPESAFE_API_KEY, FAMILY_TOKEN
+  //   本番は `wrangler secret put <NAME>`、ローカルは .dev.vars
+}
