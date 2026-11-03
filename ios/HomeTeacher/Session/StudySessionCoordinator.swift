@@ -171,7 +171,12 @@ final class StudySessionCoordinator {
     /// このセッションで取り組んだ問題（ふり返りに渡す）
     @ObservationIgnored private(set) var problems: [ProblemRecord] = []
     /// いま一緒に取り組んでいる問題（分析の結果・ヒントの段階・答え漏れの検査）
-    @ObservationIgnored private(set) var tutoring: TutoringState?
+    @ObservationIgnored private(set) var tutoring: TutoringState? {
+        // 答えの判定を発話の判断と一緒に先に聞けるよう、問題を揃えておく
+        didSet { decisionCache?.problem = tutoring.flatMap(AnswerJudge.problemContext) }
+    }
+    /// 発話ごとの Jev の判断（まとめて先に聞いて覚えておく）。Jev を使わなければ nil
+    @ObservationIgnored private let decisionCache: UtteranceDecisionCache?
     @ObservationIgnored private var captureJudge: (any CaptureRequestJudge)?
     /// 図を出してから話し始めた文の数（段階表示）
     @ObservationIgnored private var sentencesSinceBoard = 0
@@ -185,7 +190,9 @@ final class StudySessionCoordinator {
         self.deps = dependencies
         self.tracker = SpokenReplyTracker(voice: dependencies.voice)
         self.openingBuilder = OpeningPromptBuilder(library: dependencies.library)
-        self.answerJudge = dependencies.answerJudge ?? AnswerJudge(decisions: dependencies.decisions)
+        let decisionCache = dependencies.decisions.map { UtteranceDecisionCache(decisions: $0) }
+        self.decisionCache = decisionCache
+        self.answerJudge = dependencies.answerJudge ?? AnswerJudge(cache: decisionCache)
         tracker.onSentenceStart = { [weak self] in self?.revealOnSentence() }
     }
 
@@ -258,11 +265,11 @@ final class StudySessionCoordinator {
         let conversation = settings.conversation
         trace("話している間のマイク: \(conversation.speakingInputMode == .bargeIn ? "開いたまま（割り込み）" : "止める")")
         var endDecider: (any EndOfUtteranceDecider)?
-        if let decisions = deps.decisions {
-            let judge = JevAddressingJudge(decisions: decisions, fallback: CallWordAddressingJudge(callWords: conversation.callWords))
-            addressingJudge = judge
-            endDecider = JevEndOfUtteranceDecider(decisions: decisions)
-            captureJudge = JevCaptureRequestJudge(decisions: decisions)
+        if let decisionCache {
+            // 言い終わったか・先生への発話か・撮影の依頼か・答えの判定は、同じ 1 回のリクエストの答えを使う
+            addressingJudge = JevAddressingJudge(cache: decisionCache, fallback: CallWordAddressingJudge(callWords: conversation.callWords))
+            endDecider = JevEndOfUtteranceDecider(cache: decisionCache)
+            captureJudge = JevCaptureRequestJudge(cache: decisionCache)
         } else {
             addressingJudge = nil
             captureJudge = CaptureRequestDetector()
@@ -570,7 +577,7 @@ final class StudySessionCoordinator {
         lastReplyFromWorker = failure == nil
         lastReplySentences = spoken
         lastReplyEmotion = emotion ?? .neutral
-        addressingJudge?.teacherLastSaid = spoken.last
+        decisionCache?.teacherLastSaid = spoken.last
         let outcome = await speakTask?.value
         trace("返事（表情 \(lastReplyEmotion.rawValue)）: \(spoken.joined()) → \(outcome.map { "\($0)" } ?? "-")")
         if failure != nil, outcome == .completed, generation == replyGeneration, phase == .active {
@@ -596,7 +603,7 @@ final class StudySessionCoordinator {
     private func captureCheck(for text: String) -> Task<Bool, Never>? {
         guard let judge = captureJudge, canCapture, !isCapturing else { return nil }
         // 問題を見たあとの「わかんない」はヒントを求める発話。「見て」と言われたときだけ撮り直す
-        if tutoring != nil, HelpRequestDetector.isHelpRequest(text),
+        if tutoring != nil, lastAnswerJudgement?.asksForHelp ?? HelpRequestDetector.isHelpRequest(text),
            !CaptureRequestDetector.matches(text, patterns: Self.lookPhrases) {
             return nil
         }
@@ -687,12 +694,12 @@ final class StudySessionCoordinator {
         lastAnswerJudgement = nil
         guard let current = tutoring else { return .none }
         let startedAt = deps.clock.now
-        let judgement = await answerJudge.judge(text, tutoring: current, teacherLastSaid: addressingJudge?.teacherLastSaid)
+        let judgement = await answerJudge.judge(text, tutoring: current)
         // 判定を待つ間に撮り直した・終わったなら使わない
         guard var state = tutoring, state.analysis == current.analysis else { return .none }
         lastAnswerJudgement = judgement
         let levelBefore = state.ladder.level
-        let reaction = state.react(to: text, verdict: judgement.verdict)
+        let reaction = state.react(to: text, verdict: judgement.verdict, asksForHelp: judgement.asksForHelp)
         tutoring = state
         if reaction != .none {
             revealOnHintStage(advancedBy: state.ladder.level - levelBefore, solved: state.ladder.isSolved)

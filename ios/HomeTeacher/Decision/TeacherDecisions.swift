@@ -1,23 +1,6 @@
 import Foundation
 
-/// 発話の意図（spec §3⑥）。順番は Jev に送る選択肢の順番。
-enum UtteranceIntent: String, CaseIterable, Sendable {
-    case question = "質問"
-    case answer = "答え"
-    case smallTalk = "雑談"
-    case wantsBreak = "休憩したい"
-    case wantsToFinish = "終わりたい"
-    case other = "その他"
-}
-
-/// 子どもの答えが正しそうか（`score` の段階）。
-enum AnswerLikelihood: Int, CaseIterable, Sendable {
-    case likelyWrong = 0
-    case unsure = 1
-    case likelyCorrect = 2
-}
-
-/// 学習セッションの今の段階。「今、声をかけるべきか」の判断に使う。
+/// 学習セッションの今の段階。「今、声をかけるべきか」の規則に使う。
 enum StudyPhase: String, Sendable {
     /// 問題に取り組んでいる
     case working = "問題に取り組んでいる"
@@ -27,7 +10,7 @@ enum StudyPhase: String, Sendable {
     case afterHint = "先生がヒントを出したばかり"
 }
 
-/// 「今、声をかけるべきか」を判断する材料。
+/// 「今、声をかけるべきか」を決める材料（規則で決める。数だけなので Jev には聞かない）。
 struct NudgeContext: Sendable, Equatable {
     /// 手が止まっている時間（分）
     var minutesStalled: Double
@@ -38,22 +21,66 @@ struct NudgeContext: Sendable, Equatable {
     var isFacePresent: Bool = true
 }
 
-/// 1 つの発話についての判断をまとめて聞いた結果。答えがなかった項目は nil。
+/// 取り組み中の問題（答えの判定に使う）。答えを決められる問題のときだけ作る
+struct ProblemContext: Sendable, Hashable {
+    var problem: String
+    var correctAnswer: String
+}
+
+/// 発話の判断に添える状況。同じ発話でも状況が違えば別に聞く
+struct UtteranceContext: Sendable, Hashable {
+    /// 先生が最後に話した文（返事かどうかの手がかり）
+    var teacherLastSaid: String?
+    var problem: ProblemContext?
+}
+
+/// 1 つの発話についての判断をまとめて聞いた結果（それぞれ「はい」の確率）。答えがなかった項目は nil。
 struct UtteranceAnalysis: Sendable, Equatable {
     var addressedToTeacher: Double?
     var utteranceComplete: Double?
     var captureRequest: Double?
-    var intent: UtteranceIntent?
+    var helpRequest: Double?
+    /// 問題の答えを言っているか（問題に取り組み中だけ聞く）
+    var givesAnswer: Double?
+    /// 言った答えが正答と同じか（問題に取り組み中だけ聞く）
+    var matchesAnswer: Double?
 }
 
-/// アプリが Jev に聞く判断の定義（質問文）と、その答えの読み方。
-/// どれも Jev が使えなければ nil を返すので、呼び出し側（Jev*Judge など）が規則ベースに切り替える。
+/// 確率の読み方（公式の目安: 0.7 以上ははい、0.3 以下はいいえ、あいだは決まらない）
+enum DecisionReading: Sendable, Equatable {
+    case yes, unsure, no
+
+    init(_ probability: Double) {
+        if probability >= TeacherDecisions.Threshold.yes {
+            self = .yes
+        } else if probability <= TeacherDecisions.Threshold.no {
+            self = .no
+        } else {
+            self = .unsure
+        }
+    }
+}
+
+/// アプリが Jev に聞く判断の定義（質問文としきい値）。質問としきい値はこのファイルだけに置く。
+///
+/// 公式のドキュメント（https://docs.typesafe.ai/llms.txt ）と agent skill に沿って:
+/// - 同じ発話への質問は 1 回のリクエストにまとめる（並列に答えるので速さはほぼ変わらない）。使うかわからない質問も先に聞き、使うかはコードで決める
+/// - 「〜すべきか」の決定は聞かず、観察できる 1 つの判断だけを聞く。決定はコード（各 Jev*Judge・AnswerJudge）でする
+/// - 質問文は英語にする。Jev の主な学習言語は英語で、2026-11-03 の実測でも日本語の質問より正確だった（発話は日本語のまま送る）
+/// - しきい値を調整しているのでモデルは固定する（DecisionClient.defaultModel）
 struct TeacherDecisions: Sendable {
     let client: DecisionClient
 
-    /// 状況の説明。どの質問でも state に入れる
-    static let situation = "小学5年生の子どもが iPad の AI 家庭教師（「先生」）と声で話しながら家で勉強している。"
-        + "まわりにはきょうだいや家族がいることもある。発話は音声認識の書き起こしで、句読点や誤字が揺れる。"
+    enum Threshold {
+        /// これ以上なら「はい」
+        static let yes = 0.7
+        /// これ以下なら「いいえ」
+        static let no = 0.3
+    }
+
+    /// 状況の説明。どの発話の state にも入れる
+    static let situation = "A 5th-grade child in Japan is studying at home, talking out loud with an AI home tutor (\"sensei\") on an iPad. "
+        + "Siblings or family may be nearby. `utterance` is a Japanese speech-recognition transcript; punctuation and typos vary."
 
     // MARK: - 質問の定義
 
@@ -61,141 +88,80 @@ struct TeacherDecisions: Sendable {
         static let addressed = "addressed_to_teacher"
         static let complete = "utterance_complete"
         static let capture = "capture_request"
-        static let nudge = "should_speak_up"
-        static let intent = "intent"
-        static let correctness = "answer_correctness"
+        static let help = "help_request"
+        static let givesAnswer = "gives_answer"
+        static let matchesAnswer = "matches_answer"
     }
 
     static let addressedQuestion = DecisionQuestion.boolean(
-        instructions: "この発話は先生（AI 家庭教師）に向けて話しかけたものか。",
-        whenTrue: "先生への質問・相談・返事・呼びかけ",
-        whenFalse: "独り言、問題文の読み上げ、きょうだいや家族との会話、テレビなどの音"
+        instructions: "Is `utterance` spoken to the AI tutor?",
+        whenTrue: "A question, request, reply or call to the tutor",
+        whenFalse: "Talking to oneself, reading the problem aloud, talking to a sibling or parent, or TV sound"
     )
 
     static let completeQuestion = DecisionQuestion.boolean(
-        instructions: "子どもは言いたいことを言い終わったか。",
-        whenTrue: "文として完結していて、先生が返事をしてよい",
-        whenFalse: "「えっと」「あのね」「〜で」のように途中で止まっていて、まだ続きそう"
+        instructions: "Has the child finished what they wanted to say in `utterance`?",
+        whenTrue: "A complete thought the tutor can reply to now",
+        whenFalse: "It stops mid-sentence, like 「えっと」「あのね」 or ending in 「〜で」「〜と、」, and more is coming"
     )
 
     static let captureQuestion = DecisionQuestion.boolean(
-        instructions: "子どもは先生にノートやプリント、問題を見てほしい（カメラで撮ってほしい）と頼んでいるか。",
-        whenTrue: "「これ見て」「ここわかんない」「見てほしい」など、紙の上のものを見せたがっている",
-        whenFalse: "見せる必要のない質問や雑談、返事"
+        instructions: "Is the child asking the tutor to look at something on paper, such as their notebook or worksheet?",
+        whenTrue: "Phrases like 「これ見て」「ここわかんない」「見てほしい」 that want the tutor to see the page",
+        whenFalse: "A reply, an answer, small talk, or a question that does not need the page"
     )
 
-    static let nudgeQuestion = DecisionQuestion.boolean(
-        instructions: "本物の家庭教師なら、今このタイミングで子どもに声をかけるべきか。",
-        whenTrue: "長く手が止まって困っていそうなので「どこか考え中？」とやさしく声をかけた方がよい",
-        whenFalse: "集中して考えている途中、休憩中、席を外している、先生が話したばかりなど、今は見守る方がよい"
+    static let helpQuestion = DecisionQuestion.boolean(
+        instructions: "Is the child asking for help with the current problem?",
+        whenTrue: "Saying they don't get it, asking for a hint, or asking how to do it",
+        whenFalse: "Giving an answer or an idea, small talk, or saying they want a break"
     )
 
-    static let intentQuestion = DecisionQuestion.choice(
-        instructions: "この発話で子どもは何をしようとしているか。",
-        options: [
-            .init(name: UtteranceIntent.question.rawValue, description: "問題ややり方についてたずねている"),
-            .init(name: UtteranceIntent.answer.rawValue, description: "問題の答えや考えを言っている"),
-            .init(name: UtteranceIntent.smallTalk.rawValue, description: "勉強と関係のない話をしている"),
-            .init(name: UtteranceIntent.wantsBreak.rawValue, description: "疲れた・休みたいと言っている"),
-            .init(name: UtteranceIntent.wantsToFinish.rawValue, description: "今日の勉強をやめたい・終わりにしたいと言っている"),
-            .init(name: UtteranceIntent.other.rawValue, description: "上のどれにも当てはまらない"),
-        ]
+    static let givesAnswerQuestion = DecisionQuestion.boolean(
+        instructions: "Is the child stating an answer to `problem` in `utterance`?",
+        whenTrue: "States a final answer, including unsure forms like 「24かな？」",
+        whenFalse: "A question, asking for help, small talk, or a partial step like 「4と6」 or 「たて×横」"
     )
 
-    static let correctnessQuestion = DecisionQuestion.score(
-        instructions: "子どもの答えは問題の正しい答えと合っていそうか。",
-        levels: [
-            "違っていそう",
-            "どちらとも言えない（答えになっていない・聞き取れない）",
-            "合っていそう（表記や言い方の違いは気にしない）",
-        ]
+    static let matchesAnswerQuestion = DecisionQuestion.boolean(
+        instructions: "Is the answer in `utterance` the same as `correct_answer`?",
+        whenTrue: "Same answer; different notation or reading (e.g. 「にじゅうよん」 vs 24) counts as the same",
+        whenFalse: "A different answer, or no answer at all"
     )
 
     // MARK: - 発話についての判断
 
-    /// 発話についての判断（先生への発話か・言い終わったか・撮影の依頼か・意図）を 1 回のリクエストで聞く
-    func analyzeUtterance(_ utterance: String, teacherLastSaid: String? = nil, timeout: Duration? = nil) async -> UtteranceAnalysis? {
-        let result = await client.decide(
-            state: Self.utteranceState(utterance, teacherLastSaid: teacherLastSaid),
-            questions: [
-                Key.addressed: Self.addressedQuestion,
-                Key.complete: Self.completeQuestion,
-                Key.capture: Self.captureQuestion,
-                Key.intent: Self.intentQuestion,
-            ],
-            timeout: timeout
-        )
+    /// 発話についての判断を 1 回のリクエストでまとめて聞く。問題に取り組み中なら答えの判定も一緒に聞く
+    func analyzeUtterance(_ utterance: String, context: UtteranceContext, timeout: Duration? = nil) async -> UtteranceAnalysis? {
+        var questions = [
+            Key.addressed: Self.addressedQuestion,
+            Key.complete: Self.completeQuestion,
+            Key.capture: Self.captureQuestion,
+            Key.help: Self.helpQuestion,
+        ]
+        if context.problem != nil {
+            questions[Key.givesAnswer] = Self.givesAnswerQuestion
+            questions[Key.matchesAnswer] = Self.matchesAnswerQuestion
+        }
+        let result = await client.decide(state: Self.utteranceState(utterance, context: context), questions: questions, timeout: timeout)
         guard let result else { return nil }
         return UtteranceAnalysis(
             addressedToTeacher: result[Key.addressed]?.probability,
             utteranceComplete: result[Key.complete]?.probability,
             captureRequest: result[Key.capture]?.probability,
-            intent: result[Key.intent]?.choiceIndex.map { UtteranceIntent.allCases[$0] }
+            helpRequest: result[Key.help]?.probability,
+            givesAnswer: result[Key.givesAnswer]?.probability,
+            matchesAnswer: result[Key.matchesAnswer]?.probability
         )
     }
 
-    /// 先生への発話である確率
-    func addressedProbability(_ utterance: String, teacherLastSaid: String? = nil, timeout: Duration? = nil) async -> Double? {
-        await boolean(Key.addressed, Self.addressedQuestion, Self.utteranceState(utterance, teacherLastSaid: teacherLastSaid), timeout)
-    }
-
-    /// 言い終わった確率
-    func completeProbability(_ transcript: String, timeout: Duration? = nil) async -> Double? {
-        await boolean(Key.complete, Self.completeQuestion, Self.utteranceState(transcript, teacherLastSaid: nil), timeout)
-    }
-
-    /// 撮影の依頼である確率
-    func captureRequestProbability(_ utterance: String, timeout: Duration? = nil) async -> Double? {
-        await boolean(Key.capture, Self.captureQuestion, Self.utteranceState(utterance, teacherLastSaid: nil), timeout)
-    }
-
-    /// 発話の意図
-    func intent(_ utterance: String, timeout: Duration? = nil) async -> UtteranceIntent? {
-        let result = await client.decide(
-            state: Self.utteranceState(utterance, teacherLastSaid: nil),
-            questions: [Key.intent: Self.intentQuestion],
-            timeout: timeout
-        )
-        return result?[Key.intent]?.choiceIndex.map { UtteranceIntent.allCases[$0] }
-    }
-
-    // MARK: - そのほかの判断
-
-    /// 今、声をかけるべき確率
-    func shouldSpeakUpProbability(_ context: NudgeContext, timeout: Duration? = nil) async -> Double? {
-        var fields = [
-            "situation": Self.situation,
-            "minutes_hands_stopped": Self.format(context.minutesStalled),
-            "phase": context.phase.rawValue,
-            "face_in_front_of_screen": context.isFacePresent ? "はい" : "いいえ",
-        ]
-        if let minutes = context.minutesSinceTeacherSpoke {
-            fields["minutes_since_teacher_spoke"] = Self.format(minutes)
-        }
-        return await boolean(Key.nudge, Self.nudgeQuestion, .fields(fields), timeout)
-    }
-
-    /// 子どもの答えが正しそうか。規則では決められないので、Jev が使えなければ nil（Claude に任せる）
-    func answerLikelihood(problem: String, expectedAnswer: String?, childAnswer: String, timeout: Duration? = nil) async -> AnswerLikelihood? {
-        var fields = ["situation": Self.situation, "problem": problem, "child_answer": childAnswer]
-        if let expectedAnswer { fields["correct_answer"] = expectedAnswer }
-        let result = await client.decide(state: .fields(fields), questions: [Key.correctness: Self.correctnessQuestion], timeout: timeout)
-        return result?[Key.correctness]?.scoreLevel.flatMap(AnswerLikelihood.init(rawValue:))
-    }
-
-    // MARK: - 内部
-
-    private func boolean(_ key: String, _ question: DecisionQuestion, _ state: DecisionState, _ timeout: Duration?) async -> Double? {
-        await client.decide(state: state, questions: [key: question], timeout: timeout)?[key]?.probability
-    }
-
-    static func utteranceState(_ utterance: String, teacherLastSaid: String?) -> DecisionState {
+    static func utteranceState(_ utterance: String, context: UtteranceContext) -> DecisionState {
         var fields = ["situation": situation, "utterance": utterance]
-        if let teacherLastSaid { fields["teacher_last_said"] = teacherLastSaid }
+        if let teacherLastSaid = context.teacherLastSaid { fields["teacher_last_said"] = teacherLastSaid }
+        if let problem = context.problem {
+            fields["problem"] = problem.problem
+            fields["correct_answer"] = problem.correctAnswer
+        }
         return .fields(fields)
-    }
-
-    private static func format(_ minutes: Double) -> String {
-        String(format: "%.1f", minutes)
     }
 }

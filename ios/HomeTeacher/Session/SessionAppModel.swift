@@ -190,7 +190,7 @@ final class SessionAppModel: AudioEngineLeaseHolder {
         return WatchOver(
             watcher: ActivityWatcher(), clock: clock,
             configuration: { preferences.watchOverConfiguration },
-            makeJudge: WatchOver.judgeFactory(decisions: services.decisions)
+            makeJudge: WatchOver.judgeFactory()
         )
     }
 

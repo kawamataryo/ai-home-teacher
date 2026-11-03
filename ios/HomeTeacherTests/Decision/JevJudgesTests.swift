@@ -7,53 +7,95 @@ import Testing
 struct JevJudgesTests {
     private typealias Key = TeacherDecisions.Key
 
+    private static func cache(_ answers: [String: Double]) -> UtteranceDecisionCache {
+        DecisionFixture.cache(MockTransport(body: DecisionFixture.nouls(answers)))
+    }
+
+    private static var failing: UtteranceDecisionCache {
+        DecisionFixture.cache(MockTransport(status: 500, body: ""))
+    }
+
+    // MARK: - まとめて先に聞く
+
+    @Test func 同じ発話の判断は1回のリクエストを使い回す() async {
+        let transport = MockTransport(body: DecisionFixture.nouls([Key.addressed: 0.9, Key.complete: 0.9, Key.capture: 0.1, Key.help: 0.1]))
+        let cache = DecisionFixture.cache(transport)
+        #expect(await JevEndOfUtteranceDecider(cache: cache).isUtteranceComplete("これってどうやるの"))
+        // 確定したときの書き起こしは句読点や空白が揺れても同じ発話
+        #expect(await JevAddressingJudge(cache: cache).isAddressedToTeacher("これって、どうやるの "))
+        #expect(await JevCaptureRequestJudge(cache: cache).isCaptureRequest("これってどうやるの") == false)
+        #expect(await transport.requests.count == 1)
+        #expect(cache.requestCount == 1)
+    }
+
+    @Test func 状況が変われば聞き直す() async {
+        let transport = MockTransport(responses: [
+            .init(body: DecisionFixture.nouls([Key.addressed: 0.9])), .init(body: DecisionFixture.nouls([Key.addressed: 0.9])),
+        ])
+        let cache = DecisionFixture.cache(transport)
+        _ = await cache.analysis(for: "うん").value
+        cache.teacherLastSaid = "ちょっと見せて？"
+        _ = await cache.analysis(for: "うん").value
+        #expect(await transport.requests.count == 2)
+    }
+
+    @Test func 待ちきれなくてもリクエストは続けてあとで使う() async {
+        let transport = SlowTransport(delay: .milliseconds(150), body: DecisionFixture.nouls([Key.addressed: 0.1, Key.complete: 0.9]))
+        let cache = DecisionFixture.cache(transport)
+        // 言い終わったかは短く待って諦める
+        #expect(await JevEndOfUtteranceDecider(cache: cache, timeout: .milliseconds(20)).isUtteranceComplete("ママ、おやつまだ？") == false)
+        // 確定したときは同じリクエストの答えを待つ
+        #expect(await JevAddressingJudge(cache: cache).isAddressedToTeacher("ママ、おやつまだ？") == false)
+        #expect(await transport.requestCount == 1)
+        #expect(await transport.wasCancelled == false)
+    }
+
     // MARK: - 先生への発話か
 
     @Test func 呼びかけ語があればJevに聞かずに受け付ける() async {
         let transport = MockTransport(responses: [])
-        let judge = JevAddressingJudge(decisions: DecisionFixture.decisions(transport))
+        let judge = JevAddressingJudge(cache: DecisionFixture.cache(transport))
         #expect(await judge.isAddressedToTeacher("ねえ先生、これ教えて"))
         #expect(await transport.requests.isEmpty)
     }
 
-    @Test func 呼びかけ語がなくてもJevが先生への発話と言えば受け付ける() async {
-        let judge = JevAddressingJudge(decisions: DecisionFixture.decisions(MockTransport(body: DecisionFixture.noul(Key.addressed, 0.9))))
-        #expect(await judge.isAddressedToTeacher("これってどうやるの"))
+    @Test(arguments: [(0.9, true), (0.5, true), (0.2, false)])
+    func 先生への発話はいいえのときだけ聞き流す(_ p: Double, _ accepted: Bool) async {
+        let judge = JevAddressingJudge(cache: Self.cache([Key.addressed: p]))
+        #expect(await judge.isAddressedToTeacher("これってどうやるの") == accepted)
     }
 
-    @Test func Jevが独り言と言えば無視する() async {
-        let judge = JevAddressingJudge(decisions: DecisionFixture.decisions(MockTransport(body: DecisionFixture.noul(Key.addressed, 0.2))))
-        #expect(await judge.isAddressedToTeacher("ママ、おやつまだ？") == false)
+    @Test func Jevが失敗したら声を無視せず受け付ける() async {
+        #expect(await JevAddressingJudge(cache: Self.failing).isAddressedToTeacher("これってどうやるの"))
+        let slow = JevAddressingJudge(cache: DecisionFixture.cache(SlowTransport()), timeout: .milliseconds(50))
+        #expect(await slow.isAddressedToTeacher("これってどうやるの"))
     }
 
-    @Test func Jevが失敗したら呼びかけ語だけで決める() async {
-        let judge = JevAddressingJudge(decisions: DecisionFixture.decisions(MockTransport(status: 500, body: "")))
-        #expect(await judge.isAddressedToTeacher("これってどうやるの") == false)
-    }
-
-    @Test func Jevがタイムアウトしたら呼びかけ語だけで決める() async {
-        let judge = JevAddressingJudge(decisions: DecisionFixture.decisions(SlowTransport()), timeout: .milliseconds(50))
-        #expect(await judge.isAddressedToTeacher("これってどうやるの") == false)
+    @Test func 先生が最後に話した文をstateに入れる() async throws {
+        let transport = MockTransport(body: DecisionFixture.nouls([Key.addressed: 0.9]))
+        let judge = JevAddressingJudge(cache: DecisionFixture.cache(transport))
+        judge.teacherLastSaid = "答えはいくつになったかな？"
+        _ = await judge.isAddressedToTeacher("24")
+        let state = try #require(try await DecisionFixture.requestJSON(transport)["state"] as? [String: String])
+        #expect(state["teacher_last_said"] == "答えはいくつになったかな？")
     }
 
     // MARK: - 言い終わったか
 
-    @Test func 言い終わった確率が高いときだけtrue() async {
-        let high = JevEndOfUtteranceDecider(decisions: DecisionFixture.decisions(MockTransport(body: DecisionFixture.noul(Key.complete, 0.9))))
-        #expect(await high.isUtteranceComplete("答えは75%です"))
-        let middle = JevEndOfUtteranceDecider(decisions: DecisionFixture.decisions(MockTransport(body: DecisionFixture.noul(Key.complete, 0.6))))
-        #expect(await middle.isUtteranceComplete("えっと、これは") == false)
+    @Test(arguments: [(0.9, true), (0.7, true), (0.6, false), (0.1, false)])
+    func 言い終わったのははいのときだけ(_ p: Double, _ complete: Bool) async {
+        let decider = JevEndOfUtteranceDecider(cache: Self.cache([Key.complete: p]))
+        #expect(await decider.isUtteranceComplete("えっと、24かな") == complete)
     }
 
     @Test func 言い終わったかはJevが失敗したら無音に任せる() async {
-        let failed = JevEndOfUtteranceDecider(decisions: DecisionFixture.decisions(MockTransport(status: 500, body: "")))
-        #expect(await failed.isUtteranceComplete("答えは75%です") == false)
-        let slow = JevEndOfUtteranceDecider(decisions: DecisionFixture.decisions(SlowTransport()), timeout: .milliseconds(50))
+        #expect(await JevEndOfUtteranceDecider(cache: Self.failing).isUtteranceComplete("答えは75%です") == false)
+        let slow = JevEndOfUtteranceDecider(cache: DecisionFixture.cache(SlowTransport()), timeout: .milliseconds(50))
         #expect(await slow.isUtteranceComplete("答えは75%です") == false)
     }
 
-    @Test func 言い終わったかの既定のタイムアウトは無音の区切りより短い() {
-        let decider = JevEndOfUtteranceDecider(decisions: DecisionFixture.decisions(MockTransport(responses: [])))
+    @Test func 言い終わったかの既定の待ち時間は無音の区切りより短い() {
+        let decider = JevEndOfUtteranceDecider(cache: DecisionFixture.cache(MockTransport(responses: [])))
         #expect(decider.timeout < ConversationSettings().endOfUtteranceSilence)
     }
 
@@ -70,70 +112,45 @@ struct JevJudgesTests {
     }
 
     @Test func 撮影の依頼はJevの答えを使う() async {
-        let judge = JevCaptureRequestJudge(decisions: DecisionFixture.decisions(MockTransport(body: DecisionFixture.noul(Key.capture, 0.1))))
-        // 言い方は依頼に見えても Jev が違うと言えば違う（「見て見て、できた！」など）
-        #expect(await judge.isCaptureRequest("見て見て、できた！") == false)
+        // 言い方は依頼に見えても Jev がいいえと言えば違う（「見て見て、できた！」など）
+        #expect(await JevCaptureRequestJudge(cache: Self.cache([Key.capture: 0.1])).isCaptureRequest("見て見て、できた！") == false)
+        #expect(await JevCaptureRequestJudge(cache: Self.cache([Key.capture: 0.9])).isCaptureRequest("この問題") )
+    }
+
+    @Test func 撮影の依頼は迷う帯なら言い方で決める() async {
+        #expect(await JevCaptureRequestJudge(cache: Self.cache([Key.capture: 0.5])).isCaptureRequest("ここわかんない"))
+        #expect(await JevCaptureRequestJudge(cache: Self.cache([Key.capture: 0.5])).isCaptureRequest("できた") == false)
     }
 
     @Test func 撮影の依頼はJevが使えなければ言い方で決める() async {
-        let judge = JevCaptureRequestJudge(decisions: DecisionFixture.decisions(MockTransport(status: 500, body: "")))
-        #expect(await judge.isCaptureRequest("ここわかんない"))
-        let judge2 = JevCaptureRequestJudge(decisions: DecisionFixture.decisions(MockTransport(status: 500, body: "")))
-        #expect(await judge2.isCaptureRequest("できた") == false)
+        #expect(await JevCaptureRequestJudge(cache: Self.failing).isCaptureRequest("ここわかんない"))
+        #expect(await JevCaptureRequestJudge(cache: Self.failing).isCaptureRequest("できた") == false)
     }
 
-    // MARK: - 今、声をかけるべきか
-
-    @Test func 声をかけるかはJevの答えを使う() async {
-        let judge = JevNudgeJudge(decisions: DecisionFixture.decisions(MockTransport(body: DecisionFixture.noul(Key.nudge, 0.2))))
-        #expect(await judge.shouldSpeakUp(NudgeContext(minutesStalled: 5, phase: .working)) == false)
-    }
-
-    @Test func 声をかけるかはJevが使えなければ規則で決める() async {
-        let judge = JevNudgeJudge(decisions: DecisionFixture.decisions(MockTransport(status: 500, body: "")))
-        #expect(await judge.shouldSpeakUp(NudgeContext(minutesStalled: 3, phase: .working)))
-    }
+    // MARK: - 今、声をかけるべきか（規則だけ）
 
     @Test func 声をかける規則() {
-        #expect(JevNudgeJudge.ruleShouldSpeakUp(NudgeContext(minutesStalled: 3, phase: .working)))
-        #expect(JevNudgeJudge.ruleShouldSpeakUp(NudgeContext(minutesStalled: 2.5, phase: .working)) == false)
-        #expect(JevNudgeJudge.ruleShouldSpeakUp(NudgeContext(minutesStalled: 10, phase: .onBreak)) == false)
-        #expect(JevNudgeJudge.ruleShouldSpeakUp(NudgeContext(minutesStalled: 10, phase: .working, isFacePresent: false)) == false)
-        #expect(JevNudgeJudge.ruleShouldSpeakUp(NudgeContext(minutesStalled: 10, phase: .working, minutesSinceTeacherSpoke: 0.5)) == false)
-    }
-
-    // MARK: - 発話の意図
-
-    @Test func 意図はJevの選択を使う() async {
-        let body = DecisionFixture.choice(Key.intent, "雑談", probabilities: ["雑談": 0.7, "その他": 0.3])
-        let classifier = JevIntentClassifier(decisions: DecisionFixture.decisions(MockTransport(body: body)))
-        #expect(await classifier.intent("昨日サッカーしたんだ") == .smallTalk)
-    }
-
-    @Test func 意図はJevが使えなければ言い方で決める() async {
-        let classifier = JevIntentClassifier(decisions: DecisionFixture.decisions(MockTransport(responses: [
-            .init(status: 500, body: ""), .init(status: 500, body: ""), .init(status: 500, body: ""), .init(status: 500, body: ""),
-        ])))
-        #expect(await classifier.intent("もう終わりにしたい") == .wantsToFinish)
-        #expect(await classifier.intent("ちょっと休憩したい") == .wantsBreak)
-        #expect(await classifier.intent("これどうやって解くの？") == .question)
-        #expect(await classifier.intent("75パーセント") == .other)
+        #expect(RuleNudgeJudge.shouldSpeakUp(NudgeContext(minutesStalled: 3, phase: .working)))
+        #expect(RuleNudgeJudge.shouldSpeakUp(NudgeContext(minutesStalled: 2.5, phase: .working)) == false)
+        #expect(RuleNudgeJudge.shouldSpeakUp(NudgeContext(minutesStalled: 10, phase: .onBreak)) == false)
+        #expect(RuleNudgeJudge.shouldSpeakUp(NudgeContext(minutesStalled: 10, phase: .working, isFacePresent: false)) == false)
+        #expect(RuleNudgeJudge.shouldSpeakUp(NudgeContext(minutesStalled: 10, phase: .working, minutesSinceTeacherSpoke: 0.5)) == false)
     }
 
     // MARK: - ConversationController に組み込んだとき
 
-    @Test func Jevが言い終わったと言えば無音を待たずに受け付ける() async {
-        let transport = MockTransport(responses: [.init(body: DecisionFixture.noul(Key.complete, 0.95))])
-        let decider = JevEndOfUtteranceDecider(decisions: DecisionFixture.decisions(transport))
-        let h = ConversationHarness(endOfUtteranceDecider: decider)
-        h.say("ねえ先生、これ教えて")
-        #expect(await h.nextEvent() == .userTurnAccepted("ねえ先生、これ教えて"))
+    @Test func Jevが言い終わったと言えば無音を待たずに受け付け先生への発話かは聞き直さない() async {
+        let transport = MockTransport(responses: [.init(body: DecisionFixture.nouls([Key.complete: 0.95, Key.addressed: 0.9]))])
+        let cache = DecisionFixture.cache(transport)
+        let h = ConversationHarness(addressingJudge: JevAddressingJudge(cache: cache), endOfUtteranceDecider: JevEndOfUtteranceDecider(cache: cache))
+        h.say("これってどうやるの")
+        #expect(await h.nextEvent() == .userTurnAccepted("これってどうやるの"))
         #expect(await transport.requests.count == 1)
     }
 
     @Test func Jevが失敗したら無音のタイムアウトで区切る() async {
         let transport = MockTransport(status: 500, body: #"{"error":"upstream unreachable"}"#)
-        let decider = ObservedEndOfUtteranceDecider(JevEndOfUtteranceDecider(decisions: DecisionFixture.decisions(transport)))
+        let decider = ObservedEndOfUtteranceDecider(JevEndOfUtteranceDecider(cache: DecisionFixture.cache(transport)))
         let h = ConversationHarness(endOfUtteranceDecider: decider)
         h.say("ねえ先生、これ教えて")
         await decider.waitUntilAnswered()
@@ -144,16 +161,13 @@ struct JevJudgesTests {
         #expect(await h.nextEvent() == .userTurnAccepted("ねえ先生、これ教えて"))
     }
 
-    @Test func Jevが先生への発話と言えば呼びかけ語がなくても応答する() async {
-        let transport = MockTransport(body: DecisionFixture.noul(Key.addressed, 0.9))
-        let h = ConversationHarness(addressingJudge: JevAddressingJudge(decisions: DecisionFixture.decisions(transport)))
-        #expect(await h.sayAndFinish("これってどうやるの") == .userTurnAccepted("これってどうやるの"))
+    @Test func Jevがいいえと言えば呼びかけ語のない発話は聞き流す() async {
+        let h = ConversationHarness(addressingJudge: JevAddressingJudge(cache: Self.cache([Key.addressed: 0.1])))
+        #expect(await h.sayAndFinish("ママ、おやつまだ？") == .utteranceIgnored("ママ、おやつまだ？"))
     }
 
-    @Test func Jevが失敗したら呼びかけ語のない発話は無視する() async {
-        let transport = MockTransport(status: 500, body: "")
-        let h = ConversationHarness(addressingJudge: JevAddressingJudge(decisions: DecisionFixture.decisions(transport)))
-        #expect(await h.sayAndFinish("これってどうやるの") == .utteranceIgnored("これってどうやるの"))
-        #expect(await h.sayAndFinish("先生、これってどうやるの") == .userTurnAccepted("先生、これってどうやるの"))
+    @Test func Jevが失敗しても呼びかけ語のない発話に応答する() async {
+        let h = ConversationHarness(addressingJudge: JevAddressingJudge(cache: Self.failing))
+        #expect(await h.sayAndFinish("これってどうやるの") == .userTurnAccepted("これってどうやるの"))
     }
 }

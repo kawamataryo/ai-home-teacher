@@ -191,8 +191,8 @@ struct WatchOverFlowTests {
 
     @Test func 規則では先生が話したばかりなら声をかけない() {
         let context = NudgeContext(minutesStalled: 3, phase: .working, minutesSinceTeacherSpoke: 0.5)
-        #expect(!JevNudgeJudge.ruleShouldSpeakUp(context, stalledMinutesThreshold: 3))
-        #expect(JevNudgeJudge.ruleShouldSpeakUp(
+        #expect(!RuleNudgeJudge.shouldSpeakUp(context, stalledMinutesThreshold: 3))
+        #expect(RuleNudgeJudge.shouldSpeakUp(
             NudgeContext(minutesStalled: 2, phase: .working, minutesSinceTeacherSpoke: 2), stalledMinutesThreshold: 2
         ))
     }
