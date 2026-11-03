@@ -162,6 +162,7 @@ final class SessionAppModel: AudioEngineLeaseHolder {
             coordinator.onTrace = { sink.append($0) }
         }
         coordinator.listen()
+        coordinator.trace("音声: \(audioStatus)")
         // 拒否されているものがあれば、何が使えないかを先生が端末の声で伝える
         if let permissionNotice {
             coordinator.trace("許可の案内: \(permissionNotice.parentMessage)")
