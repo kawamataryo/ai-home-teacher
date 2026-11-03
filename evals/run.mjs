@@ -1,0 +1,162 @@
+#!/usr/bin/env node
+// 先生のプロンプトの評価。evals/cases/*.json の会話を Claude に送り、返事を checker.mjs で検査する。
+//
+// 使い方（Node 22 以上、依存なし）:
+//   WORKER_BASE_URL=https://xxx.workers.dev FAMILY_TOKEN=... node evals/run.mjs   # Worker 経由
+//   ANTHROPIC_API_KEY=sk-ant-... node evals/run.mjs                                # Anthropic API を直接
+//   node evals/run.mjs --dry-run            # 送る内容を表示するだけ（API を呼ばない）
+//   node evals/run.mjs --case reading-library
+//
+// キーも Worker の設定もなければ、何もせずに終了する（exit 0）。
+// 判定のロジックのテスト: node --test evals/*.test.mjs
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { checkReply } from "./checker.mjs";
+import { conversationSystemPrompt, conversationTools } from "./prompt.mjs";
+
+export const MODEL = "claude-haiku-5-5";
+const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_VERSION = "2023-06-01";
+const casesDir = join(dirname(fileURLToPath(import.meta.url)), "cases");
+
+export function loadCases(dir = casesDir) {
+  return readdirSync(dir)
+    .filter((f) => f.endsWith(".json"))
+    .sort()
+    .flatMap((f) => JSON.parse(readFileSync(join(dir, f), "utf8")));
+}
+
+// アプリ（TeacherBrain）と同じ形の Messages API の本文。評価では stream しない。
+export function buildRequest(testCase) {
+  return {
+    model: MODEL,
+    max_tokens: 512,
+    system: conversationSystemPrompt({ mode: testCase.mode ?? "study", teacherNote: testCase.teacherNote }),
+    messages: testCase.messages.map((m) => ({
+      role: m.role,
+      content: [{ type: "text", text: m.content }],
+    })),
+    tools: conversationTools(),
+  };
+}
+
+// 呼ばれたツールの名前と入力。
+export function extractToolUses(response) {
+  return (response.content ?? []).filter((b) => b.type === "tool_use").map((b) => ({ name: b.name, input: b.input }));
+}
+
+// Messages API の応答から、読み上げる文字（text block）を取り出す。
+export function extractReply(response) {
+  return (response.content ?? [])
+    .filter((b) => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+}
+
+// 環境変数から送り先を決める。なければ null。
+export function resolveEndpoint(env) {
+  if (env.WORKER_BASE_URL && env.FAMILY_TOKEN) {
+    return {
+      name: "Worker",
+      url: new URL("/v1/claude", env.WORKER_BASE_URL).toString(),
+      headers: { "content-type": "application/json", authorization: `Bearer ${env.FAMILY_TOKEN}` },
+    };
+  }
+  if (env.ANTHROPIC_API_KEY) {
+    return {
+      name: "Anthropic API",
+      url: ANTHROPIC_URL,
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": env.ANTHROPIC_API_KEY,
+        "anthropic-version": ANTHROPIC_VERSION,
+      },
+    };
+  }
+  return null;
+}
+
+// アプリの TeacherBrain.toolResultText と揃える。
+export const TOOL_RESULT_TEXT = "記録しました。子どもには伝えずに、会話を続けてください。";
+
+// アプリと同じく、ツールだけ呼んで言葉がなかったときは tool_result を付けて1回だけ続きを呼ぶ。
+// call(body) は Messages API の応答（JSON）を返す関数。
+export async function respond(call, body) {
+  const first = await call(body);
+  let reply = extractReply(first);
+  const toolUses = extractToolUses(first);
+  const toolBlocks = (first.content ?? []).filter((b) => b.type === "tool_use");
+  if (first.stop_reason === "tool_use" && toolBlocks.length > 0 && !reply.trim()) {
+    const next = await call({
+      ...body,
+      messages: [
+        ...body.messages,
+        { role: "assistant", content: first.content },
+        {
+          role: "user",
+          content: toolBlocks.map((b) => ({ type: "tool_result", tool_use_id: b.id, content: TOOL_RESULT_TEXT })),
+        },
+      ],
+    });
+    reply = extractReply(next);
+    toolUses.push(...extractToolUses(next));
+  }
+  return { reply, toolUses };
+}
+
+async function callClaude(endpoint, body) {
+  const res = await fetch(endpoint.url, { method: "POST", headers: endpoint.headers, body: JSON.stringify(body) });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${text}`);
+  return JSON.parse(text);
+}
+
+async function main(argv, env) {
+  const dryRun = argv.includes("--dry-run");
+  const only = argv.includes("--case") ? argv[argv.indexOf("--case") + 1] : null;
+  const cases = loadCases().filter((c) => !only || c.id === only);
+  if (cases.length === 0) {
+    console.error(`評価のケースが見つかりません${only ? `: ${only}` : ""}`);
+    return 1;
+  }
+
+  if (dryRun) {
+    for (const c of cases) console.log(JSON.stringify({ id: c.id, request: buildRequest(c) }, null, 2));
+    return 0;
+  }
+
+  const endpoint = resolveEndpoint(env);
+  if (!endpoint) {
+    console.log(
+      "評価をスキップしました: API の設定がありません。\n" +
+        "  Worker 経由: WORKER_BASE_URL と FAMILY_TOKEN を設定\n" +
+        "  直接: ANTHROPIC_API_KEY を設定\n" +
+        "判定ロジックだけのテストは `node --test evals/*.test.mjs` で実行できます。",
+    );
+    return 0;
+  }
+
+  console.log(`${endpoint.name} で ${cases.length} 件を評価します（${MODEL}）\n`);
+  let failed = 0;
+  for (const c of cases) {
+    try {
+      const { reply, toolUses } = await respond((body) => callClaude(endpoint, body), buildRequest(c));
+      const result = checkReply(reply, c.expect, toolUses.map((t) => t.name));
+      if (!result.pass) failed++;
+      console.log(`${result.pass ? "PASS" : "FAIL"} ${c.id}（${c.title}）`);
+      console.log(`  先生: ${reply.replaceAll("\n", " ")}`);
+      for (const t of toolUses) console.log(`  ツール: ${t.name} ${JSON.stringify(t.input)}`);
+      for (const f of result.failures) console.log(`  - ${f}`);
+    } catch (error) {
+      failed++;
+      console.log(`ERROR ${c.id}: ${error.message}`);
+    }
+  }
+  console.log(`\n${cases.length - failed}/${cases.length} 件 OK`);
+  return failed === 0 ? 0 : 1;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.exitCode = await main(process.argv.slice(2), process.env);
+}

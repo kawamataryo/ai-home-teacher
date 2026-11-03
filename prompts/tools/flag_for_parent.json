@@ -1,0 +1,20 @@
+{
+  "name": "flag_for_parent",
+  "description": "子どもの話に深刻な悩みの兆候（いじめ・体のぐあい・強い不安・家での困りごと・自分を傷つけたい気持ち・だれかに危ないことをされている）があったときに、親のダッシュボードへ「要確認」として残す。子どもには見えない。先に言葉で子どもに返事をしてから呼ぶ。ふつうの雑談や勉強の悩みでは呼ばない。",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "category": {
+        "type": "string",
+        "enum": ["bullying", "health", "anxiety", "family", "self_harm", "safety", "other"],
+        "description": "兆候の種類"
+      },
+      "reason": {
+        "type": "string",
+        "description": "子どもが話した内容を、親が読んでわかるように1〜2文で。事実だけを書き、推測や診断は書かない"
+      }
+    },
+    "required": ["category", "reason"],
+    "additionalProperties": false
+  }
+}
