@@ -361,6 +361,8 @@ final class StudySessionCoordinator {
         var failure: (any Error)?
         /// 返事の表情。答えの判定で決めたものを先に、なければ Haiku のしるし（[praise] など）で決める
         var emotion = cue?.emotion
+        /// 先に流した定型句。Haiku の1文目が同じ言葉で始まったら、その部分は言わない（「すごいじゃん！すごいじゃん！」を防ぐ）
+        var leadToSkip = cue?.lead
         if let lead = cue?.lead {
             pendingEmotion = emotion ?? .neutral
             speakTask = Task { await controller.speak(sentences) }
@@ -384,6 +386,14 @@ final class StudySessionCoordinator {
                 }
                 // 答えを先に言ってしまう文は、読み上げる前に差し替える（AnswerLeakGuard）
                 var line = sentence
+                if let lead = leadToSkip {
+                    leadToSkip = nil
+                    line = Self.droppingLeadEcho(line, lead: lead)
+                    if line.isEmpty {
+                        originals.append(raw)
+                        continue
+                    }
+                }
                 if case .blocked(let replacement)? = tutoring?.leakGuard.check(sentence) {
                     line = replacement
                     blockedReplacement = replacement
