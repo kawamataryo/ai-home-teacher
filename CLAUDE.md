@@ -19,3 +19,15 @@
 - 写真・音声はサーバーに保存しない。保存するのは文字の情報だけ
 - 先生は答えをそのまま言わない（ヒントの段階は spec の §3②）
 - 既存ゲームのキャラクターや素材を真似しない
+
+## コマンド
+
+### Worker
+
+```sh
+cd worker
+npm install
+npm test           # vitest
+npm run typecheck  # tsc --noEmit
+npm run dev        # wrangler dev（.dev.vars が必要。例は .dev.vars.example）
+```
