@@ -103,4 +103,22 @@ struct TeacherBrainTests {
         await brain.truncateLastReply(toCharacterCount: 5)
         #expect(await brain.history.lastAssistantText == "どれどれ。")
     }
+
+    @Test func 通信中に止めたら途中の文を流さずに静かに終わる() async throws {
+        let delta = "data: " + SSEFixture.json([
+            "type": "content_block_delta", "index": 0, "delta": ["type": "text_delta", "text": "どれどれ。表の"],
+        ])
+        let transport = HangingTransport(lines: [delta])
+        let client = WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: transport)
+        let brain = TeacherBrain(client: client, systemPrompt: "s")
+
+        var iterator = await brain.respond(to: "これ見て").makeAsyncIterator()
+        #expect(try await iterator.next() == "どれどれ。")
+        await brain.cancel()
+        // 「表の」は流れず、エラーにもならずに終わる
+        #expect(try await iterator.next() == nil)
+        // 届いた分は履歴に残る（このあと再生した位置で切り詰める）
+        #expect(await brain.history.lastAssistantText == "どれどれ。表の")
+        #expect(await transport.requestCount == 1)
+    }
 }

@@ -51,7 +51,12 @@ actor TeacherBrain {
                 try await self.stream(request, into: continuation)
                 continuation.finish()
             } catch {
-                continuation.finish(throwing: error)
+                // 割り込みで止めたときはエラーにせず、静かに終える
+                if Task.isCancelled {
+                    continuation.finish()
+                } else {
+                    continuation.finish(throwing: error)
+                }
             }
         }
         currentTask = task
@@ -114,6 +119,8 @@ actor TeacherBrain {
                 break
             }
         }
+        // 止められて終わったときは、途中の文を流さない
+        try Task.checkCancellation()
         // message_stop が来ずに終わった場合も残りを流す
         for sentence in splitter.flush() { continuation.yield(sentence) }
     }
