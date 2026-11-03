@@ -46,7 +46,8 @@ extension BoardContent {
         switch component {
         case .stepCards(let m): return m.steps.count
         case .segmentDiagram(let m): return m.bars.count
-        case .table, .barChart, .essayOutline, .areaDiagram, .numberLine, .highlightImage: return 1
+        case .timeline(let m): return m.events.count
+        case .table, .barChart, .essayOutline, .areaDiagram, .numberLine, .highlightImage, .vennDiagram, .percentBar: return 1
         }
     }
 }

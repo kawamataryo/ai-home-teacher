@@ -1,0 +1,76 @@
+{
+  "id": "10-timeline-schedule",
+  "title": "時間の流れ（予定表）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "3時50分に15分たすと4時5分(図書館に着く)。40分読むと4時45分(図書館を出る)。10分歩くと4時55分(公園に着く)。別解：かかった時間の合計15+40+10=65分=1時間5分。3時50分+1時間5分=4時55分。つまずきやすい点は、60分で1時間にくり上がること(3時50分+15分)。",
+    "answer": "午後4時55分",
+    "answer_variants": [
+      "4時55分",
+      "午後4:55",
+      "16時55分",
+      "午後4時55分です"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題で最後に知りたいのは何かな？「何時何分」のどの時刻を答えればいいか、自分の言葉で言ってみてね。",
+      "問題の中に出てくる「時刻」と「かかった時間」を、それぞれ見つけてみよう。黒板の図に、出てくる順にならべてあるよ。",
+      "出発の時刻から、1つずつ順に時間をたしていく方法があるよ。学校を出て、まず図書館に着くのは何時何分かな？ 60分で1時間になることに気をつけてね。",
+      "図書館に着いた時刻から、本を読む40分、そして公園まで歩く10分を順にたしていこう。図書館を出るのは何時何分？ そこから10分たつと、ということは公園に着くのは？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "そうたさんは午後3時50分に学校を出て、歩いて15分で図書館に着き、40分本を読み、さらに歩いて10分で公園に行く。公園に着く時刻（午後何時何分）を答える。"
+  },
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "時間の流れを見てみよう",
+        "component": {
+          "type": "timeline",
+          "events": [
+            {
+              "time": "3時50分",
+              "label": "学校を出る",
+              "after": "歩いて15分"
+            },
+            {
+              "time": "？",
+              "label": "図書館に着く",
+              "after": "本を読む40分"
+            },
+            {
+              "time": "？",
+              "label": "図書館を出る",
+              "after": "歩いて10分"
+            },
+            {
+              "time": "？",
+              "label": "公園に着く",
+              "after": ""
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 11004,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 1045,
+    "output_tokens_details": {
+      "thinking_tokens": 159
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

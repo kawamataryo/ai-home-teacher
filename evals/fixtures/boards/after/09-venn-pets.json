@@ -1,0 +1,60 @@
+{
+  "id": "09-venn-pets",
+  "title": "集合（どちらでもない人数）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "犬12人、ねこ9人、両方4人。犬だけ=12-4=8人、ねこだけ=9-4=5人。ペットを飼っている人=8+5+4=17人(または12+9-4=17)。飼っていない人=32-17=15人。答えは15人。",
+    "answer": "15人",
+    "answer_variants": [
+      "15",
+      "十五人",
+      "15にん"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題、最後に何人を答えればいいんだっけ？問題の最後の一文を読んで、自分の言葉で言ってみよう。",
+      "クラス全体は何人かな？その中で、犬を飼っている人・ねこを飼っている人・両方飼っている人は、それぞれ何人と書いてある？黒板のベン図で、どこがどの人数か見てみよう。",
+      "犬の12人の中には、ねこも飼っている人（両方）も入っているよね。ねこの9人にも両方の人が入っている。両方の人を2回数えていないかな？まず、犬だけ・ねこだけの人数を出してみよう。",
+      "犬だけの人は何人？ねこだけの人は何人？それに両方の4人を合わせると、ペットを飼っている人は全部で何人になる？それをクラス全体の32人からひくと、飼っていない人は…ということは？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "32人のクラスで、犬を飼っている人が12人、ねこを飼っている人が9人、両方飼っている人が4人。犬もねこも飼っていない人は何人か。"
+  },
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "どこが何人かな？",
+        "component": {
+          "type": "venn_diagram",
+          "universe_label": "クラス 32人",
+          "left_label": "犬 12人",
+          "left_only": "犬だけ ？人",
+          "right_label": "ねこ 9人",
+          "right_only": "ねこだけ ？人",
+          "both": "両方 4人",
+          "neither": "どちらも ？人"
+        }
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 11007,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 832,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

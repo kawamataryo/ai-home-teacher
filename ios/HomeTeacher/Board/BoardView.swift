@@ -46,6 +46,9 @@ struct BoardView: View {
             case .barChart(let m): BarChartView(model: m)
             case .highlightImage(let m): HighlightImageView(model: m)
             case .essayOutline(let m): EssayOutlineView(model: m)
+            case .vennDiagram(let m): VennDiagramView(model: m)
+            case .timeline(let m): BoardTimelineView(model: m)
+            case .percentBar(let m): PercentBarView(model: m)
             }
         case .svg(let board):
             SVGBoardView(board: board)

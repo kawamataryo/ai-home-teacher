@@ -1,0 +1,77 @@
+{
+  "id": "05-graph-library",
+  "title": "グラフの読み取り（前の月との比較）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "「前の月の何倍か」は、後の月 ÷ 前の月で求める（差ではなく倍）。5月：150÷120=1.25倍。6月：90÷150=0.6倍（へっている）。7月：180÷90=2倍。いちばん大きいのは7月。ふえた冊数（差）で見ると5月+30、7月+90で、こちらも7月だが、「倍」で聞かれていることを意識させる。つまずきやすい点：差と倍をまちがえる、6月は減っているので1より小さくなる、割る順番（前の月でわる）。",
+    "answer": "7月",
+    "answer_variants": [
+      "7月",
+      "七月",
+      "7月(2倍)",
+      "2倍"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題で聞かれているのは、「ふえた冊数」かな？それとも「何倍になったか」かな？最後の一文をもう一回読んで、自分の言葉で言ってみて。",
+      "黒板のグラフを見てね。5月・6月・7月、それぞれ「前の月」はどの月になるかな？たとえば6月の前の月はどこ？",
+      "「何倍」は、くらべる月の冊数が、前の月の冊数の何こ分かを考えるよ。わり算で考えられそう。どっちの数をどっちでわればいいかな？まず5月だけ、ためしてみよう。",
+      "5月は、前の月（4月）の何倍かな？式を立てて計算してみて。次に6月、7月も同じようにやってみよう。6月は前より減っているから、1より大きい？小さい？それぞれの倍を見くらべると、いちばん大きいのは…ということは？"
+    ],
+    "kind": "reading",
+    "problem_summary": "図書室で借りられた本の冊数（4月120冊、5月150冊、6月90冊、7月180冊）の表で、前の月の何倍になったかがいちばん大きい月を、5月・6月・7月から選ぶ。"
+  },
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "借りられた本の冊数",
+        "component": {
+          "type": "bar_chart",
+          "unit": "冊",
+          "bars": [
+            {
+              "label": "4月",
+              "value": 120,
+              "highlighted": false
+            },
+            {
+              "label": "5月",
+              "value": 150,
+              "highlighted": false
+            },
+            {
+              "label": "6月",
+              "value": 90,
+              "highlighted": false
+            },
+            {
+              "label": "7月",
+              "value": 180,
+              "highlighted": false
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 11024,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 1161,
+    "output_tokens_details": {
+      "thinking_tokens": 195
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

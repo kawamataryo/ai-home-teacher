@@ -81,7 +81,7 @@ export function resolveEndpoint(env) {
 
 // アプリの TeacherBrain.toolResultText / boardResultText と揃える。
 export const TOOL_RESULT_TEXT = "記録しました。子どもには伝えずに、会話を続けてください。";
-export const BOARD_RESULT_TEXT = "黒板に図を出しました（子どもに見えています）。図にふれるときは「黒板を見てね」とひと言そえてください。";
+export const BOARD_RESULT_TEXT = "黒板に図を出しました（子どもに見えています）。もう話したことはくり返さずに、図を見ながら答えられる短い問いかけを1つだけ言ってください。もう問いかけで終えていれば、何も言わなくてかまいません。";
 
 export function toolResultText(name) {
   return name === "show_board" || name === "render_svg" ? BOARD_RESULT_TEXT : TOOL_RESULT_TEXT;
@@ -94,7 +94,9 @@ export async function respond(call, body) {
   let reply = extractReply(first);
   const toolUses = extractToolUses(first);
   const toolBlocks = (first.content ?? []).filter((b) => b.type === "tool_use");
-  if (first.stop_reason === "tool_use" && toolBlocks.length > 0 && !reply.trim()) {
+  // アプリ（TeacherBrain）と同じく、言葉がないとき・黒板に図を出したときは続きを1回もらう
+  const shownBoard = toolBlocks.some((b) => b.name === "show_board");
+  if (first.stop_reason === "tool_use" && toolBlocks.length > 0 && (!reply.trim() || shownBoard)) {
     const next = await call({
       ...body,
       messages: [
@@ -106,7 +108,7 @@ export async function respond(call, body) {
         },
       ],
     });
-    reply = extractReply(next);
+    reply += extractReply(next);
     toolUses.push(...extractToolUses(next));
   }
   return { reply, toolUses };

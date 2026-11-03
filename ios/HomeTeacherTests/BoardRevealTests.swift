@@ -80,6 +80,50 @@ struct BoardRevealTests {
     }
 }
 
+/// #70 で足した部品（ベン図・時間の流れ・割合の帯図）。
+@MainActor
+struct NewBoardComponentTests {
+    @Test func 時間の流れはできごとを1つずつ見せる() {
+        let content = BoardSamples.content(.timeline)
+        #expect(content.revealUnits == 4)
+        #expect(BoardReveal(content: BoardSamples.content(.vennDiagram), pace: .sentence).isComplete)
+    }
+
+    @Test func 割合の帯図の幅は100に足りなければ空け超えたら縮める() {
+        #expect(PercentBarScale.widths([75, 25]) == [0.75, 0.25])
+        #expect(PercentBarScale.widths([30]) == [0.3])
+        #expect(PercentBarScale.widths([150, 50]) == [0.75, 0.25])
+        #expect(PercentBarScale.widths([-5, .nan, 50]) == [0, 0, 0.5])
+    }
+
+    @Test func 足りないキーがあっても読めて空なら文字にする() {
+        let venn = BoardTools.content(toolName: BoardTools.showBoardName,
+                                      input: Data(#"{"title":"t","component":{"type":"venn_diagram","left_label":"犬","right_label":"ねこ"}}"#.utf8))
+        guard case .component(_, .vennDiagram(let m)) = venn else {
+            Issue.record("ベン図として読めない: \(venn)")
+            return
+        }
+        #expect(m.both == "")
+        let empty = BoardTools.content(toolName: BoardTools.showBoardName,
+                                       input: Data(#"{"title":"t","component":{"type":"timeline","events":[]}}"#.utf8))
+        guard case .text = empty else {
+            Issue.record("空の時間の流れが部品になった")
+            return
+        }
+    }
+
+    @Test func 極端な値でも描ける() {
+        let hostile: [BoardContent] = [
+            .component(title: "", .vennDiagram(.init(universeLabel: "", leftLabel: "", leftOnly: "", rightLabel: "", rightOnly: "", both: "", neither: ""))),
+            .component(title: "", .timeline(.init(events: Array(repeating: .init(time: "？", label: String(repeating: "長い", count: 20), after: "x"), count: 9)))),
+            .component(title: "", .percentBar(.init(baseLabel: "", parts: [.init(percent: .infinity, label: "", amount: ""), .init(percent: -1, label: "", amount: "")]))),
+        ]
+        for content in hostile {
+            #expect(BoardSnapshot.render(content) != nil)
+        }
+    }
+}
+
 struct BoardLeakMaskTests {
     private let guardian = AnswerLeakGuard(answer: "24cm²", variants: ["24"])
 

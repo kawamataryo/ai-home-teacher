@@ -37,7 +37,7 @@ actor TeacherBrain {
     /// tool_result に入れる文。子どもには聞こえない。
     static let toolResultText = "記録しました。子どもには伝えずに、会話を続けてください。"
     /// 黒板に図を出したときの tool_result。
-    static let boardResultText = "黒板に図を出しました（子どもに見えています）。図にふれるときは「黒板を見てね」とひと言そえてください。"
+    static let boardResultText = "黒板に図を出しました（子どもに見えています）。もう話したことはくり返さずに、図を見ながら答えられる短い問いかけを1つだけ言ってください。もう問いかけで終えていれば、何も言わなくてかまいません。"
     /// 黒板の図を読めなかったときの tool_result。
     static let boardFailedText = "図を出せませんでした。黒板にはふれずに、言葉だけで会話を続けてください。"
 
@@ -161,7 +161,9 @@ actor TeacherBrain {
         while true {
             try Task.checkCancellation()
             let turn = try await streamOnce(makeRequest(), into: continuation)
-            guard turn.calledTools, !turn.spokeText, continuations < Self.maxToolContinuations else { return }
+            // 図を出したら、話していても続きを1回もらう（図を見ながらの問いかけで締める）。
+            // 続きのリクエストは、それまでの文を読み上げている間に走るので、待ち時間は増えない
+            guard turn.calledTools, !turn.spokeText || turn.shownBoard, continuations < Self.maxToolContinuations else { return }
             continuations += 1
         }
     }
@@ -169,6 +171,7 @@ actor TeacherBrain {
     private struct TurnResult {
         var spokeText = false
         var calledTools = false
+        var shownBoard = false
     }
 
     private func streamOnce(
@@ -198,7 +201,10 @@ actor TeacherBrain {
                     if BoardTools.isBoardTool(toolUse.name) {
                         for sentence in splitter.flush() { continuation.yield(.sentence(sentence)) }
                     }
-                    if let board = handle(toolUse) { continuation.yield(.board(board)) }
+                    if let board = handle(toolUse) {
+                        continuation.yield(.board(board))
+                        result.shownBoard = true
+                    }
                     result.calledTools = true
                 }
             case .error(let type, let message):

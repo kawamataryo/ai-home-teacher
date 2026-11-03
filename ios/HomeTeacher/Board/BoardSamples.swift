@@ -52,6 +52,22 @@ enum BoardSamples {
           {"heading":"なか","points":["川でカニをつかまえた","最初はこわかった","？（そのときの気持ち）"]},
           {"heading":"おわり","points":["また行きたい","？"]}]}}
         """,
+        .vennDiagram: """
+        {"title":"人数を円で分けよう","component":{"type":"venn_diagram","universe_label":"クラス 32人",
+          "left_label":"犬 12人","left_only":"犬だけ ？人","right_label":"ねこ 9人","right_only":"ねこだけ ？人",
+          "both":"両方 4人","neither":"どちらも ？人"}}
+        """,
+        .timeline: """
+        {"title":"時間の流れを順に見よう","component":{"type":"timeline","events":[
+          {"time":"3時50分","label":"学校を出る","after":"歩いて15分"},
+          {"time":"？","label":"図書館に着く","after":"本を読む40分"},
+          {"time":"？","label":"図書館を出る","after":"歩いて10分"},
+          {"time":"？","label":"公園に着く","after":""}]}}
+        """,
+        .percentBar: """
+        {"title":"25%引きを帯で見よう","component":{"type":"percent_bar","base_label":"もとの値段 1200円",
+          "parts":[{"percent":75,"label":"はらう分","amount":"？円"},{"percent":25,"label":"25%引き","amount":"？円"}]}}
+        """,
     ]
 
     static func content(_ kind: BoardComponent.Kind) -> BoardContent {
