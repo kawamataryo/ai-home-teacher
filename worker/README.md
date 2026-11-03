@@ -79,13 +79,14 @@ iPad アプリの API キーを守るための Cloudflare Worker。アプリは�
 }
 ```
 
-### `GET /v1/sessions?since=&limit=&child_id=`
+### `GET /v1/sessions?since=&limit=&child_id=&order=`
 
 - `since`（任意, ISO 8601）: サーバーが保存した時刻 `updated_at` がこれ以降のものだけ
 - `limit`（任意, 1〜200, 既定 50）
 - `child_id`（任意）
+- `order`（任意, `started` / `updated`, 既定 `started`）: `started` は `started_at` の新しい順、`updated` は `updated_at` の古い順
 
-`started_at` の新しい順。レスポンスは `{ "sessions": [<session と同じ形>], "server_time": "2026-11-03T07:45:00.000Z" }`。次の同期では `server_time` を `since` に渡せば、それ以降に保存されたものが取れる。
+既定は `started_at` の新しい順。アプリの同期は `order=updated&limit=200` で取り、200 件返ってきたら最後の `updated_at` を次の `since` にしてページ送りする（境目の重複は id で上書きするので問題ない）。レスポンスは `{ "sessions": [<session と同じ形>], "server_time": "2026-11-03T07:45:00.000Z" }`。次の同期では `server_time` を `since` に渡せば、それ以降に保存されたものが取れる。
 
 ### `GET /v1/memory?category=&child_id=`
 
