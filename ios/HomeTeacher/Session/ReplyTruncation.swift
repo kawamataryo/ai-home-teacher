@@ -16,13 +16,12 @@ struct SpokenSnapshot: Equatable, Sendable {
 /// 文に区切るとき（SentenceSplitter）に文と文の間の改行や空白が落ちるので、そのぶん位置がずれる。
 /// そこで、履歴の文字を先頭からたどり、話した文の文字と 1 つずつ突き合わせて位置を出す（空白は読み飛ばす）。
 enum ReplyTruncation {
-    /// 履歴の最後の先生の発言を何文字に切り詰めるか。切り詰めるものがなければ nil
+    /// 最後の返事（`ConversationHistory.lastReplyText`）を何文字に切り詰めるか。切り詰めるものがなければ nil
     ///
-    /// 最後のメッセージが先生の発言でないとき（まだ 1 文字も届いていない・ツールの結果が最後）は、
-    /// 最後の先生の発言は前の返事なので切らない（0 に切ると前の返事を消してしまう）。
-    static func targetCount(messages: [ChatMessage], spoken: SpokenSnapshot) -> Int? {
-        guard let last = messages.last, last.role == .assistant else { return nil }
-        let text = last.text
+    /// 図を出した返事は、図の前の文と続きの文が別のメッセージになる。どこで割り込まれても話したところで切れるよう、
+    /// 返事全体の文字をつなげて数える（#86）。まだ 1 文字も届いていなければ、前の返事は切らない。
+    static func targetCount(history: ConversationHistory, spoken: SpokenSnapshot) -> Int? {
+        let text = history.lastReplyText
         let count = characterCount(in: text, spoken: spoken)
         return count < text.count ? count : nil
     }
@@ -32,7 +31,7 @@ enum ReplyTruncation {
         let chars = Array(text)
         var cursor = 0
         for sentence in spoken.finished {
-            // 見つからない文（ツールの呼び出しをはさんで前のメッセージにある文など）は飛ばす
+            // 見つからない文（先に流した定型句など、履歴にない文）は飛ばす
             if let end = match(Array(sentence), in: chars, from: cursor) { cursor = end }
         }
         if let current = spoken.current, spoken.playedInCurrent > 0 {

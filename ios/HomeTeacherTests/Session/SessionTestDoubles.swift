@@ -17,6 +17,8 @@ actor RoutingTransport: HTTPTransport {
         case hang
         /// 途中まで返して、そのあと待ち続ける（ストリームの途中で割り込まれるところを再現する）
         case partial(String)
+        /// つながらない（オフラインなど）
+        case fail(URLError.Code)
     }
 
     private var routes: [String: [Reply]] = [:]
@@ -47,6 +49,8 @@ actor RoutingTransport: HTTPTransport {
         switch next(.data, request) {
         case .body(let status, let body):
             return (Data(body.utf8), http(request, status))
+        case .fail(let code):
+            throw URLError(code)
         case .hang, .partial:
             try await Task.sleep(for: .seconds(3600))
             throw CancellationError()
@@ -64,6 +68,8 @@ actor RoutingTransport: HTTPTransport {
         case .hang:
             hanging.append(continuation)
             return (stream, http(request, 200))
+        case .fail(let code):
+            throw URLError(code)
         case .partial(let body):
             for line in body.split(separator: "\n", omittingEmptySubsequences: true) { continuation.yield(String(line)) }
             hanging.append(continuation)
@@ -155,11 +161,12 @@ final class SessionHarness {
         answerJudge: (any AnswerJudging)? = nil,
         clock: ManualClock = ManualClock(),
         watchOver: (any WatchOverControlling)? = nil,
-        now: Date = Date(timeIntervalSince1970: 1_793_000_000)
+        now: Date = Date(timeIntervalSince1970: 1_793_000_000),
+        client: WorkerClient? = nil
     ) throws {
         self.clock = clock
         store = MemorySyncStore(base: try SwiftDataMemoryStore.inMemory(), stateStorage: InMemorySyncStateStorage())
-        let client = WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: transport)
+        let client = client ?? WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: transport)
         coordinator = StudySessionCoordinator(dependencies: .init(
             client: client, input: input, voice: voice, store: store, sync: sync, clock: clock,
             preferences: preferences, camera: camera, countdown: InstantCountdown(), now: { now }, answerJudge: answerJudge,
@@ -226,8 +233,12 @@ final class MockCamera: PhotoCapturing {
         self.size = size
     }
 
+    /// 準備で投げる（カメラが拒否されているなど）
+    var prepareError: (any Error)?
+
     func prepare(position: CameraPosition) async throws {
         preparedPositions.append(position)
+        if let prepareError { throw prepareError }
     }
 
     func capture() async throws -> UIImage {

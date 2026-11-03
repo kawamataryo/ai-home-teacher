@@ -34,28 +34,68 @@ struct ConversationHistory: Equatable, Sendable {
         }
     }
 
-    /// 割り込み用：最後の先生の発言を、実際に再生した位置（`Character` の数）で切り詰める。
+    /// 最後の返事の始まり（最後の子どもの発話の次のメッセージ）。子どもの発話がなければ先頭
     ///
-    /// ツールの呼び出しは残す。text が空になった block は消し、メッセージが空になったら
-    /// メッセージごと消す（API は空の text を受け付けない）。前後の子どもの発話はまとめ直す。
-    mutating func truncateLastAssistant(toCharacterCount count: Int) {
-        guard let index = messages.lastIndex(where: { $0.role == .assistant }) else { return }
+    /// 図を出した返事は「先生の文と tool_use」→「tool_result（user）」→「続きの文」と複数のメッセージになる。
+    /// tool_result だけの user メッセージは子どもの発話ではないので、返事の途中とみなす。
+    private var lastReplyStart: Int {
+        let lastUtterance = messages.lastIndex { message in
+            message.role == .user && message.content.contains { if case .text = $0 { true } else { false } }
+        }
+        return lastUtterance.map { $0 + 1 } ?? 0
+    }
+
+    /// 最後の返事で先生が話した文字（図をはさんだ前後の文をつなげたもの。ツールの呼び出しは含まない）。
+    /// まだ 1 文字も届いていなければ空
+    var lastReplyText: String {
+        messages[lastReplyStart...].filter { $0.role == .assistant }.map(\.text).joined()
+    }
+
+    /// 割り込み用：最後の返事を、実際に再生した位置（`lastReplyText` の `Character` の数）で切り詰める（#13, #86）。
+    ///
+    /// 図の前の文・続きの文をまたいで、先頭から数える。ツールの呼び出しと結果は残す（API は tool_use と
+    /// tool_result が対になっていないと受け付けない）。text が空になった block は消し、メッセージが空になったら
+    /// メッセージごと消す（API は空の text を受け付けない）。前後の同じ役割のメッセージはまとめ直す。
+    mutating func truncateLastReply(toCharacterCount count: Int) {
         var remaining = max(0, count)
-        var blocks: [ContentBlock] = []
-        for block in messages[index].content {
-            guard case .text(let text) = block else {
-                blocks.append(block)
+        var index = lastReplyStart
+        while index < messages.count {
+            guard messages[index].role == .assistant else {
+                index += 1
                 continue
             }
-            let kept = String(text.prefix(remaining))
-            remaining -= kept.count
-            if !kept.isEmpty { blocks.append(.text(kept)) }
+            var blocks: [ContentBlock] = []
+            for block in messages[index].content {
+                guard case .text(let text) = block else {
+                    blocks.append(block)
+                    continue
+                }
+                let kept = String(text.prefix(remaining))
+                remaining -= kept.count
+                if !kept.isEmpty { blocks.append(.text(kept)) }
+            }
+            if blocks.isEmpty {
+                messages.remove(at: index)
+            } else {
+                messages[index].content = blocks
+                index += 1
+            }
         }
-        if blocks.isEmpty {
-            messages.remove(at: index)
-            mergeAdjacentSameRole()
-        } else {
-            messages[index].content = blocks
+        mergeAdjacentSameRole()
+    }
+
+    /// 最後の返事のツールの結果を書き換える（対は崩さない）。`transform` はツールの名前と今の結果を受け取る
+    mutating func rewriteLastReplyToolResults(_ transform: (_ toolName: String, _ content: String) -> String) {
+        let start = lastReplyStart
+        var names: [String: String] = [:]
+        for message in messages[start...] where message.role == .assistant {
+            for case .toolUse(let id, let name, _) in message.content { names[id] = name }
+        }
+        for index in messages.indices where index >= start && messages[index].role == .user {
+            messages[index].content = messages[index].content.map { block in
+                guard case .toolResult(let id, let content) = block, let name = names[id] else { return block }
+                return .toolResult(toolUseID: id, content: transform(name, content))
+            }
         }
     }
 

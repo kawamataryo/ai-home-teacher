@@ -32,6 +32,19 @@ final class StudySessionCoordinator {
     struct Settings: Equatable, Sendable {
         var conversation = ConversationSettings()
         var timer = FocusTimerSettings()
+        var patience = Patience()
+    }
+
+    /// Worker / Claude をどこまで待つか（#66。固まらないように、一定時間で諦めて聞き直す）
+    struct Patience: Equatable, Sendable {
+        /// 返事の 1 文目がこれまでに届かなければ、定型句（ちょっと考えるね）でつなぐ
+        var replyFiller: Duration = .seconds(3)
+        /// 返事の流れがこの間止まったら諦める（1 文目まで・途中で止まったときの両方）
+        var replyGiveUp: Duration = .seconds(15)
+        /// 写真の分析（Sonnet）
+        var analysisGiveUp: Duration = .seconds(60)
+        /// ふり返り（Sonnet）。過ぎたら決まり文句でふり返る（セッションは保存する）
+        var reflectionGiveUp: Duration = .seconds(30)
     }
 
     /// 外から渡すもの。テストではモックに差し替える
@@ -74,6 +87,14 @@ final class StudySessionCoordinator {
     /// 写真を分析したあと、返事を作るときに子どもの発話のかわりに送る文
     static let photoShownTrigger = "（ノートの写真を先生に見せた）"
     static let captureFailedLine = "ごめん、うまく撮れなかった。もう一回見せてくれる？"
+    /// Worker / Claude につながらないとき（定型句。端末に音声があるのですぐ話せる）。このあとに聞き直す文を続ける
+    static let troubleLine = "ちょっと調子が悪いみたい。"
+    /// 返事の 1 文目が遅いときのつなぎ（定型句）
+    static let replyFiller = "ちょっと考えるね"
+    /// 写真を送れなかったとき（通信の失敗）
+    static let analysisOfflineLine = "写真は、あとでもう一回見せてね"
+    /// カメラが許可されていないのに「見て」と言われたとき
+    static let cameraDeniedLine = "ごめんね、カメラが使えないんだ。問題を声で読んでくれる？"
     static let analysisFailedLine = "ごめん、写真がよく見えなかった。もう一回撮ってみようか？"
 
     // MARK: - 画面に出すもの
@@ -89,6 +110,8 @@ final class StudySessionCoordinator {
     private(set) var sessionMode: SessionMode = .study
     private(set) var timer: FocusTimer?
     private(set) var statusMessage: String?
+    /// Worker / Claude につながらなかった理由（保護者向けの案内を画面に出す）。つながったら消す
+    private(set) var connectionProblem: ConnectionProblem?
     /// 撮影から分析までの間
     private(set) var isCapturing = false
     /// 撮る前のカウントダウンの数（3, 2, 1）
@@ -135,6 +158,8 @@ final class StudySessionCoordinator {
     @ObservationIgnored private var replyGeneration = 0
     /// 作っている途中・話している途中の返事の世代。なければ nil
     @ObservationIgnored private var inFlightReply: Int?
+    /// いまの返事の図を黒板に出したか（出す前に割り込まれたら、履歴の tool_result を「見せていない」にする）
+    @ObservationIgnored private var inFlightBoardShown = false
     /// 割り込まれた返事の履歴の切り詰め（次の返事はこれを待つ）
     @ObservationIgnored private var truncation: Task<Void, Never>?
     /// ConversationController に渡す声。いまの返事で何を話したかを数える
@@ -335,19 +360,25 @@ final class StudySessionCoordinator {
         let played = deps.voice.stop()
         let spoken = tracker.snapshot(playedInCurrent: played)
         tracker.invalidate()
+        let boardShown = inFlightBoardShown
         pendingEmotion = .neutral
         avatar.send(.userStartedSpeaking)
         guard let brain else { return true }
         let task = Task { [weak self] in
             await brain.cancel()
-            let messages = await brain.history.messages
-            guard let count = ReplyTruncation.targetCount(messages: messages, spoken: spoken) else { return }
-            await brain.truncateLastReply(toCharacterCount: count)
-            self?.trace("割り込まれたので履歴を \(count) 文字に切り詰めた（話し終えた文 \(spoken.finished.count)・途中の文 \(spoken.playedInCurrent) 文字）")
+            await Self.truncateDroppedReply(brain, spoken: spoken, boardShown: boardShown)
+            self?.trace("割り込まれたので履歴を切り詰めた（話し終えた文 \(spoken.finished.count)・途中の文 \(spoken.playedInCurrent) 文字・図 \(boardShown ? "見せた" : "見せていない")）")
         }
         truncation = task
         await task.value
         return true
+    }
+
+    /// 止めた返事の履歴を、話したところまでで切り詰める（図の前の文・続きの文をまたいで数える。#86）
+    private static func truncateDroppedReply(_ brain: TeacherBrain, spoken: SpokenSnapshot, boardShown: Bool) async {
+        if !boardShown { await brain.markLastReplyBoardsNotShown() }
+        guard let count = ReplyTruncation.targetCount(history: await brain.history, spoken: spoken) else { return }
+        await brain.truncateLastReply(toCharacterCount: count)
     }
 
     /// 返事を作り始める。1 文目が届くまでは考え中のまま
@@ -361,6 +392,7 @@ final class StudySessionCoordinator {
         let generation = replyGeneration
         // 割り込みが返事のタスクより先に来ても捨てられるよう、ここで印を付ける
         inFlightReply = generation
+        inFlightBoardShown = false
         replyTask = Task { [weak self] in
             await self?.runReply(to: text, fallback: fallback, generation: generation, captureCheck: captureCheck, cue: cue)
         }
@@ -375,7 +407,12 @@ final class StudySessionCoordinator {
         tracker.beginReply()
         let acceptedAt = deps.clock.now
         lastReplyLatency = nil
-        let stream = await brain.respondWithBoards(to: text)
+        let patience = settings.patience
+        let stream = ReplyWatchdog.watch(
+            await brain.respondWithBoards(to: text), clock: deps.clock,
+            // 定型句を先に流す返事（すごいじゃん！）は、もうつないでいる
+            fillerAfter: cue?.lead == nil ? patience.replyFiller : nil, giveUpAfter: patience.replyGiveUp
+        )
         let (sentences, continuation) = AsyncStream<String>.makeStream()
         var speakTask: Task<SpeakOutcome, Never>?
         var spoken: [String] = []
@@ -397,8 +434,31 @@ final class StudySessionCoordinator {
             continuation.yield(lead)
         }
         do {
-            for try await output in stream {
+            replyLoop: for try await event in stream {
                 guard generation == replyGeneration else { break }
+                let output: TeacherOutput
+                switch event {
+                case .filler:
+                    // 1 文目が遅い。撮影の依頼でなければ、定型句でつなぐ
+                    guard speakTask == nil else { continue }
+                    if let captureCheck, await captureCheck.value {
+                        wantsCapture = true
+                        break replyLoop
+                    }
+                    guard generation == replyGeneration else { break replyLoop }
+                    trace("1文目が遅いので定型句でつなぐ")
+                    pendingEmotion = .neutral
+                    speakTask = Task { await controller.speak(sentences) }
+                    if let board = pendingBoard {
+                        presentBoard(board, pace: .sentence)
+                        inFlightBoardShown = true
+                        pendingBoard = nil
+                    }
+                    continuation.yield(Self.replyFiller)
+                    continue
+                case .output(let next):
+                    output = next
+                }
                 let raw: String
                 switch output {
                 case .board(let content):
@@ -406,6 +466,7 @@ final class StudySessionCoordinator {
                         pendingBoard = content
                     } else {
                         presentBoard(content, pace: .sentence)
+                        inFlightBoardShown = true
                     }
                     continue
                 case .sentence(let text):
@@ -448,6 +509,7 @@ final class StudySessionCoordinator {
                     speakTask = Task { await controller.speak(sentences) }
                     if let board = pendingBoard {
                         presentBoard(board, pace: .sentence)
+                        inFlightBoardShown = true
                         pendingBoard = nil
                     }
                 }
@@ -468,10 +530,7 @@ final class StudySessionCoordinator {
             // 作りかけの返事は捨てて撮影へ（子どもの発話は履歴に残し、写真のあとにもう一度返事を作る）
             inFlightReply = nil
             await brain.cancel()
-            let messages = await brain.history.messages
-            if let count = ReplyTruncation.targetCount(messages: messages, spoken: SpokenSnapshot(finished: [], playedInCurrent: 0)) {
-                await brain.truncateLastReply(toCharacterCount: count)
-            }
+            await Self.truncateDroppedReply(brain, spoken: SpokenSnapshot(finished: [], playedInCurrent: 0), boardShown: false)
             trace("撮影の依頼とみなした")
             await runCapture()
             return
@@ -479,14 +538,21 @@ final class StudySessionCoordinator {
         if let blockedReplacement {
             // 残りの文（答えの説明が続きやすい）は話さない。履歴も差し替えた文にそろえる
             await brain.cancel()
-            let messages = await brain.history.messages
-            if let last = messages.last, last.role == .assistant {
-                let count = ReplyTruncation.characterCount(
-                    in: last.text, spoken: SpokenSnapshot(finished: originals, playedInCurrent: 0)
-                )
-                await brain.truncateLastReply(toCharacterCount: count)
-            }
+            await Self.truncateDroppedReply(
+                brain, spoken: SpokenSnapshot(finished: originals, playedInCurrent: 0), boardShown: inFlightBoardShown
+            )
             await brain.recordTeacherUtterance(blockedReplacement)
+        }
+
+        if let failure, generation == replyGeneration {
+            // つながらない・止まった。届いたけれど話していない文字（文の途中）は履歴から消す
+            let problem = ConnectionProblem(failure)
+            connectionProblem = problem
+            trace("Worker / Claude の失敗（\(problem)）: \(failure)")
+            await brain.cancel()
+            await Self.truncateDroppedReply(
+                brain, spoken: SpokenSnapshot(finished: originals, playedInCurrent: 0), boardShown: inFlightBoardShown
+            )
         }
 
         if speakTask == nil {
@@ -495,26 +561,40 @@ final class StudySessionCoordinator {
             if let board = pendingBoard { presentBoard(board, pace: .sentence) }
             lastReplyFromWorker = false
             trace("返事を作れなかった: \(failure.map { String(describing: $0) } ?? "空の返事")")
-            await brain.recordTeacherUtterance(fallback)
-            await controller.speak(fallback)
+            // つながらないときは端末の声で「調子が悪い」と伝えてから聞き直す（固まらない）
+            await speakFallback(failure == nil ? [fallback] : [Self.troubleLine, fallback])
             completedReplies += 1
             return
         }
-        if let failure { trace("返事の途中で止まった: \(failure)") }
-        lastReplyFromWorker = true
+        if failure == nil { connectionProblem = nil }
+        lastReplyFromWorker = failure == nil
         lastReplySentences = spoken
         lastReplyEmotion = emotion ?? .neutral
         addressingJudge?.teacherLastSaid = spoken.last
         let outcome = await speakTask?.value
         trace("返事（表情 \(lastReplyEmotion.rawValue)）: \(spoken.joined()) → \(outcome.map { "\($0)" } ?? "-")")
+        if failure != nil, outcome == .completed, generation == replyGeneration, phase == .active {
+            // 返事が途中で止まった。話せたところまで話してから聞き直す
+            await speakFallback([Self.troubleLine, Self.replyFallback])
+        }
         completedReplies += 1
+    }
+
+    /// 決まり文句を 1 回の発話として話し、履歴にも残す
+    private func speakFallback(_ lines: [String]) async {
+        guard let brain, let controller else { return }
+        for line in lines { await brain.recordTeacherUtterance(line) }
+        let (stream, continuation) = AsyncStream<String>.makeStream()
+        for line in lines { continuation.yield(line) }
+        continuation.finish()
+        await controller.speak(stream)
     }
 
     // MARK: - 撮影と問題の分析（#15）
 
     /// 「これ見て」などの撮影の依頼かを判定し始める。カメラがなければ判定しない
     private func captureCheck(for text: String) -> Task<Bool, Never>? {
-        guard let judge = captureJudge, deps.camera?.isAvailable == true, !isCapturing else { return nil }
+        guard let judge = captureJudge, canCapture, !isCapturing else { return nil }
         // 問題を見たあとの「わかんない」はヒントを求める発話。「見て」と言われたときだけ撮り直す
         if tutoring != nil, HelpRequestDetector.isHelpRequest(text),
            !CaptureRequestDetector.matches(text, patterns: Self.lookPhrases) {
@@ -550,7 +630,11 @@ final class StudySessionCoordinator {
             trace("撮影した（\(jpeg.count / 1024)KB）")
             let filler = Task { await controller.speak(Self.analysisFiller) }
             let analyzer = ProblemAnalyzer(client: deps.client, library: deps.library)
-            let result = try await analyzer.analyze(jpegData: jpeg, conversation: EmotionTag.strip(await brain.history.messages))
+            let conversation = EmotionTag.strip(await brain.history.messages)
+            // 返事が来ないまま撮影中で固まらないよう、一定時間で諦める（#66）
+            let result = try await Deadline.run(settings.patience.analysisGiveUp, clock: deps.clock) {
+                try await analyzer.analyze(jpegData: jpeg, conversation: conversation)
+            }
             _ = await filler.value
             await applyAnalysis(result)
             avatar.send(.lookAwayFromNotebook)
@@ -559,9 +643,17 @@ final class StudySessionCoordinator {
         } catch {
             avatar.send(.lookAwayFromNotebook)
             trace("撮影か分析に失敗: \(error)")
-            let line = error is CameraError ? Self.captureFailedLine : Self.analysisFailedLine
-            await brain.recordTeacherUtterance(line)
-            await controller.speak(line)
+            let lines: [String]
+            switch error {
+            case CameraError.unauthorized: lines = [Self.cameraDeniedLine]
+            case is CameraError: lines = [Self.captureFailedLine]
+            case is ProblemAnalyzerError: lines = [Self.analysisFailedLine]
+            default:
+                // 写真が悪いのではなく、つながらない
+                connectionProblem = ConnectionProblem(error)
+                lines = [Self.troubleLine, Self.analysisOfflineLine]
+            }
+            await speakFallback(lines)
         }
     }
 
@@ -680,7 +772,8 @@ final class StudySessionCoordinator {
             problems: problems,
             flags: await brain.sessionFlags
         )
-        let reflector = SessionReflector(client: deps.client, library: deps.library)
+        var reflector = SessionReflector(client: deps.client, library: deps.library)
+        reflector.reflectionTimeout = settings.patience.reflectionGiveUp
         let closing: String
         do {
             let finished = try await reflector.finish(input, store: deps.store, now: deps.now())

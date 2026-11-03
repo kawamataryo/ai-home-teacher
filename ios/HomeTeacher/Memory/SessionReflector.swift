@@ -68,6 +68,8 @@ struct SessionReflector: Sendable {
     let model: ClaudeModel
     let maxTokens: Int
     let timeZone: TimeZone
+    /// Claude を待つ上限（#66）。過ぎたら決まり文句でふり返る（セッションは保存する）。nil なら待ち続ける
+    var reflectionTimeout: Duration?
 
     init(
         client: WorkerClient,
@@ -92,7 +94,14 @@ struct SessionReflector: Sendable {
         let reflection: SessionReflection
         var reflectionError: String?
         do {
-            reflection = try await reflect(input, memories: memories)
+            if let reflectionTimeout {
+                let reflector = self
+                reflection = try await DecisionClient.withTimeout(reflectionTimeout) {
+                    try await reflector.reflect(input, memories: memories)
+                }
+            } else {
+                reflection = try await reflect(input, memories: memories)
+            }
         } catch {
             reflection = Self.fallback(for: input)
             reflectionError = String(describing: error)

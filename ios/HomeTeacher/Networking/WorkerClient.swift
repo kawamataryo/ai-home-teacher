@@ -47,6 +47,19 @@ enum WorkerError: Error, Equatable {
     /// 200 番台以外。Worker のエラーは JSON（例: {"error":"unauthorized"}）で返る。
     case http(status: Int, body: String)
     case invalidResponse
+    /// Worker の設定（Secrets.xcconfig の WORKER_BASE_URL / FAMILY_TOKEN）がない。通信せずにすぐ失敗する
+    case notConfigured
+}
+
+/// Worker の設定がないときの口。通信せずに `WorkerError.notConfigured` を投げる（#66。待たずに端末の声で話せる）
+struct UnconfiguredTransport: HTTPTransport {
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        throw WorkerError.notConfigured
+    }
+
+    func lines(for request: URLRequest) async throws -> (AsyncThrowingStream<String, Error>, HTTPURLResponse) {
+        throw WorkerError.notConfigured
+    }
 }
 
 /// Cloudflare Worker を呼ぶ共通クライアント。家族トークンを付けて POST する（同期 API 用に GET / PUT も）。
@@ -65,6 +78,11 @@ struct WorkerClient: Sendable {
     init(config: AppConfig, transport: any HTTPTransport = URLSessionTransport()) {
         self.init(baseURL: config.workerBaseURL, familyToken: config.familyToken, transport: transport)
     }
+
+    /// Worker の設定がないときのクライアント。どの呼び出しもすぐ `WorkerError.notConfigured` で失敗する
+    static let unconfigured = WorkerClient(
+        baseURL: URL(string: "http://localhost:8787")!, familyToken: "", transport: UnconfiguredTransport()
+    )
 
     /// `path` は "/v1/claude" のように先頭の / 付きで渡す。
     func makeRequest(path: String, body: Data, accept: String = "application/json") -> URLRequest {

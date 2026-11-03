@@ -19,7 +19,12 @@ struct SessionScreen: View {
         NavigationStack {
             Group {
                 if let coordinator = model.coordinator {
-                    SessionContent(coordinator: coordinator, lipSync: model.lipSync, audioStatus: model.audioStatus)
+                    SessionContent(
+                        coordinator: coordinator, lipSync: model.lipSync, audioStatus: model.audioStatus,
+                        permissionNotice: model.permissionNotice, isConfigured: model.services.config != nil
+                    )
+                } else if let onboarding = model.onboarding {
+                    PermissionOnboardingView(onboarding: onboarding, lipSync: model.lipSync)
                 } else {
                     ProgressView("準備中…")
                         .font(.title2)
@@ -79,12 +84,25 @@ private struct SessionContent: View {
     let coordinator: StudySessionCoordinator
     let lipSync: LipSyncPlayer
     let audioStatus: String
+    let permissionNotice: PermissionNotice?
+    let isConfigured: Bool
+
+    /// Worker につながらなかった理由。まだ呼んでいなくても、設定がなければ先に出す
+    private var connectionProblem: ConnectionProblem? {
+        coordinator.connectionProblem ?? (isConfigured ? nil : .notConfigured)
+    }
 
     var body: some View {
         GeometryReader { geometry in
             let isWide = geometry.size.width > geometry.size.height
             let layout = isWide ? AnyLayout(HStackLayout(spacing: 24)) : AnyLayout(VStackLayout(spacing: 24))
             VStack(spacing: 20) {
+                if let permissionNotice {
+                    ParentNoticeBanner(message: permissionNotice.parentMessage, opensSettings: true)
+                }
+                if let connectionProblem {
+                    ParentNoticeBanner(message: connectionProblem.parentMessage)
+                }
                 layout {
                     // 先生の大きさは固定し、黒板は残りに収める（中身が多くてもボタンを押し出さない）
                     teacherPanel

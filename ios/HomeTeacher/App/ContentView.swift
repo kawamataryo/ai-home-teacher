@@ -16,7 +16,10 @@ struct ContentView: View {
         } else if SessionSelfTest.isEnabled {
             SessionSelfTestView(services: services)
         } else {
-            SessionScreen(model: SessionAppModel(services: services), preview: SessionPreviewState.fromLaunchArguments())
+            SessionScreen(
+                model: SessionAppModel(services: services, permissions: FixedPermissions.fromLaunchArguments() ?? SystemPermissions()),
+                preview: SessionPreviewState.fromLaunchArguments()
+            )
         }
     }
 }

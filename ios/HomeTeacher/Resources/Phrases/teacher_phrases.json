@@ -12,5 +12,6 @@
   { "key": "mou_ikkai", "text": "もう一回言ってみて" },
   { "key": "chotto_misete", "text": "ちょっと見せて？" },
   { "key": "unun", "text": "うんうん" },
-  { "key": "chotto_matte", "text": "ちょっと考えるね" }
+  { "key": "chotto_matte", "text": "ちょっと考えるね" },
+  { "key": "choushi_warui", "text": "ちょっと調子が悪いみたい。" }
 ]
