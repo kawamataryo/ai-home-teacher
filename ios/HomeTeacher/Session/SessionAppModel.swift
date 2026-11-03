@@ -59,6 +59,7 @@ final class SessionAppModel {
     private(set) var audioStatus = "準備中…"
     private(set) var isMicrophoneAvailable = false
     let lipSync = LipSyncPlayer()
+    let preferences = SessionPreferences()
 
     @ObservationIgnored let services: AppServices
     @ObservationIgnored private var microphone: MicrophoneSpeechInput?
@@ -107,7 +108,8 @@ final class SessionAppModel {
             store: services.store,
             sync: services.sync,
             clock: clock,
-            decisions: services.decisions
+            decisions: services.decisions,
+            preferences: preferences
         ))
         self.coordinator = coordinator
         coordinator.listen()

@@ -14,6 +14,8 @@ actor RoutingTransport: HTTPTransport {
         case body(status: Int, String)
         /// 返さずに待ち続ける（通信中を再現する）
         case hang
+        /// 途中まで返して、そのあと待ち続ける（ストリームの途中で割り込まれるところを再現する）
+        case partial(String)
     }
 
     private var routes: [String: [Reply]] = [:]
@@ -44,7 +46,7 @@ actor RoutingTransport: HTTPTransport {
         switch next(.data, request) {
         case .body(let status, let body):
             return (Data(body.utf8), http(request, status))
-        case .hang:
+        case .hang, .partial:
             try await Task.sleep(for: .seconds(3600))
             throw CancellationError()
         }
@@ -59,6 +61,10 @@ actor RoutingTransport: HTTPTransport {
             continuation.finish()
             return (stream, http(request, status))
         case .hang:
+            hanging.append(continuation)
+            return (stream, http(request, 200))
+        case .partial(let body):
+            for line in body.split(separator: "\n", omittingEmptySubsequences: true) { continuation.yield(String(line)) }
             hanging.append(continuation)
             return (stream, http(request, 200))
         }
@@ -141,11 +147,16 @@ final class SessionHarness {
     let store: MemorySyncStore
     let coordinator: StudySessionCoordinator
 
-    init(settings: StudySessionCoordinator.Settings = .init(), now: Date = Date(timeIntervalSince1970: 1_793_000_000)) throws {
+    init(
+        settings: StudySessionCoordinator.Settings = .init(),
+        preferences: SessionPreferences? = nil,
+        now: Date = Date(timeIntervalSince1970: 1_793_000_000)
+    ) throws {
         store = MemorySyncStore(base: try SwiftDataMemoryStore.inMemory(), stateStorage: InMemorySyncStateStorage())
         let client = WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: transport)
         coordinator = StudySessionCoordinator(dependencies: .init(
-            client: client, input: input, voice: voice, store: store, sync: sync, clock: clock, now: { now }
+            client: client, input: input, voice: voice, store: store, sync: sync, clock: clock,
+            preferences: preferences, now: { now }
         ))
         coordinator.settings = settings
         coordinator.listen()
@@ -176,5 +187,21 @@ final class SessionHarness {
     /// 会話の Claude に送った本文
     func conversationRequests() async -> [[String: Any]] {
         await bodies(.lines, "/v1/claude")
+    }
+}
+
+extension SSEFixture {
+    /// 文字を流している途中（content_block_stop の前）までのストリーム
+    static func partialTextStream(_ deltas: [String]) -> String {
+        let full = textStream(deltas)
+        guard let range = full.range(of: "event: content_block_stop") else { return full }
+        return String(full[..<range.lowerBound])
+    }
+}
+
+extension SessionHarness {
+    /// 最後の先生の発言（履歴）
+    func lastAssistantText() async -> String? {
+        await coordinator.brain?.history.lastAssistantText
     }
 }
