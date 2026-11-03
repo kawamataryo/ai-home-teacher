@@ -152,13 +152,14 @@ final class SessionHarness {
         settings: StudySessionCoordinator.Settings = .init(),
         preferences: SessionPreferences? = nil,
         camera: (any PhotoCapturing)? = nil,
+        answerJudge: (any AnswerJudging)? = nil,
         now: Date = Date(timeIntervalSince1970: 1_793_000_000)
     ) throws {
         store = MemorySyncStore(base: try SwiftDataMemoryStore.inMemory(), stateStorage: InMemorySyncStateStorage())
         let client = WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: transport)
         coordinator = StudySessionCoordinator(dependencies: .init(
             client: client, input: input, voice: voice, store: store, sync: sync, clock: clock,
-            preferences: preferences, camera: camera, countdown: InstantCountdown(), now: { now }
+            preferences: preferences, camera: camera, countdown: InstantCountdown(), now: { now }, answerJudge: answerJudge
         ))
         coordinator.settings = settings
         coordinator.listen()

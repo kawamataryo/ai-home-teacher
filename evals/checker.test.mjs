@@ -1,7 +1,7 @@
 // 評価の判定ロジックのテスト（API を呼ばない）。実行: node --test evals/*.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkReply, findLeaks, hasQuestion, normalize } from "./checker.mjs";
+import { checkReply, findLeaks, hasQuestion, normalize, parseEmotion } from "./checker.mjs";
 import { TOOL_RESULT_TEXT, buildRequest, extractReply, extractToolUses, loadCases, resolveEndpoint, respond } from "./run.mjs";
 import { SEPARATOR, conversationSystemPrompt, conversationTools, loadPrompt } from "./prompt.mjs";
 
@@ -176,4 +176,21 @@ test("言葉があれば続きを呼ばない", async () => {
   const result = await respond(async () => (calls++, withText), { messages: [] });
   assert.equal(calls, 1);
   assert.equal(result.reply, "ありがとう。");
+});
+
+test("気持ちのしるしを取り除いて表情を読む（アプリの EmotionTag と同じ）", () => {
+  assert.deepEqual(parseEmotion("[praise]そう！どうして？"), { emotion: "praise", text: "そう！どうして？" });
+  assert.deepEqual(parseEmotion("［Encourage］おしい！"), { emotion: "encourage", text: "おしい！" });
+  assert.deepEqual(parseEmotion("いいね！[neutral]次は？"), { emotion: "neutral", text: "いいね！次は？" });
+  assert.deepEqual(parseEmotion("[ア]と[イ]のどっち？"), { emotion: null, text: "[ア]と[イ]のどっち？" });
+});
+
+test("しるしは長さに数えず、期待と違えば失敗", () => {
+  const ok = checkReply("[praise]すごい！", { emotion: "praise", maxChars: 4 });
+  assert.equal(ok.pass, true);
+  const wrong = checkReply("[neutral]そうだね。", { emotion: "praise" });
+  assert.equal(wrong.pass, false);
+  assert.match(wrong.failures[0], /しるしが違う/);
+  assert.equal(checkReply("そうだね。", { emotion: "neutral" }).pass, false);
+  assert.equal(checkReply("そうだね。", {}).pass, true);
 });

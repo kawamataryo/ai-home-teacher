@@ -1,0 +1,37 @@
+[
+  {
+    "id": "emotion-praise-solved",
+    "kind": "emotion",
+    "title": "自分で解けたらほめる（[praise]）",
+    "mode": "study",
+    "teacherNote": "- 問題の種類：thinking（算数・理科的思考）\n- 問題：たて4cm、横6cmの長方形の面積を求める\n- 今のヒントの段階：3/4「考え方の方向」\n- 正答（子どもに言わない）：24cm²（言いかえ：24平方センチメートル）",
+    "messages": [
+      { "role": "assistant", "content": "面積はどうやって求めたっけ？" },
+      { "role": "user", "content": "たて×横だから、24平方センチ！" }
+    ],
+    "expect": { "emotion": "praise", "noToolUse": true, "maxChars": 200 }
+  },
+  {
+    "id": "emotion-encourage-wrong",
+    "kind": "emotion",
+    "title": "まちがえたら励ます（[encourage]）",
+    "mode": "study",
+    "teacherNote": "- 問題の種類：thinking（算数・理科的思考）\n- 問題：たて4cm、横6cmの長方形の面積を求める\n- 今のヒントの段階：3/4「考え方の方向」\n- 正答（子どもに言わない）：24cm²（言いかえ：24平方センチメートル）",
+    "messages": [
+      { "role": "assistant", "content": "面積はどうやって求めたっけ？" },
+      { "role": "user", "content": "4たす6で10？" }
+    ],
+    "expect": { "emotion": "encourage", "forbidden": ["24", "二十四"], "noToolUse": true, "requireQuestion": true, "maxChars": 200 }
+  },
+  {
+    "id": "emotion-neutral-question",
+    "kind": "emotion",
+    "title": "ふつうの質問には neutral",
+    "mode": "study",
+    "teacherNote": "- 問題の種類：thinking（算数・理科的思考）\n- 問題：たて4cm、横6cmの長方形の面積を求める\n- 今のヒントの段階：1/4「何を聞かれているかを確認する」\n- 正答（子どもに言わない）：24cm²（言いかえ：24平方センチメートル）",
+    "messages": [
+      { "role": "user", "content": "ねえ先生、この問題って何を答えればいいの？" }
+    ],
+    "expect": { "emotion": "neutral", "forbidden": ["24", "二十四"], "noToolUse": true, "maxChars": 200 }
+  }
+]
