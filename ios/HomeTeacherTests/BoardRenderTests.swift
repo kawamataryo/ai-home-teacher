@@ -70,7 +70,9 @@ struct BoardRenderTests {
         let dir = URL(filePath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appending(path: "docs/screenshots")
+        // SVG は WKWebView なので ImageRenderer では描けない（SVGBoardTests で撮る）
         for entry in BoardGallery.entries {
+            if case .svg = entry.content { continue }
             let name = entry.name.hasPrefix("fallback") ? "fallback" : entry.name.replacingOccurrences(of: "_", with: "-")
             let image = try #require(BoardSnapshot.render(entry.content))
             try #require(image.pngData()).write(to: dir.appending(path: "board-\(name).png"))
