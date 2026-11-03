@@ -4,6 +4,7 @@ struct ContentView: View {
     let config: AppConfig?
 
     var body: some View {
+        NavigationStack {
         VStack(spacing: 24) {
             Text("AI家庭教師")
                 .font(.largeTitle.bold())
@@ -14,8 +15,10 @@ struct ContentView: View {
                 Label("Secrets.xcconfig が未設定です", systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.orange)
             }
+            NavigationLink("先生ギャラリー（デバッグ）") { AvatarGalleryView() }
         }
         .padding()
+        }
     }
 }
 
