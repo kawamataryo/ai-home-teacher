@@ -22,4 +22,18 @@ enum EmotionTag {
         let stripped = regex.stringByReplacingMatches(in: sentence, range: NSRange(location: 0, length: ns.length), withTemplate: "")
         return (emotion, stripped.trimmingCharacters(in: .whitespacesAndNewlines))
     }
+
+    /// 履歴からしるしを取り除く（ふり返り・問題の分析など、ほかのモデルに会話を渡すとき）。
+    /// 空になった text は消し、中身のなくなったメッセージも消す（API は空の text を受け付けない）
+    static func strip(_ messages: [ChatMessage]) -> [ChatMessage] {
+        messages.compactMap { message in
+            var copy = message
+            copy.content = message.content.compactMap { block in
+                guard case .text(let text) = block else { return block }
+                let stripped = strip(text).text
+                return stripped.isEmpty ? nil : .text(stripped)
+            }
+            return copy.content.isEmpty ? nil : copy
+        }
+    }
 }

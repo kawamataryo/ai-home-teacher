@@ -310,6 +310,7 @@ final class StudySessionCoordinator {
         let played = deps.voice.stop()
         let spoken = tracker.snapshot(playedInCurrent: played)
         tracker.invalidate()
+        pendingEmotion = .neutral
         avatar.send(.userStartedSpeaking)
         guard let brain else { return true }
         let task = Task { [weak self] in
@@ -495,7 +496,7 @@ final class StudySessionCoordinator {
             trace("撮影した（\(jpeg.count / 1024)KB）")
             let filler = Task { await controller.speak(Self.analysisFiller) }
             let analyzer = ProblemAnalyzer(client: deps.client, library: deps.library)
-            let result = try await analyzer.analyze(jpegData: jpeg, conversation: await brain.history.messages)
+            let result = try await analyzer.analyze(jpegData: jpeg, conversation: EmotionTag.strip(await brain.history.messages))
             _ = await filler.value
             await applyAnalysis(result)
             avatar.send(.lookAwayFromNotebook)
@@ -616,7 +617,7 @@ final class StudySessionCoordinator {
             startedAt: sessionStartedAt ?? deps.now(),
             endedAt: deps.now(),
             focusMinutes: focusMinutes,
-            transcript: await brain.history.messages,
+            transcript: EmotionTag.strip(await brain.history.messages),
             problems: problems,
             flags: await brain.sessionFlags
         )
@@ -631,7 +632,7 @@ final class StudySessionCoordinator {
             trace("セッションを保存できなかった: \(error)")
         }
         _ = await filler.value
-        await controller.speak(closing)
+        await controller.speak(EmotionTag.strip(closing).text)
 
         if let sync = deps.sync {
             let report = await sync.syncNow(reason: .sessionEnded)

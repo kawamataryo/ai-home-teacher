@@ -42,6 +42,18 @@ struct EmotionTagTests {
         #expect(EmotionTag.strip(sentences[0]).emotion == .praise)
     }
 
+    @Test func 履歴からしるしを取り除く() {
+        let messages = [
+            ChatMessage(role: .user, content: [.text("24！")]),
+            ChatMessage(role: .assistant, content: [.text("[praise]そう！"), .toolUse(id: "t", name: "x", input: .object([:]))]),
+            ChatMessage(role: .assistant, content: [.text("[neutral]")]),
+        ]
+        let stripped = EmotionTag.strip(messages)
+        #expect(stripped.count == 2)
+        #expect(stripped[1].text == "そう！")
+        #expect(stripped[1].content.count == 2)
+    }
+
     @Test func しるしの残った履歴でも話したところまでで切り詰められる() {
         // 履歴にはしるしが残り、読み上げた文にはない。突き合わせはしるしを読み飛ばす
         let history = "[praise]そう！どうしてそう思った？"

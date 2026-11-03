@@ -68,6 +68,25 @@ struct AnswerFlowTests {
         #expect(h.coordinator.lastReplyEmotion == .neutral)
     }
 
+    @Test func ふり返りにはしるしを渡さず読み上げない() async throws {
+        let h = try SessionHarness()
+        await startSession(h)
+        await turn(h, "ねえ先生、たてと横をかけるんだ", reply: ["[praise]そう！"])
+        await h.transport.enqueue(.data, "/v1/claude", body: SessionReflectorTests.response(closing: "[praise]今日もよくがんばったね！"))
+
+        await h.say("終わり")
+        #expect(await eventually(timeout: .seconds(5)) { h.coordinator.phase == .idle })
+        let reflection = try #require(await h.transport.bodyData(.data, "/v1/claude").first)
+        // 会話（messages）にはしるしを入れない（システムプロンプトの teacher.md にはしるしの説明がある）
+        let object = try #require(try JSONSerialization.jsonObject(with: reflection) as? [String: Any])
+        let messages = try JSONSerialization.data(withJSONObject: object["messages"] ?? [])
+        let body = String(decoding: messages, as: UTF8.self)
+        #expect(body.contains("そう！"))
+        #expect(!body.contains("[praise]"))
+        #expect(!body.contains("[neutral]"))
+        #expect(h.voice.spoken.last == "今日もよくがんばったね！")
+    }
+
     // MARK: - 答えの判定
 
     @Test func 違う答えを2回で次のヒントへ進めて励まし正しい答えでほめる() async throws {
