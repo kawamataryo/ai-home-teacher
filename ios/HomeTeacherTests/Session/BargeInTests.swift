@@ -34,21 +34,22 @@ struct ReplyTruncationTests {
 
     @Test func 最後が先生の発言でなければ切らない() {
         // まだ 1 文字も届いていない（最後は子どもの発話）。最後の先生の発言は前の返事なので残す
-        let messages = [
-            ChatMessage(role: .assistant, content: [.text("こんにちは！")]),
-            ChatMessage(role: .user, content: [.text("ねえ先生")]),
-        ]
-        #expect(ReplyTruncation.targetCount(messages: messages, spoken: snapshot([])) == nil)
+        var history = ConversationHistory()
+        history.appendAssistantText("こんにちは！")
+        history.appendUser("ねえ先生")
+        #expect(ReplyTruncation.targetCount(history: history, spoken: snapshot([])) == nil)
     }
 
     @Test func 全部話していたら切らない() {
-        let messages = [ChatMessage(role: .assistant, content: [.text("うん。そうそう。")])]
-        #expect(ReplyTruncation.targetCount(messages: messages, spoken: snapshot(["うん。", "そうそう。"])) == nil)
-        #expect(ReplyTruncation.targetCount(messages: messages, spoken: snapshot(["うん。"])) == 3)
+        var history = ConversationHistory()
+        history.appendUser("ねえ")
+        history.appendAssistantText("うん。そうそう。")
+        #expect(ReplyTruncation.targetCount(history: history, spoken: snapshot(["うん。", "そうそう。"])) == nil)
+        #expect(ReplyTruncation.targetCount(history: history, spoken: snapshot(["うん。"])) == 3)
     }
 
-    @Test func 最後のメッセージにない文は飛ばす() {
-        // ツールの呼び出しをはさむと、先に話した文は前のメッセージにある
+    @Test func 履歴にない文は飛ばす() {
+        // 先に流した定型句など、履歴にない文は読み飛ばす
         let text = "大丈夫だよ。ゆっくりでいいからね。"
         let spoken = snapshot(["そっか。", "大丈夫だよ。"], current: "ゆっくりでいいからね。", played: 3)
         #expect(ReplyTruncation.characterCount(in: text, spoken: spoken) == 9)

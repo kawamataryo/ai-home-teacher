@@ -135,6 +135,8 @@ final class StudySessionCoordinator {
     @ObservationIgnored private var replyGeneration = 0
     /// 作っている途中・話している途中の返事の世代。なければ nil
     @ObservationIgnored private var inFlightReply: Int?
+    /// いまの返事の図を黒板に出したか（出す前に割り込まれたら、履歴の tool_result を「見せていない」にする）
+    @ObservationIgnored private var inFlightBoardShown = false
     /// 割り込まれた返事の履歴の切り詰め（次の返事はこれを待つ）
     @ObservationIgnored private var truncation: Task<Void, Never>?
     /// ConversationController に渡す声。いまの返事で何を話したかを数える
@@ -327,19 +329,25 @@ final class StudySessionCoordinator {
         let played = deps.voice.stop()
         let spoken = tracker.snapshot(playedInCurrent: played)
         tracker.invalidate()
+        let boardShown = inFlightBoardShown
         pendingEmotion = .neutral
         avatar.send(.userStartedSpeaking)
         guard let brain else { return true }
         let task = Task { [weak self] in
             await brain.cancel()
-            let messages = await brain.history.messages
-            guard let count = ReplyTruncation.targetCount(messages: messages, spoken: spoken) else { return }
-            await brain.truncateLastReply(toCharacterCount: count)
-            self?.trace("割り込まれたので履歴を \(count) 文字に切り詰めた（話し終えた文 \(spoken.finished.count)・途中の文 \(spoken.playedInCurrent) 文字）")
+            await Self.truncateDroppedReply(brain, spoken: spoken, boardShown: boardShown)
+            self?.trace("割り込まれたので履歴を切り詰めた（話し終えた文 \(spoken.finished.count)・途中の文 \(spoken.playedInCurrent) 文字・図 \(boardShown ? "見せた" : "見せていない")）")
         }
         truncation = task
         await task.value
         return true
+    }
+
+    /// 止めた返事の履歴を、話したところまでで切り詰める（図の前の文・続きの文をまたいで数える。#86）
+    private static func truncateDroppedReply(_ brain: TeacherBrain, spoken: SpokenSnapshot, boardShown: Bool) async {
+        if !boardShown { await brain.markLastReplyBoardsNotShown() }
+        guard let count = ReplyTruncation.targetCount(history: await brain.history, spoken: spoken) else { return }
+        await brain.truncateLastReply(toCharacterCount: count)
     }
 
     /// 返事を作り始める。1 文目が届くまでは考え中のまま
@@ -353,6 +361,7 @@ final class StudySessionCoordinator {
         let generation = replyGeneration
         // 割り込みが返事のタスクより先に来ても捨てられるよう、ここで印を付ける
         inFlightReply = generation
+        inFlightBoardShown = false
         replyTask = Task { [weak self] in
             await self?.runReply(to: text, fallback: fallback, generation: generation, captureCheck: captureCheck, cue: cue)
         }
@@ -398,6 +407,7 @@ final class StudySessionCoordinator {
                         pendingBoard = content
                     } else {
                         presentBoard(content, pace: .sentence)
+                        inFlightBoardShown = true
                     }
                     continue
                 case .sentence(let text):
@@ -440,6 +450,7 @@ final class StudySessionCoordinator {
                     speakTask = Task { await controller.speak(sentences) }
                     if let board = pendingBoard {
                         presentBoard(board, pace: .sentence)
+                        inFlightBoardShown = true
                         pendingBoard = nil
                     }
                 }
@@ -460,10 +471,7 @@ final class StudySessionCoordinator {
             // 作りかけの返事は捨てて撮影へ（子どもの発話は履歴に残し、写真のあとにもう一度返事を作る）
             inFlightReply = nil
             await brain.cancel()
-            let messages = await brain.history.messages
-            if let count = ReplyTruncation.targetCount(messages: messages, spoken: SpokenSnapshot(finished: [], playedInCurrent: 0)) {
-                await brain.truncateLastReply(toCharacterCount: count)
-            }
+            await Self.truncateDroppedReply(brain, spoken: SpokenSnapshot(finished: [], playedInCurrent: 0), boardShown: false)
             trace("撮影の依頼とみなした")
             await runCapture()
             return
@@ -471,13 +479,9 @@ final class StudySessionCoordinator {
         if let blockedReplacement {
             // 残りの文（答えの説明が続きやすい）は話さない。履歴も差し替えた文にそろえる
             await brain.cancel()
-            let messages = await brain.history.messages
-            if let last = messages.last, last.role == .assistant {
-                let count = ReplyTruncation.characterCount(
-                    in: last.text, spoken: SpokenSnapshot(finished: originals, playedInCurrent: 0)
-                )
-                await brain.truncateLastReply(toCharacterCount: count)
-            }
+            await Self.truncateDroppedReply(
+                brain, spoken: SpokenSnapshot(finished: originals, playedInCurrent: 0), boardShown: inFlightBoardShown
+            )
             await brain.recordTeacherUtterance(blockedReplacement)
         }
 

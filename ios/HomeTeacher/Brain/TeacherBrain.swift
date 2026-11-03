@@ -38,6 +38,8 @@ actor TeacherBrain {
     static let toolResultText = "記録しました。子どもには伝えずに、会話を続けてください。"
     /// 黒板に図を出したときの tool_result。
     static let boardResultText = "黒板に図を出しました（子どもに見えています）。もう話したことはくり返さずに、図を見ながら答えられる短い問いかけを1つだけ言ってください。もう問いかけで終えていれば、何も言わなくてかまいません。"
+    /// 図を見せる前に子どもが話し始めて、返事を止めたときの tool_result（割り込みのあとで書き換える）。
+    static let boardNotShownText = "図を見せる前に子どもが話し始めたので、図は出していません。黒板にはふれずに会話を続けてください。"
     /// 黒板の図を読めなかったときの tool_result。
     static let boardFailedText = "図を出せませんでした。黒板にはふれずに、言葉だけで会話を続けてください。"
 
@@ -119,9 +121,17 @@ actor TeacherBrain {
         currentTask = nil
     }
 
-    /// 割り込み用：最後の先生の発言を、実際に再生した文字数で切り詰める。
+    /// 割り込み用：最後の返事を、実際に再生した文字数で切り詰める（図をはさんだ前後の文をまたいで数える）。
     func truncateLastReply(toCharacterCount count: Int) {
-        history.truncateLastAssistant(toCharacterCount: count)
+        history.truncateLastReply(toCharacterCount: count)
+    }
+
+    /// 割り込み用：最後の返事の図を、子どもに見せる前に止めた。tool_result を「見せていない」に書き換える
+    /// （tool_use は消さずに対を保つ。「黒板に図を出しました」のままだと、次の返事が見えていない図の話をする）
+    func markLastReplyBoardsNotShown() {
+        history.rewriteLastReplyToolResults { name, content in
+            BoardTools.isBoardTool(name) && content == Self.boardResultText ? Self.boardNotShownText : content
+        }
     }
 
     /// 先生から話しかけた発言（定型句・時間での声かけなど）を履歴に残す。
