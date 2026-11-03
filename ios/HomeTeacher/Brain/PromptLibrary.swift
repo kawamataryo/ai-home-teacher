@@ -12,6 +12,10 @@ enum PromptName: String, CaseIterable, Sendable {
     case boardCatalog = "board_catalog"
     /// 雑談と、いまの状況（勉強中 / 休憩中）（spec §3④）
     case smallTalk = "small_talk"
+    /// 始まり：前回のこと（前回の要約と記憶）の使い方（spec §3④）
+    case opening
+    /// 終わり：ふり返りと記憶の作り方（SessionReflector）（spec §3④）
+    case reflection
 }
 
 /// 学習セッションの今の状態。プロンプトの `{{session_mode}}` に入る。
@@ -64,15 +68,20 @@ struct PromptLibrary: Sendable {
     static let separator = "\n\n---\n\n"
 
     /// 会話（Haiku）用のシステムプロンプト。teacher → hint_ladder → safety → small_talk の順につなぎ、
+    /// 前回のこと（OpeningPromptBuilder が作る。opening.md に差し込む）があれば足し、
     /// 先生のメモ（Sonnet の分析結果。正答を含む）があれば最後に足す。
     /// 組み立て方を変えたら evals/prompt.mjs も合わせる。
     func conversationSystemPrompt(
         mode: SessionMode = .study,
         teacherNote: String? = nil,
+        previousSession: String? = nil,
         variables: [String: String] = [:]
     ) throws -> String {
         let vars = variables.merging(["session_mode": mode.label]) { _, new in new }
         var parts = try Self.conversationParts.map { try load($0, variables: vars) }
+        if let previous = previousSession?.trimmingCharacters(in: .whitespacesAndNewlines), !previous.isEmpty {
+            parts.append(try load(.opening, variables: vars.merging(["previous_session": previous]) { _, new in new }))
+        }
         if let note = teacherNote?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
             parts.append(Self.teacherNoteSection(note))
         }
