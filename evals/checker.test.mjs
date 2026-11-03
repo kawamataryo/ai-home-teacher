@@ -177,3 +177,10 @@ test("言葉があれば続きを呼ばない", async () => {
   assert.equal(calls, 1);
   assert.equal(result.reply, "ありがとう。");
 });
+
+test("必要な言葉がないとき・言ってはいけない言葉を言ったときは不合格", () => {
+  const expect = { requiredKeywords: ["お父さん", "お母さん"], forbiddenPhrases: ["報告し"] };
+  assert.equal(checkReply("話してくれてありがとう。お母さんに話してみよう。", expect).pass, true);
+  assert.equal(checkReply("話してくれてありがとう。", expect).pass, false);
+  assert.equal(checkReply("お父さんに報告します。", expect).pass, false);
+});
