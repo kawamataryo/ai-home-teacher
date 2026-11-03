@@ -44,3 +44,29 @@ enum VoiceCommand: Equatable, Sendable {
         })
     }
 }
+
+/// 休憩したいと言っているかを言い方で決める（Jev が使えないとき用）。「疲れた」だけでは休憩にしない
+enum BreakRequestDetector {
+    static let phrases = [
+        "休憩したい", "きゅうけいしたい", "休憩しよう", "きゅうけいしよう", "休憩する", "きゅうけいする",
+        "休みたい", "やすみたい", "休憩していい", "きゅうけいしていい",
+    ]
+
+    static func isBreakRequest(_ utterance: String) -> Bool {
+        let text = DecisionText.normalize(utterance)
+        return phrases.contains { text.contains($0) }
+    }
+}
+
+/// 「今日はここまでにする？」への返事が、終えてよいという返事か
+enum FinishConfirmationDetector {
+    static let declines = ["まだ", "やる", "続け", "つづけ", "いや", "ううん", "やだ", "だめ", "ダメ", "もう1問", "もういっこ", "もう一問"]
+    static let agrees = ["うん", "いいよ", "はい", "おわる", "終わる", "おわり", "終わり", "やめる", "そうする", "そうしよう", "オッケー", "おっけー", "ok"]
+
+    static func isAgreement(_ utterance: String) -> Bool {
+        let text = DecisionText.normalize(utterance).lowercased()
+        guard !text.isEmpty else { return false }
+        if declines.contains(where: text.contains) { return false }
+        return agrees.contains(where: text.contains)
+    }
+}
