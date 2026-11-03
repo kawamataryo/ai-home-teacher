@@ -3,7 +3,7 @@ import Foundation
 // Worker の同期 API（worker/README.md「同期 API」）とやりとりする形。
 // サーバーの入力は .strict() なので、サーバーが付けるフィールド（updated_at、problems[].id）は送らない。
 
-// ProblemKind と MemoryCategory は Memory/MemoryModels.swift のものを使う（rawValue は同期 API と同じ）。
+// ProblemKind は Shared/ProblemKind.swift、MemoryCategory は Memory/MemoryModels.swift のものを使う（rawValue は同期 API と同じ）。
 
 /// セッションで取り組んだ1問。
 struct ProblemDTO: Codable, Equatable, Sendable {
