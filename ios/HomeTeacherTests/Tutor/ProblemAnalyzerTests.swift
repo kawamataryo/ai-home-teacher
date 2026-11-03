@@ -60,8 +60,8 @@ struct ProblemAnalyzerTests {
         #expect(body["thinking"] == nil)
 
         let toolChoice = try #require(body["tool_choice"] as? [String: Any])
-        #expect(toolChoice["type"] as? String == "tool")
-        #expect(toolChoice["name"] as? String == "report_analysis")
+        // いまのモデルはツールの強制（type: tool / any）を受け付けないので auto
+        #expect(toolChoice["type"] as? String == "auto")
 
         let tools = try #require(body["tools"] as? [[String: Any]])
         #expect(tools.map { $0["name"] as? String } == ["report_analysis", "show_board", "render_svg"])
@@ -206,6 +206,24 @@ struct ProblemAnalyzerTests {
             title: "考える順番",
             .stepCards(StepCards(steps: [.init(heading: "何を聞かれている？", detail: "面積")]))
         )])
+    }
+
+    @Test func report_analysisを呼ばなかったら1回だけやり直す() async throws {
+        let textOnly = Self.response(blocks: [#"{"type":"text","text":"この問題は面積の問題です"}"#], stopReason: "end_turn")
+        let withTool = Self.response(blocks: [Self.toolUse("report_analysis", Self.thinkingInput)])
+        let transport = MockTransport(responses: [.init(status: 200, body: textOnly), .init(status: 200, body: withTool)])
+        let result = try await makeAnalyzer(transport).analyze(jpegData: Self.jpeg)
+        #expect(result.analysis.kind == .thinking)
+        #expect(await transport.requests.count == 2)
+    }
+
+    @Test func やり直しても呼ばなければエラー() async throws {
+        let textOnly = Self.response(blocks: [#"{"type":"text","text":"すみません"}"#], stopReason: "end_turn")
+        let transport = MockTransport(responses: [.init(status: 200, body: textOnly), .init(status: 200, body: textOnly)])
+        await #expect(throws: ProblemAnalyzerError.missingAnalysis) {
+            try await makeAnalyzer(transport).analyze(jpegData: Self.jpeg)
+        }
+        #expect(await transport.requests.count == 2)
     }
 
     @Test func report_analysisがなければエラー() {
