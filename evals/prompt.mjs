@@ -27,12 +27,15 @@ export function teacherNoteSection(note) {
   return `# 先生のメモ（子どもには見せない・読み上げない）\n\n${note}`;
 }
 
-// teacher → hint_ladder → safety → small_talk の順。先生のメモがあれば最後に足す。
-export function conversationSystemPrompt({ mode = "study", teacherNote, variables = {} } = {}) {
+// teacher → hint_ladder → safety → small_talk の順。前回のこと（opening.md に差し込む）があれば足し、
+// 先生のメモがあれば最後に足す。
+export function conversationSystemPrompt({ mode = "study", teacherNote, previousSession, variables = {} } = {}) {
   const label = SESSION_MODE_LABELS[mode];
   if (!label) throw new Error(`未知のモード: ${mode}`);
   const vars = { ...variables, session_mode: label };
   const parts = CONVERSATION_PARTS.map((name) => loadPrompt(name, vars));
+  const previous = previousSession?.trim();
+  if (previous) parts.push(loadPrompt("opening", { ...vars, previous_session: previous }));
   const note = teacherNote?.trim();
   if (note) parts.push(teacherNoteSection(note));
   return parts.join(SEPARATOR);
