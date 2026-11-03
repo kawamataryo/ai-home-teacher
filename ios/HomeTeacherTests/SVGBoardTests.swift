@@ -27,6 +27,9 @@ struct SVGSanitizerTests {
         (#"<animate attributeName="href" to="javascript:alert(1)"/>"#, "javascript"),
         (#"<set attributeName="onclick" to="alert(1)"/>"#, "alert"),
         (#"<iframe src="https://example.com"></iframe>"#, "example.com"),
+        (#"<style>&#64;import "https://example.com/a.css";</style>"#, "example.com"),
+        (#"<style>rect{fill:u&#114;l(https://example.com/p)}</style>"#, "example.com"),
+        (#"<style><![CDATA[@imp]]>ort url(https://example.com/a.css);</style>"#, "example.com"),
     ])
     func 危険な部分は取り除かれる(body: String, forbidden: String) throws {
         let result = try sanitized(body)

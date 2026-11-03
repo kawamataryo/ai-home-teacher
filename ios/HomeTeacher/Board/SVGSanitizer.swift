@@ -92,6 +92,8 @@ enum SVGSanitizer {
         /// 取り除いている要素の深さ（0 なら出力中）。
         private var skipDepth = 0
         private var stack: [String] = []
+        /// style 要素の中身。文字は分割して届く（&#64; などの参照ごとに切れる）ので、閉じたときにまとめて検査する。
+        private var styleBuffer = ""
 
         func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?,
                     qualifiedName: String?, attributes: [String: String] = [:]) {
@@ -118,6 +120,14 @@ enum SVGSanitizer {
         func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName: String?) {
             if skipDepth > 0 { skipDepth -= 1; return }
             stack.removeLast()
+            if name == "style" {
+                if SVGSanitizer.isSafeCSS(styleBuffer) {
+                    output += Self.escape(styleBuffer)
+                } else {
+                    removed.append("<style> の中身")
+                }
+                styleBuffer = ""
+            }
             output += "</\(name)>"
         }
 
@@ -131,8 +141,8 @@ enum SVGSanitizer {
 
         private func appendText(_ text: String) {
             guard skipDepth == 0, !stack.isEmpty else { return }
-            if stack.last == "style", !SVGSanitizer.isSafeCSS(text) {
-                removed.append("<style> の中身")
+            if stack.contains("style") {
+                styleBuffer += text
                 return
             }
             output += Self.escape(text)
