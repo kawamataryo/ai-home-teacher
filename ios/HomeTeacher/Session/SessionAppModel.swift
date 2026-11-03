@@ -63,6 +63,8 @@ final class SessionAppModel: AudioEngineLeaseHolder {
     private(set) var isMicrophoneAvailable = false
     let lipSync = LipSyncPlayer()
     let preferences = SessionPreferences()
+    /// 見守り（#30）。画面の「見守りカメラ オン」に使う。台本の発話のときは自己テストが渡したものだけ
+    private(set) var watchOver: WatchOver?
 
     @ObservationIgnored let services: AppServices
     @ObservationIgnored private var microphone: MicrophoneSpeechInput?
@@ -76,7 +78,9 @@ final class SessionAppModel: AudioEngineLeaseHolder {
     }
 
     /// マイクと先生の声を用意して、まとめ役を作る。`scriptedInput` を渡すとマイクを使わない（自己テスト・表示確認）
-    func prepare(scriptedInput: ScriptedSpeechInput? = nil, clock: any ConversationClock = SystemConversationClock()) async {
+    func prepare(
+        scriptedInput: ScriptedSpeechInput? = nil, clock: any ConversationClock = SystemConversationClock(), watchOver: WatchOver? = nil
+    ) async {
         guard coordinator == nil else { return }
         let input: any SpeechInput
         let player: any SpeechAudioPlayer
@@ -113,6 +117,11 @@ final class SessionAppModel: AudioEngineLeaseHolder {
             lipSync: lipSync,
             phraseCache: try? PhraseCache()
         )
+        // 見守りは前のカメラ（ActivityWatcher）。「見て」の撮影の前後で見守りのカメラを止めて戻す
+        var camera: (any PhotoCapturing)? = scriptedInput == nil ? CameraCapture() : nil
+        let watching = watchOver ?? (scriptedInput == nil ? makeWatchOver(clock: clock) : nil)
+        if let watching, let base = camera { camera = WatchAwarePhotoCapture(base: base, watchOver: watching) }
+        self.watchOver = watching
         let coordinator = StudySessionCoordinator(dependencies: .init(
             client: services.client,
             input: input,
@@ -123,12 +132,22 @@ final class SessionAppModel: AudioEngineLeaseHolder {
             decisions: services.decisions,
             preferences: preferences,
             // 自己テスト・表示確認（台本の発話）のときはカメラを使わない
-            camera: scriptedInput == nil ? CameraCapture() : nil,
-            countdown: SystemSoundCountdown()
+            camera: camera,
+            countdown: SystemSoundCountdown(),
+            watchOver: watching
         ))
         self.coordinator = coordinator
         audioMonitor?.session = coordinator
         coordinator.listen()
+    }
+
+    private func makeWatchOver(clock: any ConversationClock) -> WatchOver {
+        let preferences = preferences
+        return WatchOver(
+            watcher: ActivityWatcher(), clock: clock,
+            configuration: { preferences.watchOverConfiguration },
+            makeJudge: WatchOver.judgeFactory(decisions: services.decisions)
+        )
     }
 
     // MARK: - 音声の中断・貸し出し（#75）

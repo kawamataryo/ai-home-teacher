@@ -53,6 +53,8 @@ final class StudySessionCoordinator {
         var now: @Sendable () -> Date = { Date() }
         /// 子どもの答えの判定（#73）。nil なら `decisions` で `AnswerJudge` を作る
         var answerJudge: (any AnswerJudging)?
+        /// 見守り（#30）。nil なら見守らない
+        var watchOver: (any WatchOverControlling)?
     }
 
     /// 最初のひと言を作れなかったときの決まり文句
@@ -126,7 +128,7 @@ final class StudySessionCoordinator {
     @ObservationIgnored private(set) var controller: ConversationController?
     @ObservationIgnored private(set) var brain: TeacherBrain?
     @ObservationIgnored private var nudgeSpeaker: ConversationNudgeSpeaker?
-    @ObservationIgnored private var addressingJudge: JevAddressingJudge?
+    @ObservationIgnored private(set) var addressingJudge: JevAddressingJudge?
     /// 返事ごとに増やす。割り込み・終了のあとで古い返事を話さないようにする
     @ObservationIgnored private var replyGeneration = 0
     /// 作っている途中・話している途中の返事の世代。なければ nil
@@ -259,6 +261,7 @@ final class StudySessionCoordinator {
 
         phase = .active
         timer.start()
+        deps.watchOver?.sessionStarted(host: self)
         startReply(to: Self.openingTrigger, fallback: Self.openingFallback)
     }
 
@@ -272,6 +275,14 @@ final class StudySessionCoordinator {
                 // このタスク（出来事の読み取り）は終わるときに止めるので、別のタスクで終える
                 Task { await self.end() }
                 return
+            }
+            // 見守りの「ちょっと見せて？」に「うん」と答えた（#30）。同意があったときだけ撮る
+            if deps.watchOver?.consumeConsent(text) == true {
+                if canCapture {
+                    Task { await self.runCapture() }
+                    return
+                }
+                trace("カメラがないので撮影は省略（ふつうに返事する）")
             }
             let reaction = await noteTutoringTurn(text)
             // 答えだった発話は撮影の依頼ではない
@@ -615,6 +626,7 @@ final class StudySessionCoordinator {
         deps.voice.stop()
         await brain.cancel()
         controller.stop()
+        deps.watchOver?.sessionEnded()
         let focusMinutes = Self.focusMinutes(timer)
         timer?.stop()
         timerEventsTask?.cancel()

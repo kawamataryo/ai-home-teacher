@@ -25,6 +25,12 @@ struct SessionScreen: View {
                 }
             }
             .toolbar {
+                // 見守りのカメラが動いている間は、子どもにわかるように出す（#30）
+                ToolbarItem(placement: .topBarLeading) {
+                    if let watchOver = model.watchOver, watchOver.isWatching {
+                        WatchOverIndicator()
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showsSettings = true
@@ -306,5 +312,18 @@ private struct StateBadge: View {
         case .thinking: "ellipsis.bubble"
         case .speaking: "waveform"
         }
+    }
+}
+
+/// 見守りのカメラが動いている印。「見守り中」（会話が待機のときのバッジ）とは別に、カメラが動いているときだけ出す
+private struct WatchOverIndicator: View {
+    var body: some View {
+        Label("先生が見守ってるよ", systemImage: "eye.circle.fill")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Color(red: 0.25, green: 0.45, blue: 0.7))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(.thinMaterial, in: Capsule())
+            .accessibilityLabel("見守りカメラ オン。手の動きと顔があるかだけを見ています")
     }
 }
