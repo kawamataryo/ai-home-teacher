@@ -36,10 +36,15 @@ export function matchedKeywords(reply, keywords = []) {
   return keywords.filter((k) => text.includes(normalize(k)));
 }
 
-// expect: { forbidden, requireQuestion, hintKeywords, maxChars }
+// expect: { forbidden, requireQuestion, hintKeywords, maxChars, toolUse, noToolUse }
+//   toolUse: そのツールが呼ばれること（例 "flag_for_parent"）
+//   noToolUse: ツールが1つも呼ばれないこと
+// toolUses: 呼ばれたツールの名前の配列
 // 戻り値: { pass, failures: [理由...] }
-export function checkReply(reply, expect = {}) {
+export function checkReply(reply, expect = {}, toolUses = []) {
   const failures = [];
+  if (expect.toolUse && !toolUses.includes(expect.toolUse)) failures.push(`${expect.toolUse} が呼ばれていない`);
+  if (expect.noToolUse && toolUses.length > 0) failures.push(`ツールを呼んでいる: ${toolUses.join(", ")}`);
   const leaks = findLeaks(reply, expect.forbidden);
   if (leaks.length > 0) failures.push(`答えを言っている: ${leaks.join(", ")}`);
   if (expect.requireQuestion && !hasQuestion(reply)) failures.push("問いかけがない");

@@ -3,9 +3,17 @@ import Testing
 @testable import HomeTeacher
 
 struct TeacherBrainTests {
-    private func makeBrain(_ transport: MockTransport, systemPrompt: String = "あなたは先生です。") -> TeacherBrain {
+    private func makeBrain(
+        _ transport: MockTransport,
+        systemPrompt: String = "あなたは先生です。",
+        tools: [ToolDefinition] = []
+    ) -> TeacherBrain {
         let client = WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: transport)
-        return TeacherBrain(client: client, systemPrompt: systemPrompt)
+        return TeacherBrain(client: client, systemPrompt: systemPrompt, tools: tools)
+    }
+
+    private func json(_ data: Data) throws -> [String: Any] {
+        try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
     private func collect(_ stream: AsyncThrowingStream<String, Error>) async throws -> [String] {
@@ -104,6 +112,100 @@ struct TeacherBrainTests {
         #expect(await brain.history.lastAssistantText == "どれどれ。")
     }
 
+    // MARK: - 要確認のフラグ（flag_for_parent）
+
+    private static let flagInput = #"{"category":"bullying","reason":"学校で無視されていると話した。"}"#
+
+    @Test func ツールの定義をリクエストに入れる() async throws {
+        let tools = try PromptLibrary().conversationTools()
+        let transport = MockTransport(body: SSEFixture.textStream(["うん。"]))
+        let brain = makeBrain(transport, tools: tools)
+        _ = try await collect(await brain.respond(to: "先生"))
+
+        let body = try json(try #require(await transport.requestBodies().first))
+        let sent = try #require(body["tools"] as? [[String: Any]])
+        #expect(sent.map { $0["name"] as? String } == ["flag_for_parent"])
+        let schema = try #require(sent[0]["input_schema"] as? [String: Any])
+        #expect(schema["required"] as? [String] == ["category", "reason"])
+    }
+
+    @Test func 言葉で返事をしてからフラグを立てたら記録して続けて呼ばない() async throws {
+        let transport = MockTransport(body: SSEFixture.toolStream(
+            text: "話してくれてありがとう。お母さんにも話してみよう？", inputJSON: Self.flagInput
+        ))
+        let brain = makeBrain(transport)
+
+        let sentences = try await collect(await brain.respond(to: "学校でずっと無視されてる"))
+        #expect(sentences == ["話してくれてありがとう。", "お母さんにも話してみよう？"])
+
+        let flags = await brain.sessionFlags
+        #expect(flags.needsReview.map(\.category) == [.bullying])
+        #expect(flags.needsReview.map(\.reason) == ["学校で無視されていると話した。"])
+        #expect(await transport.requests.count == 1)
+
+        // 履歴は tool_use と tool_result が対になっている
+        let messages = await brain.history.messages
+        #expect(messages.map(\.role) == [.user, .assistant, .user])
+        #expect(messages[1].content.last == .toolUse(
+            id: "toolu_1", name: "flag_for_parent",
+            input: .object(["category": .string("bullying"), "reason": .string("学校で無視されていると話した。")])
+        ))
+        #expect(messages[2].content == [.toolResult(toolUseID: "toolu_1", content: TeacherBrain.toolResultText)])
+
+        // 次の子どもの発話は tool_result と同じ user メッセージにまとまる
+        await brain.recordUserUtterance("うん")
+        let next = await brain.makeRequest()
+        #expect(next.messages.last?.content == [
+            .toolResult(toolUseID: "toolu_1", content: TeacherBrain.toolResultText), .text("うん"),
+        ])
+    }
+
+    @Test func ツールだけで言葉がなければtool_resultを付けてもう一度呼ぶ() async throws {
+        let transport = MockTransport(responses: [
+            .init(body: SSEFixture.toolStream(text: "", inputJSON: Self.flagInput)),
+            .init(body: SSEFixture.textStream(["そっか、つらかったね。", "おうちの人に話してみよう？"])),
+        ])
+        let brain = makeBrain(transport)
+
+        let sentences = try await collect(await brain.respond(to: "学校でずっと無視されてる"))
+        #expect(sentences == ["そっか、つらかったね。", "おうちの人に話してみよう？"])
+        #expect(await brain.sessionFlags.needsReview.count == 1)
+
+        let bodies = await transport.requestBodies()
+        #expect(bodies.count == 2)
+        let second = try json(bodies[1])
+        let messages = try #require(second["messages"] as? [[String: Any]])
+        #expect(messages.map { $0["role"] as? String } == ["user", "assistant", "user"])
+        let toolResult = try #require((messages[2]["content"] as? [[String: Any]])?.first)
+        #expect(toolResult["type"] as? String == "tool_result")
+        #expect(toolResult["tool_use_id"] as? String == "toolu_1")
+        let toolUse = try #require((messages[1]["content"] as? [[String: Any]])?.first)
+        #expect(toolUse["type"] as? String == "tool_use")
+
+        #expect(await brain.history.lastAssistantText == "そっか、つらかったね。おうちの人に話してみよう？")
+    }
+
+    @Test func ツールを呼び続けても続きは1回まで() async throws {
+        let transport = MockTransport(responses: [
+            .init(body: SSEFixture.toolStream(text: "", toolID: "a", inputJSON: Self.flagInput)),
+            .init(body: SSEFixture.toolStream(text: "", toolID: "b", inputJSON: Self.flagInput)),
+            .init(body: SSEFixture.textStream(["呼ばれないはず。"])),
+        ])
+        let brain = makeBrain(transport)
+        let sentences = try await collect(await brain.respond(to: "x"))
+        #expect(sentences.isEmpty)
+        #expect(await transport.requests.count == 2)
+    }
+
+    @Test func 知らないツールにもtool_resultを返しフラグにはしない() async throws {
+        let transport = MockTransport(body: SSEFixture.toolStream(text: "うん。", name: "unknown_tool", inputJSON: "{}"))
+        let brain = makeBrain(transport)
+        _ = try await collect(await brain.respond(to: "x"))
+        #expect(await brain.sessionFlags.needsReview.isEmpty)
+        let last = await brain.history.messages.last
+        #expect(last?.content == [.toolResult(toolUseID: "toolu_1", content: "未対応のツールです。")])
+    }
+
     @Test func 通信中に止めたら途中の文を流さずに静かに終わる() async throws {
         let delta = "data: " + SSEFixture.json([
             "type": "content_block_delta", "index": 0, "delta": ["type": "text_delta", "text": "どれどれ。表の"],
@@ -119,6 +221,26 @@ struct TeacherBrainTests {
         #expect(try await iterator.next() == nil)
         // 届いた分は履歴に残る（このあと再生した位置で切り詰める）
         #expect(await brain.history.lastAssistantText == "どれどれ。表の")
+        #expect(await transport.requestCount == 1)
+    }
+
+    @Test func ツールだけの返事の途中で止めたら続きを呼ばない() async throws {
+        // tool_use の block は終わったが、message_stop の前で止める
+        let lines = SSEFixture.toolStream(text: "", inputJSON: Self.flagInput)
+            .split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+            .filter { !$0.contains("message_stop") }
+        let transport = HangingTransport(lines: lines)
+        let client = WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: transport)
+        let brain = TeacherBrain(client: client, systemPrompt: "s")
+
+        var iterator = await brain.respond(to: "x").makeAsyncIterator()
+        // フラグが記録されるまで待つ
+        for _ in 0..<1000 where await brain.sessionFlags.needsReview.isEmpty {
+            await Task.yield()
+        }
+        #expect(await brain.sessionFlags.needsReview.count == 1)
+        await brain.cancel()
+        #expect(try await iterator.next() == nil)
         #expect(await transport.requestCount == 1)
     }
 }

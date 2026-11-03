@@ -10,6 +10,22 @@ enum PromptName: String, CaseIterable, Sendable {
     case safety
     /// 黒板の部品カタログ（Sonnet が show_board / render_svg を使うとき）
     case boardCatalog = "board_catalog"
+    /// 雑談と、いまの状況（勉強中 / 休憩中）（spec §3④）
+    case smallTalk = "small_talk"
+}
+
+/// 学習セッションの今の状態。プロンプトの `{{session_mode}}` に入る。
+enum SessionMode: String, Sendable, Codable {
+    case study
+    case rest
+
+    /// evals/prompt.mjs の SESSION_MODE_LABELS と揃える。
+    var label: String {
+        switch self {
+        case .study: "勉強中"
+        case .rest: "休憩中"
+        }
+    }
 }
 
 enum PromptError: Error, Equatable {
@@ -47,15 +63,35 @@ struct PromptLibrary: Sendable {
     /// プロンプトの区切り。evals/prompt.mjs と揃える。
     static let separator = "\n\n---\n\n"
 
-    /// 会話（Haiku）用のシステムプロンプト。teacher → hint_ladder → safety の順につなぎ、
+    /// 会話（Haiku）用のシステムプロンプト。teacher → hint_ladder → safety → small_talk の順につなぎ、
     /// 先生のメモ（Sonnet の分析結果。正答を含む）があれば最後に足す。
     /// 組み立て方を変えたら evals/prompt.mjs も合わせる。
-    func conversationSystemPrompt(teacherNote: String? = nil, variables: [String: String] = [:]) throws -> String {
-        var parts = try [PromptName.teacher, .hintLadder, .safety].map { try load($0, variables: variables) }
+    func conversationSystemPrompt(
+        mode: SessionMode = .study,
+        teacherNote: String? = nil,
+        variables: [String: String] = [:]
+    ) throws -> String {
+        let vars = variables.merging(["session_mode": mode.label]) { _, new in new }
+        var parts = try Self.conversationParts.map { try load($0, variables: vars) }
         if let note = teacherNote?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
             parts.append(Self.teacherNoteSection(note))
         }
         return parts.joined(separator: Self.separator)
+    }
+
+    static let conversationParts: [PromptName] = [.teacher, .hintLadder, .safety, .smallTalk]
+
+    /// 同梱したツールの定義（prompts/tools/<name>.json）を読む。
+    func tool(named name: String) throws -> ToolDefinition {
+        guard let url = bundle.url(forResource: name, withExtension: "json", subdirectory: "\(subdirectory)/tools") else {
+            throw PromptError.notFound("\(subdirectory)/tools/\(name).json")
+        }
+        return try JSONDecoder().decode(ToolDefinition.self, from: Data(contentsOf: url))
+    }
+
+    /// 会話（Haiku）に渡すツール。
+    func conversationTools() throws -> [ToolDefinition] {
+        [try tool(named: ParentFlagTool.name)]
     }
 
     /// 問題の分析・黒板（Sonnet）用に足す部品カタログ。

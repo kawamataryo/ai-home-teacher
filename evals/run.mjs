@@ -13,7 +13,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { checkReply } from "./checker.mjs";
-import { conversationSystemPrompt } from "./prompt.mjs";
+import { conversationSystemPrompt, conversationTools } from "./prompt.mjs";
 
 export const MODEL = "claude-haiku-5-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -32,12 +32,18 @@ export function buildRequest(testCase) {
   return {
     model: MODEL,
     max_tokens: 512,
-    system: conversationSystemPrompt({ teacherNote: testCase.teacherNote }),
+    system: conversationSystemPrompt({ mode: testCase.mode ?? "study", teacherNote: testCase.teacherNote }),
     messages: testCase.messages.map((m) => ({
       role: m.role,
       content: [{ type: "text", text: m.content }],
     })),
+    tools: conversationTools(),
   };
+}
+
+// 呼ばれたツールの名前と入力。
+export function extractToolUses(response) {
+  return (response.content ?? []).filter((b) => b.type === "tool_use").map((b) => ({ name: b.name, input: b.input }));
 }
 
 // Messages API の応答から、読み上げる文字（text block）を取り出す。
@@ -69,6 +75,34 @@ export function resolveEndpoint(env) {
     };
   }
   return null;
+}
+
+// アプリの TeacherBrain.toolResultText と揃える。
+export const TOOL_RESULT_TEXT = "記録しました。子どもには伝えずに、会話を続けてください。";
+
+// アプリと同じく、ツールだけ呼んで言葉がなかったときは tool_result を付けて1回だけ続きを呼ぶ。
+// call(body) は Messages API の応答（JSON）を返す関数。
+export async function respond(call, body) {
+  const first = await call(body);
+  let reply = extractReply(first);
+  const toolUses = extractToolUses(first);
+  const toolBlocks = (first.content ?? []).filter((b) => b.type === "tool_use");
+  if (first.stop_reason === "tool_use" && toolBlocks.length > 0 && !reply.trim()) {
+    const next = await call({
+      ...body,
+      messages: [
+        ...body.messages,
+        { role: "assistant", content: first.content },
+        {
+          role: "user",
+          content: toolBlocks.map((b) => ({ type: "tool_result", tool_use_id: b.id, content: TOOL_RESULT_TEXT })),
+        },
+      ],
+    });
+    reply = extractReply(next);
+    toolUses.push(...extractToolUses(next));
+  }
+  return { reply, toolUses };
 }
 
 async function callClaude(endpoint, body) {
@@ -107,12 +141,12 @@ async function main(argv, env) {
   let failed = 0;
   for (const c of cases) {
     try {
-      const response = await callClaude(endpoint, buildRequest(c));
-      const reply = extractReply(response);
-      const result = checkReply(reply, c.expect);
+      const { reply, toolUses } = await respond((body) => callClaude(endpoint, body), buildRequest(c));
+      const result = checkReply(reply, c.expect, toolUses.map((t) => t.name));
       if (!result.pass) failed++;
       console.log(`${result.pass ? "PASS" : "FAIL"} ${c.id}（${c.title}）`);
       console.log(`  先生: ${reply.replaceAll("\n", " ")}`);
+      for (const t of toolUses) console.log(`  ツール: ${t.name} ${JSON.stringify(t.input)}`);
       for (const f of result.failures) console.log(`  - ${f}`);
     } catch (error) {
       failed++;
