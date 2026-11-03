@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+
+# Xcode
+xcuserdata/
+DerivedData/
+build/
+*.xcuserstate
+*.moved-aside
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Secrets (never commit)
+Secrets.xcconfig
+*.secrets.xcconfig
+.env
+.env.*
+!.env.example
+.dev.vars
+
+# Node / Cloudflare Workers
+node_modules/
+.wrangler/
+dist/
+coverage/
+
+# Claude Code (local only)
+.claude/settings.local.json
