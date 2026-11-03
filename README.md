@@ -4,7 +4,7 @@
 
 共働きで親が手を離せない朝や夕方、子どもが声で話しかけると、ボクセル風の先生が見守り、わからないところは**答えを言わずにヒントと図で**導いてくれます。
 
-[Built with Claude: Japan 2026](https://cerebralvalley.ai/events/~/e/built-with-claude-japan2026) 参加作品です（概要は [docs/submission.md](docs/submission.md)）。
+[Built with Claude: Japan 2026](https://cerebralvalley.ai/events/~/e/built-with-claude-japan2026) 参加作品です（概要は [docs/submission.md](docs/submission.md)、デモ動画は [docs/demo/demo.mp4](docs/demo/demo.mp4)）。
 
 <img src="docs/screenshots/session-speaking.png" alt="学習セッション画面：ボクセル風の先生と、黒板の手順カード" width="380"> <img src="docs/screenshots/boards-eval/after/01-ratio-sale.png" alt="黒板の割合の帯図。答えの部分は？で隠れている" width="420">
 

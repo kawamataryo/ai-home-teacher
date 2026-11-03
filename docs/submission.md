@@ -55,4 +55,6 @@ Built with Claude: Japan 2026 の提出フォームに貼る文章。テーマ�
 ## リンク
 
 - リポジトリ：https://github.com/kawamataryo/ai-home-teacher
-- デモ動画：（撮影後に追記）
+- デモ動画（2分53秒）：https://github.com/kawamataryo/ai-home-teacher/blob/main/docs/demo/demo.mp4
+  - 本番の Worker につないだ実際のアプリの画面を録画し、先生の声（本番と同じ ElevenLabs の声）を話し始めの時刻に合わせて重ねたもの。子どもの台詞は台本、先生の返事は本番の Claude
+  - iPad の実機で撮り直したら、このファイルを差し替える
