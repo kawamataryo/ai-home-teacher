@@ -5,8 +5,16 @@ import UIKit
 /// #9 実機スパイク：日本語の音声認識と、再生中のエコー混入を確かめる。
 @MainActor @Observable
 final class SpeechSpikeModel {
+    /// 先生の声の再生経路。エコーキャンセルが効くのはマイクと同じエンジンを通したときだけかを比べる。
+    enum PlaybackRoute: String, CaseIterable, Sendable {
+        case enginePCM = "エンジン（合成PCM）"
+        case audioClip = "AudioClipPlayer（AVAudioPlayer）"
+        case engineClip = "EngineClipPlayer（同じエンジン）"
+    }
+
     struct EchoTrial: Identifiable {
         let id = UUID()
+        var route: PlaybackRoute = .enginePCM
         let engine: RecognizerKind
         let voiceProcessing: Bool
         let leakage: Double
@@ -29,6 +37,7 @@ final class SpeechSpikeModel {
     private let pipeline = AudioPipeline()
     private var recognizer: (any LiveRecognizer)?
     private let synthesizer = AVSpeechSynthesizer()
+    private var engineClipPlayer: EngineClipPlayer?
 
     var transcript: String { finalText + volatileText }
 
@@ -90,21 +99,35 @@ final class SpeechSpikeModel {
     }
 
     /// 聞き取り中に先生の声（TTS）を流し、それがどれだけ認識結果に混入するかを測る。
-    func runEchoTest() async {
+    func runEchoTest(route: PlaybackRoute = .enginePCM) async {
         if !isListening { await startListening() }
         guard isListening else { return }
         isEchoTesting = true
         defer { isEchoTesting = false }
         let before = transcript
         status = "再生中…（黙って聞いてください）"
-        let buffers = await synthesize(Self.echoSentence)
-        trace("合成完了 buffers=\(buffers.items.count) frames=\(buffers.items.reduce(0) { $0 + Int($1.frameLength) })")
-        await pipeline.play(buffers)
-        trace("再生完了")
+        switch route {
+        case .enginePCM:
+            let buffers = await synthesize(Self.echoSentence)
+            trace("合成完了 buffers=\(buffers.items.count) frames=\(buffers.items.reduce(0) { $0 + Int($1.frameLength) })")
+            await pipeline.play(buffers)
+        case .audioClip, .engineClip:
+            do {
+                let speech = try await SystemTTSProvider().synthesizeAll(Self.echoSentence)
+                trace("合成完了 route=\(route.rawValue) bytes=\(speech.audio.count)")
+                let player: any SpeechAudioPlayer = route == .audioClip
+                    ? AudioClipPlayer()
+                    : (engineClipPlayer ?? { let p = EngineClipPlayer(engine: pipeline.engine); engineClipPlayer = p; return p }())
+                try await player.play(speech)
+            } catch {
+                trace("再生に失敗 route=\(route.rawValue) \(error)")
+            }
+        }
+        trace("再生完了 route=\(route.rawValue)")
         try? await Task.sleep(for: .seconds(2))
         let during = String(transcript.dropFirst(before.count))
         let leak = EchoScore.leakage(played: Self.echoSentence, recognized: during)
-        trials.insert(EchoTrial(engine: engine, voiceProcessing: voiceProcessing, leakage: leak, recognizedDuringPlayback: during), at: 0)
+        trials.insert(EchoTrial(route: route, engine: engine, voiceProcessing: voiceProcessing, leakage: leak, recognizedDuringPlayback: during), at: 0)
         status = String(format: "エコー混入率 %.0f%%", leak * 100)
     }
 
@@ -151,8 +174,8 @@ final class SpeechSpikeModel {
         }
         lines.append("- エコーテスト:")
         for t in trials.reversed() {
-            lines.append(String(format: "  - %@ / エコーキャンセル %@ → 混入率 %.0f%%（認識: 「%@」）",
-                                t.engine.rawValue, t.voiceProcessing ? "ON" : "OFF", t.leakage * 100, t.recognizedDuringPlayback))
+            lines.append(String(format: "  - [%@] %@ / エコーキャンセル %@ → 混入率 %.0f%%（認識: 「%@」）",
+                                t.route.rawValue, t.engine.rawValue, t.voiceProcessing ? "ON" : "OFF", t.leakage * 100, t.recognizedDuringPlayback))
         }
         lines.append("- 最後の認識テキスト: 「\(transcript)」")
         return lines.joined(separator: "\n")
@@ -177,7 +200,58 @@ final class SpeechSpikeModel {
         }
     }
 
-    static var isAutoRun: Bool { ProcessInfo.processInfo.arguments.contains("-autoSpike") }
+    static var isAutoRun: Bool { isAutoSpike || isAutoAudioPath || isAutoBargeIn }
+    static var isAutoSpike: Bool { ProcessInfo.processInfo.arguments.contains("-autoSpike") }
+    /// 起動引数 `-autoAudioPath`：エコーキャンセル ON のまま、再生経路ごとの混入率を比べる（#13 の設計判断用）。
+    static var isAutoAudioPath: Bool { ProcessInfo.processInfo.arguments.contains("-autoAudioPath") }
+
+    /// 起動引数 `-autoBargeIn`：エコーキャンセル ON で、外からの声（Mac の say など）が
+    /// ①黙っているとき ②先生の声の再生中 に認識されるかを確かめる。Mac 側は trace の WINDOW_* を見て話す。
+    static var isAutoBargeIn: Bool { ProcessInfo.processInfo.arguments.contains("-autoBargeIn") }
+
+    func runBargeInCheck() async {
+        voiceProcessing = true
+        await startListening()
+        try? await Task.sleep(for: .seconds(4))
+        let t0 = transcript
+        trace("WINDOW_IDLE")
+        try? await Task.sleep(for: .seconds(9))
+        let idle = String(transcript.dropFirst(t0.count))
+        trace("idle窓の認識: 「\(idle)」")
+        let t1 = transcript
+        trace("WINDOW_PLAYBACK")
+        do {
+            let long = Self.echoSentence + "それじゃあ、問題文をもう一回いっしょに読んでみよう。何を聞かれているかな。"
+            let speech = try await SystemTTSProvider().synthesizeAll(long)
+            let player = engineClipPlayer ?? { let p = EngineClipPlayer(engine: pipeline.engine); engineClipPlayer = p; return p }()
+            try await player.play(speech)
+        } catch {
+            trace("再生に失敗 \(error)")
+        }
+        try? await Task.sleep(for: .seconds(2))
+        let during = String(transcript.dropFirst(t1.count))
+        trace("再生中窓の認識: 「\(during)」")
+        await stopListening()
+        trace("BARGEIN_DONE")
+        let text = "### 割り込みの自動確認（エコーキャンセル ON）\n- 黙っているときの認識: 「\(idle)」\n- 再生中の認識: 「\(during)」"
+        if let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            try? text.write(to: dir.appending(path: "bargein-report.txt"), atomically: true, encoding: .utf8)
+        }
+        status = "割り込みの自動確認が終わりました"
+    }
+
+    func runAudioPathComparison() async {
+        trace("再生経路の比較を開始")
+        voiceProcessing = true
+        await startListening()
+        try? await Task.sleep(for: .seconds(4))
+        for route in PlaybackRoute.allCases {
+            await runEchoTest(route: route)
+            try? await Task.sleep(for: .seconds(1))
+        }
+        await stopListening()
+        writeReport()
+    }
 
     func runAutomatic() async {
         trace("開始 engine=\(engine.rawValue)")
@@ -194,6 +268,10 @@ final class SpeechSpikeModel {
             await stopListening()
             trace("停止")
         }
+        writeReport()
+    }
+
+    private func writeReport() {
         let text = report
         print("SPIKE_REPORT_BEGIN\n\(text)\nSPIKE_REPORT_END")
         if let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {

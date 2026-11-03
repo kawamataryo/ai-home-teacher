@@ -66,7 +66,9 @@ struct SpeechSpikeView: View {
         .navigationTitle("音声の実機検証")
         .task {
             await model.probe()
-            if SpeechSpikeModel.isAutoRun { await model.runAutomatic() }
+            if SpeechSpikeModel.isAutoSpike { await model.runAutomatic() }
+            if SpeechSpikeModel.isAutoAudioPath { await model.runAudioPathComparison() }
+            if SpeechSpikeModel.isAutoBargeIn { await model.runBargeInCheck() }
         }
     }
 
