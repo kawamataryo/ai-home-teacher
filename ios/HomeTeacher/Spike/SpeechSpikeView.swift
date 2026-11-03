@@ -70,6 +70,10 @@ struct SpeechSpikeView: View {
             if SpeechSpikeModel.isAutoAudioPath { await model.runAudioPathComparison() }
             if SpeechSpikeModel.isAutoBargeIn { await model.runBargeInCheck() }
         }
+        // 画面を離れたらマイクを止めて、学習セッションに返す（#75）
+        .onDisappear {
+            if model.isListening { Task { await model.stopListening() } }
+        }
     }
 
     private func row(_ title: String, _ ok: Bool, detail: String) -> some View {

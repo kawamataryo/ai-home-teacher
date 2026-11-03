@@ -33,6 +33,9 @@ struct SpeechEventShaper: Sendable {
 
     var currentUtterance: String { transcript.utterance }
 
+    /// いま話していると判定しているか
+    var isVoiceActive: Bool { detector.isActive }
+
     mutating func level(_ rms: Float, at now: ContinuousClock.Instant) -> [SpeechInputEvent] {
         guard !isMuted else { return [] }
         switch detector.process(level: rms, at: now) {
