@@ -47,6 +47,7 @@ extension BoardContent {
         case .stepCards(let m): return m.steps.count
         case .segmentDiagram(let m): return m.bars.count
         case .timeline(let m): return m.events.count
+        case .chalkDrawing(let m): return m.stepCount
         case .table, .barChart, .essayOutline, .areaDiagram, .numberLine, .highlightImage, .vennDiagram, .percentBar: return 1
         }
     }

@@ -26,6 +26,8 @@ struct BoardGallery: View {
 
     static var entries: [Entry] {
         BoardComponent.Kind.allCases.map { Entry(name: $0.rawValue, content: BoardSamples.content($0)) }
+            + [Entry(name: "chalk_drawing（スタンプ）", content: BoardSamples.allStamps)]
+            + BoardSamples.drawingJSON.compactMap { sample in BoardSamples.drawing(named: sample.name).map { Entry(name: sample.name, content: $0) } }
             + [Entry(name: "render_svg", content: BoardSamples.svgContent)]
             + [Entry(name: "fallback（読めない入力）",
                      content: BoardTools.content(toolName: BoardTools.showBoardName, input: Data(BoardSamples.brokenJSON.utf8)))]

@@ -1,0 +1,52 @@
+{
+  "id": "11-science-convection",
+  "title": "理科（水のあたたまり方）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "水のあたたまり方（対流）の問題。底の左はしを熱すると、その部分の水があたためられて軽くなり、上へのぼる。上にあった冷たい水は重いので、右側を通ってしずみ、底を左へ流れる。この流れでおがくずは、左はしでは上へ、上では右へ、右はしでは下へ、底では左へと、ぐるっと回るように動く。水全体は、あたためられた水が上へ動くため、上の方から先にあたたかくなり、そのあと下の方があたたまる。答え：おがくずは左はしで上に、上で右に、右はしで下に、底で左に動く（ぐるっと回る）。先にあたたかくなるのは上。",
+    "answer": "おがくずは左で上へ、上で右へ、右で下へ、底で左へ回るように動く。先にあたたかくなるのは上。",
+    "answer_variants": [
+      "ぐるっと回る、上",
+      "時計回りに動く、上",
+      "左で上がり右で下がる、上",
+      "対流で回るように動く、上"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題で答えることは2つあるよ。『おがくずの動き方』と『上と下のどちらが先にあたたかくなるか』。それぞれ自分の言葉で言いかえてみて？",
+      "黒板の図を見てね。アルコールランプで直接あたためているのは、ビーカーのどの部分かな？そこの水に何が起こりそうか考えてみよう。",
+      "水はあたためられると、軽くなるかな、重くなるかな？軽くなった水はどっちへ動きそう？そのあと、まわりの冷たい水はどうなるか考えてみよう。",
+      "じゃあ一緒にたどろう。①左はしの水はあたためられるとどう動く？②上についた水は、そのあとどっちへ進む？③右はしでは？底では？おがくずはその水といっしょに動くよ。それなら先にあたたかくなるのは上と下のどっち？ということは？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "ビーカーの底の左はしをアルコールランプであたためたとき、水に入れたおがくずがどう動くか、また水は上と下のどちらから先にあたたかくなるかを答える問題。"
+  },
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "どこをあたためているかな？",
+        "component": "{\"type\":\"chalk_drawing\",\"shapes\":[{\"kind\":\"stamp\",\"points\":[[50,35]],\"radius\":0,\"text\":\"\",\"stamp\":\"heating_setup\",\"size\":2.5,\"color\":\"white\",\"dashed\":false,\"fill\":true,\"step\":1},{\"kind\":\"circle\",\"points\":[[36,52]],\"radius\":5,\"text\":\"ここをあたためる\",\"stamp\":\"\",\"size\":1,\"color\":\"yellow\",\"dashed\":true,\"fill\":false,\"step\":2},{\"kind\":\"text\",\"points\":[[50,8]],\"radius\":0,\"text\":\"おがくずの動きは？\",\"stamp\":\"\",\"size\":1,\"color\":\"pink\",\"dashed\":false,\"fill\":false,\"step\":3},{\"kind\":\"text\",\"points\":[[85,35]],\"radius\":0,\"text\":\"上と下、先は？\",\"stamp\":\"\",\"size\":1,\"color\":\"pink\",\"dashed\":false,\"fill\":false,\"step\":3}]"
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 13711,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 1275,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

@@ -68,7 +68,77 @@ enum BoardSamples {
         {"title":"25%引きを帯で見よう","component":{"type":"percent_bar","base_label":"もとの値段 1200円",
           "parts":[{"percent":75,"label":"はらう分","amount":"？円"},{"percent":25,"label":"25%引き","amount":"？円"}]}}
         """,
+        .chalkDrawing: """
+        {"title":"水をあたためると、どう動く？","component":{"type":"chalk_drawing","shapes":[
+          {"kind":"stamp","stamp":"heating_setup","points":[[40,38]],"size":3.6,"fill":true,"step":1},
+          {"kind":"text","text":"水","points":[[40,22]],"color":"blue","step":1},
+          {"kind":"curve","points":[[34,32],[32,20],[38,12],[44,14]],"color":"pink","step":2},
+          {"kind":"arrow","points":[[44,14],[47,20]],"color":"pink","step":2},
+          {"kind":"text","text":"あたためた水はどっちへ？","points":[[40,4]],"color":"yellow","step":2},
+          {"kind":"stamp","stamp":"thermometer","points":[[76,30]],"size":1.6,"text":"温度計","step":3},
+          {"kind":"text","text":"？℃","points":[[86,20]],"color":"yellow","step":3}]}}
+        """,
     ]
+
+    /// 自由に描く黒板のサンプル（`-previewBoard drawing_<名前>`、ギャラリー）
+    static let drawingJSON: [(name: String, json: String)] = [
+        ("drawing_circuit", """
+        {"title":"豆電球がつくつなぎ方は？","component":{"type":"chalk_drawing","shapes":[
+          {"kind":"stamp","stamp":"battery","points":[[30,52]],"size":1.6,"text":"かん電池","step":1},
+          {"kind":"stamp","stamp":"bulb","points":[[70,22]],"size":1.4,"text":"豆電球","step":1},
+          {"kind":"polyline","points":[[40,52],[84,52],[84,32],[72,32]],"color":"yellow","step":2},
+          {"kind":"polyline","points":[[18,52],[10,52],[10,12],[50,12],[50,32],[68,32]],"color":"yellow","dashed":true,"step":2},
+          {"kind":"text","text":"どう線をどこにつなぐ？","points":[[62,64]],"color":"pink","step":3}]}}
+        """),
+        ("drawing_lever", """
+        {"title":"てこをつり合わせよう","component":{"type":"chalk_drawing","shapes":[
+          {"kind":"line","points":[[10,40],[90,40]],"step":1},
+          {"kind":"polygon","points":[[50,40],[45,52],[55,52]],"fill":true,"text":"","step":1},
+          {"kind":"text","text":"支点","points":[[50,57]],"size":0.9,"step":1},
+          {"kind":"rect","points":[[16,40],[28,52]],"fill":true,"text":"30g","color":"blue","step":2},
+          {"kind":"double_arrow","points":[[22,32],[50,32]],"text":"4目もり","color":"yellow","step":2},
+          {"kind":"rect","points":[[64,40],[76,52]],"dashed":true,"text":"？g","color":"pink","step":3},
+          {"kind":"double_arrow","points":[[50,32],[70,32]],"text":"6目もり","color":"yellow","step":3}]}}
+        """),
+        ("drawing_japan", """
+        {"title":"日本の地方の位置","component":{"type":"chalk_drawing","shapes":[
+          {"kind":"stamp","stamp":"japan","points":[[50,35]],"size":4,"fill":true,"step":1},
+          {"kind":"stamp","stamp":"compass","points":[[12,14]],"size":0.8,"step":1},
+          {"kind":"circle","points":[[75,13]],"radius":6,"color":"yellow","dashed":true,"step":2},
+          {"kind":"text","text":"北海道","points":[[89,8]],"color":"yellow","step":2},
+          {"kind":"circle","points":[[22,59]],"radius":6,"color":"pink","dashed":true,"step":3},
+          {"kind":"text","text":"？地方","points":[[10,66]],"color":"pink","step":3},
+          {"kind":"arrow","points":[[28,55],[68,17]],"color":"blue","dashed":true,"text":"どっちの方位？","step":3}]}}
+        """),
+        ("drawing_geometry", """
+        {"title":"三角形の角の大きさ","component":{"type":"chalk_drawing","shapes":[
+          {"kind":"polygon","points":[[15,60],[85,60],[38,12]],"step":1},
+          {"kind":"text","text":"A","points":[[11,64]],"step":1},
+          {"kind":"text","text":"B","points":[[89,64]],"step":1},
+          {"kind":"text","text":"C","points":[[38,6]],"step":1},
+          {"kind":"angle","points":[[15,60],[85,60],[38,12]],"text":"60°","color":"yellow","step":2},
+          {"kind":"angle","points":[[85,60],[15,60],[38,12]],"text":"40°","color":"blue","step":2},
+          {"kind":"angle","points":[[38,12],[15,60],[85,60]],"text":"？","color":"pink","step":3}]}}
+        """),
+    ]
+
+    /// スタンプを全部並べた黒板（確認用）
+    static var allStamps: BoardContent {
+        let stamps = ChalkDrawing.Stamp.allCases
+        let shapes = stamps.enumerated().map { i, stamp in
+            ChalkDrawing.Shape(
+                kind: .stamp, points: [[10 + Double(i % 6) * 16, 12 + Double(i / 6) * 22]], text: stamp.shortName,
+                stamp: stamp, size: 0.75, fill: [.beaker, .flask, .testTube, .graduatedCylinder].contains(stamp)
+            )
+        }
+        return .component(title: "スタンプ", .chalkDrawing(ChalkDrawing(shapes: shapes)))
+    }
+
+    static func drawing(named name: String) -> BoardContent? {
+        if name == "drawing_stamps" { return allStamps }
+        guard let json = drawingJSON.first(where: { $0.name == name })?.json else { return nil }
+        return BoardTools.content(toolName: BoardTools.showBoardName, input: Data(json.utf8))
+    }
 
     static func content(_ kind: BoardComponent.Kind) -> BoardContent {
         BoardTools.content(toolName: BoardTools.showBoardName, input: Data(json[kind]!.utf8))

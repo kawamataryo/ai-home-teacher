@@ -1,0 +1,126 @@
+{
+  "id": "board-science-convection",
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "水はあたためるとどう動く？",
+        "component": {
+          "type": "chalk_drawing",
+          "shapes": [
+            {
+              "kind": "stamp",
+              "points": [
+                [
+                  50,
+                  38
+                ]
+              ],
+              "radius": 0,
+              "text": "",
+              "stamp": "heating_setup",
+              "size": 2.2,
+              "color": "white",
+              "dashed": false,
+              "fill": false,
+              "step": 1
+            },
+            {
+              "kind": "text",
+              "points": [
+                [
+                  20,
+                  12
+                ]
+              ],
+              "radius": 0,
+              "text": "ビーカーの水",
+              "stamp": "",
+              "size": 1,
+              "color": "white",
+              "dashed": false,
+              "fill": false,
+              "step": 1
+            },
+            {
+              "kind": "text",
+              "points": [
+                [
+                  38,
+                  62
+                ]
+              ],
+              "radius": 0,
+              "text": "ここをあたためる",
+              "stamp": "",
+              "size": 1,
+              "color": "pink",
+              "dashed": false,
+              "fill": false,
+              "step": 2
+            },
+            {
+              "kind": "arrow",
+              "points": [
+                [
+                  38,
+                  58
+                ],
+                [
+                  40,
+                  50
+                ]
+              ],
+              "radius": 0,
+              "text": "",
+              "stamp": "",
+              "size": 1,
+              "color": "pink",
+              "dashed": false,
+              "fill": false,
+              "step": 2
+            },
+            {
+              "kind": "arrow",
+              "points": [
+                [
+                  38,
+                  40
+                ],
+                [
+                  38,
+                  20
+                ]
+              ],
+              "radius": 0,
+              "text": "",
+              "stamp": "",
+              "size": 1,
+              "color": "yellow",
+              "dashed": false,
+              "fill": false,
+              "step": 3
+            },
+            {
+              "kind": "text",
+              "points": [
+                [
+                  30,
+                  16
+                ]
+              ],
+              "radius": 0,
+              "text": "あたたまった水は？",
+              "stamp": "",
+              "size": 1,
+              "color": "yellow",
+              "dashed": false,
+              "fill": false,
+              "step": 3
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

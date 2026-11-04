@@ -1,0 +1,207 @@
+{
+  "id": "03-area-lshape",
+  "title": "図形の面積（L字形）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "元の長方形の面積は 6×8=48cm²。切り取った長方形は 2×3=6cm²。残りは 48−6=42cm²。",
+    "answer": "42cm²",
+    "answer_variants": [
+      "42平方センチメートル",
+      "42cm2",
+      "42"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題、最後に何を答えればいいんだっけ？『残った紙の面積』って、どの部分のことか言ってみて。",
+      "黒板を見てね。はじめの大きな長方形と、右上から切り取った小さな長方形があるよ。使う数はどれとどれかな？",
+      "L字の形は、そのままだと面積が出しにくいね。『はじめの形から、切り取った分をとる』と考えたらどうなりそう？",
+      "まず大きな長方形の面積はいくつ？次に切り取った長方形の面積は？その2つを使って、残った面積を出すと、ということは？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "たて6cm、よこ8cmの長方形の紙の右上から、たて2cm、よこ3cmの長方形を切り取ってL字にした。残った紙の面積を求める。"
+  },
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "L字の形を見てみよう",
+        "component": {
+          "type": "chalk_drawing",
+          "shapes": [
+            {
+              "kind": "rect",
+              "points": [
+                [
+                  20,
+                  15
+                ],
+                [
+                  80,
+                  60
+                ]
+              ],
+              "radius": 0,
+              "text": "",
+              "stamp": "",
+              "size": 1,
+              "color": "white",
+              "dashed": false,
+              "fill": false,
+              "step": 1
+            },
+            {
+              "kind": "double_arrow",
+              "points": [
+                [
+                  14,
+                  15
+                ],
+                [
+                  14,
+                  60
+                ]
+              ],
+              "radius": 0,
+              "text": "たて 6cm",
+              "stamp": "",
+              "size": 1,
+              "color": "white",
+              "dashed": false,
+              "fill": false,
+              "step": 1
+            },
+            {
+              "kind": "double_arrow",
+              "points": [
+                [
+                  20,
+                  65
+                ],
+                [
+                  80,
+                  65
+                ]
+              ],
+              "radius": 0,
+              "text": "よこ 8cm",
+              "stamp": "",
+              "size": 1,
+              "color": "white",
+              "dashed": false,
+              "fill": false,
+              "step": 1
+            },
+            {
+              "kind": "rect",
+              "points": [
+                [
+                  60,
+                  15
+                ],
+                [
+                  80,
+                  30
+                ]
+              ],
+              "radius": 0,
+              "text": "",
+              "stamp": "",
+              "size": 1,
+              "color": "pink",
+              "dashed": true,
+              "fill": true,
+              "step": 2
+            },
+            {
+              "kind": "text",
+              "points": [
+                [
+                  70,
+                  22
+                ]
+              ],
+              "radius": 0,
+              "text": "切り取る",
+              "stamp": "",
+              "size": 0.8,
+              "color": "pink",
+              "dashed": false,
+              "fill": false,
+              "step": 2
+            },
+            {
+              "kind": "text",
+              "points": [
+                [
+                  70,
+                  10
+                ]
+              ],
+              "radius": 0,
+              "text": "よこ 3cm",
+              "stamp": "",
+              "size": 0.8,
+              "color": "yellow",
+              "dashed": false,
+              "fill": false,
+              "step": 2
+            },
+            {
+              "kind": "text",
+              "points": [
+                [
+                  88,
+                  22
+                ]
+              ],
+              "radius": 0,
+              "text": "たて 2cm",
+              "stamp": "",
+              "size": 0.8,
+              "color": "yellow",
+              "dashed": false,
+              "fill": false,
+              "step": 2
+            },
+            {
+              "kind": "text",
+              "points": [
+                [
+                  40,
+                  45
+                ]
+              ],
+              "radius": 0,
+              "text": "残り 面積は？",
+              "stamp": "",
+              "size": 1,
+              "color": "yellow",
+              "dashed": false,
+              "fill": false,
+              "step": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 13550,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 1194,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

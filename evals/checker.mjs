@@ -45,7 +45,7 @@ export function parseEmotion(reply) {
   return { emotion: first ? first[1].toLowerCase() : null, text: reply.replace(EMOTION_TAG, "").trim() };
 }
 
-// expect: { forbidden, requireQuestion, hintKeywords, requiredKeywords, forbiddenPhrases, maxChars, toolUse, noToolUse, allowTools, emotion }
+// expect: { forbidden, requireQuestion, hintKeywords, requiredKeywords, forbiddenPhrases, maxChars, toolUse, noToolUse, allowTools, emotion, boardComponent }
 //   requiredKeywords: どれか1つは必ず含む（合否に使う）
 //   forbiddenPhrases: 1つでも含んだら不合格（例：親への記録を子どもに言う「報告します」）
 //   emotion: 気持ちのしるし（"praise" など）。しるしがないときも違うとみなす（アプリは neutral の顔で話す）
@@ -63,6 +63,8 @@ export function checkReply(rawReply, expect = {}, toolUses = [], boardText = "")
   const { emotion, text: reply } = parseEmotion(rawReply);
   if (expect.emotion && emotion !== expect.emotion) failures.push(`しるしが違う: ${emotion ?? "なし"}（期待 ${expect.emotion}）`);
   if (expect.toolUse && !toolUses.includes(expect.toolUse)) failures.push(`${expect.toolUse} が呼ばれていない`);
+  // boardComponent: 黒板の部品の種類（例 "chalk_drawing"）。部品が文字列の JSON で返っても見つかるよう、文字で探す
+  if (expect.boardComponent && !boardText.includes(expect.boardComponent)) failures.push(`黒板の部品が ${expect.boardComponent} ではない`);
   const counted = toolUses.filter((t) => !(expect.allowTools ?? []).includes(t));
   if (expect.noToolUse && counted.length > 0) failures.push(`ツールを呼んでいる: ${counted.join(", ")}`);
   const leaks = findLeaks(reply, expect.forbidden);

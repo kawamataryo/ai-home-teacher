@@ -7,7 +7,7 @@
 //
 // 使い方（Node 22 以上、依存なし）:
 //   WORKER_BASE_URL=https://xxx.workers.dev FAMILY_TOKEN=... node evals/boards.mjs --phase before
-//   node evals/boards.mjs --dry-run --case 01-ratio-sale
+//   node evals/boards.mjs --dry-run --case 01-ratio-sale,02-speed-meet
 //   node evals/boards.mjs --report --phase before    # 保存した結果の集計だけ（API を呼ばない）
 // 設定がなければ何もせずに終了する（exit 0）。
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
@@ -88,7 +88,7 @@ export function findLeaks(boards, testCase) {
 }
 
 export function summarize(result, testCase) {
-  const kinds = result.boards.map((b) => (b.name === "show_board" ? b.input?.component?.type : "svg"));
+  const kinds = result.boards.map((b) => (b.name === "show_board" ? componentOf(b.input)?.type : "svg"));
   return {
     id: testCase.id,
     boards: result.boards.length,
@@ -118,6 +118,41 @@ async function callClaude(endpoint, body) {
   return JSON.parse(text);
 }
 
+// 部品が JSON の文字列で返ってくることがある（アプリは BoardTools.unwrapStringifiedJSON で読む）。文字列なら読んで返す
+export function componentOf(input) {
+  const c = input?.component;
+  if (typeof c !== "string") return c;
+  try {
+    return JSON.parse(c);
+  } catch {
+    try {
+      return JSON.parse(closeBrackets(c));
+    } catch {
+      return undefined;
+    }
+  }
+}
+
+// 閉じていないかっこを後ろに足す（BoardTools.closingBrackets と同じ）
+export function closeBrackets(text) {
+  const stack = [];
+  let inString = false;
+  let escaped = false;
+  for (const c of text) {
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === "{") stack.push("}");
+    else if (c === "[") stack.push("]");
+    else if ((c === "}" || c === "]") && stack.at(-1) === c) stack.pop();
+  }
+  return inString ? text : text + stack.reverse().join("");
+}
+
 function arg(argv, name, fallback = null) {
   const i = argv.indexOf(name);
   return i >= 0 ? argv[i + 1] : fallback;
@@ -136,7 +171,9 @@ function printSummary(rows) {
 async function main(argv, env) {
   const phase = arg(argv, "--phase", "before");
   const only = arg(argv, "--case");
-  const cases = loadCases().filter((c) => !only || c.id === only);
+  // --case はカンマで区切って複数えらべる
+  const picked = only ? new Set(only.split(",")) : null;
+  const cases = loadCases().filter((c) => !picked || picked.has(c.id));
   const outDir = join(here, "fixtures", "boards", phase);
 
   if (argv.includes("--report")) {

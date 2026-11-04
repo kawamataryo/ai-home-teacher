@@ -32,6 +32,7 @@ enum SessionPreviewState: String, CaseIterable, Sendable {
         case "text":
             return BoardTools.content(toolName: BoardTools.showBoardName, input: Data(BoardSamples.brokenJSON.utf8))
         default:
+            if let drawing = BoardSamples.drawing(named: name) { return drawing }
             return BoardSamples.content(BoardComponent.Kind(rawValue: name) ?? .stepCards)
         }
     }

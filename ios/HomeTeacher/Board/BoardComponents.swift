@@ -29,6 +29,7 @@ enum BoardComponent: Equatable, Sendable {
     case vennDiagram(VennDiagram)
     case timeline(BoardTimeline)
     case percentBar(PercentBar)
+    case chalkDrawing(ChalkDrawing)
 
     enum Kind: String, CaseIterable, Sendable {
         case stepCards = "step_cards"
@@ -42,6 +43,7 @@ enum BoardComponent: Equatable, Sendable {
         case vennDiagram = "venn_diagram"
         case timeline
         case percentBar = "percent_bar"
+        case chalkDrawing = "chalk_drawing"
 
         var model: any BoardComponentModel.Type {
             switch self {
@@ -56,6 +58,7 @@ enum BoardComponent: Equatable, Sendable {
             case .vennDiagram: VennDiagram.self
             case .timeline: BoardTimeline.self
             case .percentBar: PercentBar.self
+            case .chalkDrawing: ChalkDrawing.self
             }
         }
     }
@@ -73,6 +76,7 @@ enum BoardComponent: Equatable, Sendable {
         case .vennDiagram: .vennDiagram
         case .timeline: .timeline
         case .percentBar: .percentBar
+        case .chalkDrawing: .chalkDrawing
         }
     }
 
@@ -90,6 +94,7 @@ enum BoardComponent: Equatable, Sendable {
         case .vennDiagram(let m): m.leftLabel.isEmpty && m.rightLabel.isEmpty
         case .timeline(let m): m.events.isEmpty
         case .percentBar(let m): m.parts.isEmpty
+        case .chalkDrawing(let m): m.shapes.allSatisfy { $0.parsedKind == nil }
         }
     }
 
@@ -120,6 +125,7 @@ extension BoardComponent: Codable {
         case .vennDiagram: self = .vennDiagram(try VennDiagram(from: decoder))
         case .timeline: self = .timeline(try BoardTimeline(from: decoder))
         case .percentBar: self = .percentBar(try PercentBar(from: decoder))
+        case .chalkDrawing: self = .chalkDrawing(try ChalkDrawing(from: decoder))
         }
     }
 
@@ -138,6 +144,7 @@ extension BoardComponent: Codable {
         case .vennDiagram(let m): try m.encode(to: encoder)
         case .timeline(let m): try m.encode(to: encoder)
         case .percentBar(let m): try m.encode(to: encoder)
+        case .chalkDrawing(let m): try m.encode(to: encoder)
         }
     }
 }

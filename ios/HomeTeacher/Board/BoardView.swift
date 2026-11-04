@@ -73,6 +73,7 @@ struct BoardContentView: View {
             case .vennDiagram(let m): VennDiagramView(model: m)
             case .timeline(let m): BoardTimelineView(model: m)
             case .percentBar(let m): PercentBarView(model: m)
+            case .chalkDrawing(let m): ChalkDrawingView(model: m)
             }
         case .svg(let board):
             SVGBoardView(board: board)

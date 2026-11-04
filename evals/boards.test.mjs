@@ -37,3 +37,11 @@ test("黒板に答えの数が出ていたら漏れとみなす。問題文に�
   // 選択肢（問題文にある答え）は、書いてあるだけでは漏れにしない
   assert.equal(findLeaks([board("7月 180冊")], { answer: "7月", problem: "4月 120冊、7月 180冊" }).length, 0);
 });
+
+test("文字列の JSON で返った部品を読む（#107）", async () => {
+  const { componentOf, closeBrackets } = await import("./boards.mjs");
+  assert.equal(componentOf({ component: '{"type":"chalk_drawing","shapes":[]}' }).type, "chalk_drawing");
+  assert.equal(componentOf({ component: '{"type":"chalk_drawing","shapes":[{"text":"a}"}]' }).type, "chalk_drawing");
+  assert.equal(closeBrackets('{"a":[1,{"b":2}'), '{"a":[1,{"b":2}]}');
+  assert.equal(componentOf({ component: { type: "table" } }).type, "table");
+});

@@ -1,0 +1,50 @@
+{
+  "id": "12-science-circuit",
+  "title": "理科（電気の回路）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "豆電球に明かりをつけるには、かん電池の＋極 → どう線 → 豆電球 → どう線 → かん電池の－極、というように、電気の通り道が1つの輪（回路）になる必要がある。\nア：2本とも＋極につなぐと、－極につながっていないので輪にならず、電気が流れない。\nイ：1本を＋極、もう1本を－極につなぎ、それぞれ豆電球につなぐと輪ができて電気が流れ、明かりがつる。\nウ：1本だけ＋極につなぐと、－極に戻る道がなく輪にならないので、明かりはつかない。\n答えはイ。理由は「＋極から出た電気が、豆電球を通って－極にもどる1つの輪ができるから」。",
+    "answer": "イ",
+    "answer_variants": [
+      "い",
+      "イ（1本を＋極、もう1本を－極につなぐ）"
+    ],
+    "essay_guidance": "",
+    "hint_steps": [
+      "この問題で答えるのは2つだね。「明かりがつくつなぎ方はどれか（ア〜ウ）」と、「そのわけ」。もう一度、問題の最後の文を読んで、何を答えるか自分の言葉で言ってみて？",
+      "黒板を見てね。かん電池と豆電球があるよ。電池には＋極と－極があるよね。ア・イ・ウそれぞれで、どう線が電池のどの極につながっているか、1つずつ見比べてみよう。",
+      "電気が流れるには、電気の通り道が『輪（ぐるっと一周）』になっている必要があるよ。電池の＋極から出た電気は、どこを通ってどこにもどってくるかな？ ア・イ・ウそれぞれで、輪になっているか考えてみよう。",
+      "ではアから一緒に見ていこう。2本とも＋極につなぐと、－極にはつながっているかな？ 次にウは、1本だけ＋極につなぐと、電気がもどる道はあるかな？ 最後にイは、＋極から出た電気は豆電球を通って、どこへもどれるかな？ ということは、明かりがつくのはどれで、そのわけはどう言えるかな？"
+    ],
+    "kind": "thinking",
+    "problem_summary": "かん電池1こ、豆電球1こ、どう線2本で、豆電球に明かりがつくつなぎ方をア〜ウから選び、そのわけを書く問題。"
+  },
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "電気の通り道を考えよう",
+        "component": "{\"type\":\"chalk_drawing\",\"shapes\":[{\"kind\":\"stamp\",\"points\":[[25,35]],\"radius\":0,\"text\":\"かん電池\",\"stamp\":\"battery\",\"size\":1.5,\"color\":\"white\",\"dashed\":false,\"fill\":false,\"step\":1},{\"kind\":\"stamp\",\"points\":[[75,35]],\"radius\":0,\"text\":\"豆電球\",\"stamp\":\"bulb\",\"size\":1.5,\"color\":\"white\",\"dashed\":false,\"fill\":false,\"step\":1},{\"kind\":\"text\",\"points\":[[25,58]],\"radius\":0,\"text\":\"電池には＋極と－極\",\"stamp\":\"\",\"size\":1,\"color\":\"yellow\",\"dashed\":false,\"fill\":false,\"step\":2},{\"kind\":\"polyline\",\"points\":[[30,22],[30,10],[70,10],[70,22]],\"radius\":0,\"text\":\"どう線①\",\"stamp\":\"\",\"size\":1,\"color\":\"blue\",\"dashed\":true,\"fill\":false,\"step\":2},{\"kind\":\"polyline\",\"points\":[[30,48],[30,62],[70,62],[70,48]],\"radius\":0,\"text\":\"どう線②\",\"stamp\":\"\",\"size\":1,\"color\":\"blue\",\"dashed\":true,\"fill\":false,\"step\":2},{\"kind\":\"text\",\"points\":[[50,36]],\"radius\":0,\"text\":\"輪になる？\",\"stamp\":\"\",\"size\":1.2,\"color\":\"pink\",\"dashed\":false,\"fill\":false,\"step\":3}]"
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 13616,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 2059,
+    "output_tokens_details": {
+      "thinking_tokens": 562
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}
