@@ -71,6 +71,9 @@ struct SessionScreen: View {
             DebugMenuView(config: model.services.config)
         }
         .task {
+            if let seconds = SessionSnapshotFile.interval() {
+                Task { await SessionSnapshotFile.run(every: seconds) }
+            }
             if let selfTest {
                 await selfTest.run()
             } else if let preview {
