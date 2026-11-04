@@ -3,7 +3,8 @@ import UIKit
 
 /// 学習セッション画面（アプリのメイン画面）。iPad を横置きで机に立てて使う想定。
 ///
-/// - 左に大きな先生（AvatarView）、右に黒板（BoardView）
+/// - 黒板に書いていないときは先生だけを大きく（黒板は横の小さな看板に使い方を書く）。
+///   図を書くときは黒板を大きくし、先生は黒板の右下に重ねる（#105。`SessionStageLayout`）
 /// - 大きな開始・終了ボタン。声の「勉強スタート」「終わり」でも始めて終われる。キーボードは使わない
 /// - 子どもが話したことを小さく字幕で出す
 /// - 開発用の画面（音声の検証・タイマー・先生ギャラリー・黒板の部品）は右上の虫のボタンから
@@ -61,6 +62,7 @@ struct SessionScreen: View {
             }
             .toolbarBackground(.hidden, for: .navigationBar)
         }
+        .modifier(DebugCanvasSize())
         .sheet(isPresented: $showsSettings) {
             SessionSettingsView(preferences: model.preferences)
         }
@@ -74,6 +76,7 @@ struct SessionScreen: View {
             } else if let preview {
                 await model.prepare(scriptedInput: ScriptedSpeechInput())
                 model.coordinator?.showPreview(preview)
+                if preview == .tour { await model.coordinator?.runBoardTour() }
             } else {
                 await model.prepare()
             }
@@ -84,7 +87,34 @@ struct SessionScreen: View {
     }
 }
 
-private struct SessionContent: View {
+/// 起動引数 `-canvasSize 1194x834` なら、画面をその大きさで描いて縮めて見せる。
+/// シミュレーターを回せないときに、横置き（机に立てた向き）の配置を確かめるため（#105）
+private struct DebugCanvasSize: ViewModifier {
+    static let size: CGSize? = {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-canvasSize"), index + 1 < arguments.count else { return nil }
+        let parts = arguments[index + 1].split(separator: "x").compactMap { Double($0) }
+        guard parts.count == 2 else { return nil }
+        return CGSize(width: parts[0], height: parts[1])
+    }()
+
+    func body(content: Content) -> some View {
+        if let size = Self.size {
+            GeometryReader { geometry in
+                let scale = min(geometry.size.width / size.width, geometry.size.height / size.height)
+                content
+                    .frame(width: size.width, height: size.height)
+                    .scaleEffect(scale)
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+            }
+            .background(Color.black)
+        } else {
+            content
+        }
+    }
+}
+
+struct SessionContent: View {
     let coordinator: StudySessionCoordinator
     let lipSync: LipSyncPlayer
     let audioStatus: String
@@ -97,96 +127,146 @@ private struct SessionContent: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            let isWide = geometry.size.width > geometry.size.height
-            let layout = isWide ? AnyLayout(HStackLayout(spacing: 24)) : AnyLayout(VStackLayout(spacing: 24))
-            VStack(spacing: 20) {
-                if let permissionNotice {
-                    ParentNoticeBanner(message: permissionNotice.parentMessage, opensSettings: true)
-                }
-                if let connectionProblem {
-                    ParentNoticeBanner(message: connectionProblem.parentMessage)
-                }
-                layout {
-                    // 先生の大きさは固定し、黒板は残りに収める（中身が多くてもボタンを押し出さない）
-                    teacherPanel
-                        .frame(width: isWide ? geometry.size.width * 0.42 : nil)
-                        .frame(height: isWide ? nil : geometry.size.height * 0.38)
-                    boardPanel
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
-                }
-                .frame(maxHeight: .infinity)
-                controls
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(spacing: 20) {
+            if let permissionNotice {
+                ParentNoticeBanner(message: permissionNotice.parentMessage, opensSettings: true)
             }
-            .padding(24)
+            if let connectionProblem {
+                ParentNoticeBanner(message: connectionProblem.parentMessage)
+            }
+            stage
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            controls
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(24)
         .background(Color(red: 0.97, green: 0.95, blue: 0.90).ignoresSafeArea())
     }
 
-    // MARK: - 先生
+    // MARK: - 舞台（先生と黒板。#105）
 
-    private var teacherPanel: some View {
-        ZStack(alignment: .bottom) {
-            AvatarView(state: coordinator.avatar.state, lipSync: lipSync)
-                .background(
-                    RoundedRectangle(cornerRadius: 28)
-                        .fill(LinearGradient(
-                            colors: [Color(red: 0.86, green: 0.93, blue: 1.0), Color(red: 0.98, green: 0.96, blue: 0.90)],
-                            startPoint: .top, endPoint: .bottom
-                        ))
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 28))
-                .overlay(alignment: .topLeading) {
-                    if let timer = coordinator.timer {
-                        FocusTimerView(timer: timer)
-                            .scaleEffect(0.8)
-                            .padding(12)
-                    }
-                }
-                .overlay(alignment: .topTrailing) {
-                    StateBadge(phase: coordinator.phase, state: coordinator.conversationState, mode: coordinator.sessionMode)
-                        .padding(16)
-                }
-            CaptionBubble(text: coordinator.caption)
-                .padding(.bottom, 20)
-                .padding(.horizontal, 20)
+    /// 黒板に何か書いているときは黒板を大きくし、先生は右下に重ねる。書いていないときは先生だけを大きく見せる
+    private var stageMode: SessionStageLayout.Mode {
+        coordinator.board == nil ? .teacher : .board
+    }
+
+    /// 先生と黒板は、それぞれ 1 か所に置いたまま枠だけを動かす（先生の RealityView を作り直さない）
+    private var stage: some View {
+        GeometryReader { geometry in
+            let layout = SessionStageLayout(size: geometry.size, mode: stageMode)
+            ZStack(alignment: .topLeading) {
+                // 先生だけのときの背景。黒板を書くときは黒板が主役なので消す
+                RoundedRectangle(cornerRadius: 28)
+                    .fill(LinearGradient(
+                        colors: [Color(red: 0.86, green: 0.93, blue: 1.0), Color(red: 0.98, green: 0.96, blue: 0.90)],
+                        startPoint: .top, endPoint: .bottom
+                    ))
+                    .opacity(layout.mode == .teacher ? 1 : 0)
+                boardPanel(layout)
+                    .frame(width: layout.board.width, height: layout.board.height)
+                    .offset(x: layout.board.minX, y: layout.board.minY)
+                AvatarView(state: coordinator.avatar.state, lipSync: lipSync, turn: teacherTurn)
+                    .frame(width: layout.teacher.width, height: layout.teacher.height)
+                    .offset(x: layout.teacher.minX, y: layout.teacher.minY)
+                    .allowsHitTesting(false)
+                hud(layout)
+                caption(layout, stageWidth: geometry.size.width)
+                captureOverlay
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+            .animation(.spring(duration: 0.8, bounce: 0.2), value: layout.mode)
         }
+    }
+
+    /// 黒板に書いて話しているときは、黒板の方へ少し体を向ける。聞くときは子どもの方を向く
+    private var teacherTurn: Double {
+        guard stageMode == .board else { return 0 }
+        return coordinator.avatar.state == .talking ? 22 : 8
     }
 
     // MARK: - 黒板
 
-    /// 黒板は決まった大きさ（`boardDesignSize`）で描いて、場所に合わせて縮める（部品の中身が多くてもはみ出さない）
-    private var boardPanel: some View {
-        GeometryReader { geometry in
-            let size = Self.boardDesignSize
-            let scale = min(geometry.size.width / size.width, geometry.size.height / size.height)
-            BoardView(content: coordinator.board ?? .text(Self.boardHint(phase: coordinator.phase)))
+    /// 黒板の中身は決まった大きさ（`designBase` 以上）で描いて、場所に合わせて縮める（部品の中身が多くてもはみ出さない）。
+    /// 先生が重なるところには書かない
+    private func boardPanel(_ layout: SessionStageLayout) -> some View {
+        BoardSurface(frameWidth: layout.mode == .board ? 14 : 10, showsTray: layout.mode == .board) {
+            GeometryReader { geometry in
+                let design = SessionStageLayout.designSize(for: geometry.size, base: layout.designBase)
+                let scale = geometry.size.width / design.width
+                BoardContentView(
+                    content: coordinator.board ?? .text(Self.boardHint(phase: coordinator.phase)),
+                    insets: Self.occludedInsets(layout.occlusion, board: geometry.size, scale: scale),
+                    isSign: coordinator.board == nil
+                )
                 .boardReveal(coordinator.boardReveal)
-                // 図が替わるときは、消して書き直すように入れ替える
-                .animation(.spring(duration: 0.45), value: coordinator.board)
-                .frame(width: size.width, height: size.height)
-                .scaleEffect(scale)
-                .frame(width: geometry.size.width, height: geometry.size.height)
-                .overlay {
-                    if let count = coordinator.captureCountdown {
-                        Text("\(count)")
-                            .font(.system(size: 160, weight: .heavy, design: .rounded))
-                            .foregroundStyle(Chalk.yellow)
-                            .shadow(radius: 8)
-                            .transition(.scale)
-                    } else if coordinator.isCapturing {
-                        Label("ノートを見てるよ", systemImage: "camera.viewfinder")
-                            .font(.title.bold())
-                            .padding(20)
-                            .background(.ultraThinMaterial, in: Capsule())
-                    }
-                }
+                .frame(width: design.width, height: design.height)
+                .scaleEffect(scale, anchor: .topLeading)
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+            }
+        }
+        // 図が替わるときは、消して書き直すように入れ替える
+        .animation(.easeInOut(duration: 0.45), value: coordinator.board)
+    }
+
+    /// 先生が重なるところを避ける余白（設計の座標）。右に空けるか下に空けるか、減る面積が小さい方にする
+    static func occludedInsets(_ occlusion: CGSize, board: CGSize, scale: CGFloat) -> EdgeInsets {
+        guard occlusion.width > 0, occlusion.height > 0, scale > 0 else { return EdgeInsets() }
+        let margin: CGFloat = 12
+        let trailingLoss = occlusion.width * board.height
+        let bottomLoss = occlusion.height * board.width
+        return trailingLoss <= bottomLoss
+            ? EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: (occlusion.width + margin) / scale)
+            : EdgeInsets(top: 0, leading: 0, bottom: (occlusion.height + margin) / scale, trailing: 0)
+    }
+
+    /// 撮影のカウントダウンと「ノートを見てるよ」。先生だけのときも見えるよう、舞台の真ん中に出す
+    @ViewBuilder
+    private var captureOverlay: some View {
+        if let count = coordinator.captureCountdown {
+            Text("\(count)")
+                .font(.system(size: 160, weight: .heavy, design: .rounded))
+                .foregroundStyle(Chalk.yellow)
+                .shadow(radius: 8)
+                .transition(.scale)
+        } else if coordinator.isCapturing {
+            Label("ノートを見てるよ", systemImage: "camera.viewfinder")
+                .font(.title.bold())
+                .padding(20)
+                .background(.ultraThinMaterial, in: Capsule())
         }
     }
 
-    static let boardDesignSize = CGSize(width: 1100, height: 860)
+    // MARK: - タイマー・しるし・字幕
+
+    /// タイマーは舞台の空いている角に、いまの様子（聞いてる・話してる）は先生の頭の上に出す
+    private func hud(_ layout: SessionStageLayout) -> some View {
+        ZStack(alignment: .topLeading) {
+            if let timer = coordinator.timer {
+                FocusTimerView(timer: timer)
+                    .scaleEffect(layout.mode == .board ? 0.7 : 0.8, anchor: layout.mode == .board ? .top : .topLeading)
+                    .frame(width: layout.hud.width, alignment: layout.mode == .board ? .top : .topLeading)
+                    .padding(layout.mode == .board ? 0 : 12)
+                    .offset(x: layout.hud.minX, y: layout.hud.minY)
+            }
+            StateBadge(phase: coordinator.phase, state: coordinator.conversationState, mode: coordinator.sessionMode)
+                .frame(width: layout.teacher.width, alignment: layout.mode == .board ? .center : .trailing)
+                .padding(.top, layout.mode == .board ? 0 : 16)
+                .padding(.trailing, layout.mode == .board ? 0 : 16)
+                .offset(x: layout.teacher.minX, y: layout.mode == .board ? layout.teacher.minY - 8 : layout.teacher.minY)
+        }
+    }
+
+    /// 子どもの発話の字幕。先生の足もとに出す（黒板のときは先生の左へのばす）
+    private func caption(_ layout: SessionStageLayout, stageWidth: CGFloat) -> some View {
+        // 先生の枠は画面の右へはみ出すことがあるので、右端は舞台の内側にそろえる
+        let right = min(layout.teacher.maxX, stageWidth)
+        let width = layout.mode == .board ? min(560, right - 12) : layout.teacher.width + 120
+        let x = layout.mode == .board ? right - width - 12 : layout.teacher.midX - width / 2
+        return CaptionBubble(text: coordinator.caption)
+            .frame(width: width, alignment: layout.mode == .board ? .trailing : .center)
+            .offset(x: x, y: layout.teacher.maxY - 80)
+    }
 
     static func boardHint(phase: StudySessionCoordinator.Phase) -> String {
         switch phase {

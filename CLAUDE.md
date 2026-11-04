@@ -28,6 +28,7 @@
 - 初回のみ: `cp ios/Config/Secrets.xcconfig.example ios/Config/Secrets.xcconfig`
 - テスト: `cd ios && xcodebuild test -project HomeTeacher.xcodeproj -scheme HomeTeacher -destination 'platform=iOS Simulator,name=iPad Pro 11-inch (M5)'`
 - ファイルを追加・削除したら `xcodegen generate` をやり直す
+- 画面の確認用の起動引数: `-skipPermissionOnboarding -sessionPreview idle|teacher|board|tour|…`（`board` は `-previewBoard step_cards|svg|text|…` で図を選ぶ）。横置きは `-canvasSize 1194x834`
 
 ### プロンプトの評価
 

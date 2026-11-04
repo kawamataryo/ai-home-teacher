@@ -1,8 +1,26 @@
 import SwiftUI
 
 /// 先生の黒板。中身（BoardContent）に合わせて部品・文字を出し分ける。
+///
+/// 黒板（`BoardSurface`）の上に中身（`BoardContentView`）を置く。セッション画面は中身だけを縮めて、枠は実際の大きさで描く
 struct BoardView: View {
     let content: BoardContent
+
+    var body: some View {
+        BoardSurface {
+            BoardContentView(content: content)
+        }
+        .animation(.spring(duration: 0.45), value: content)
+    }
+}
+
+/// 黒板に書く中身（タイトルと部品）。中身が替わると、前の図を拭き取ってから書き直す
+struct BoardContentView: View {
+    let content: BoardContent
+    /// 先生が重なるところの余白（設計の座標）
+    var insets = EdgeInsets()
+    /// 先生だけのときの小さな看板（使い方の案内を真ん中に大きく書く）
+    var isSign = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -12,20 +30,26 @@ struct BoardView: View {
                     .foregroundStyle(Chalk.yellow)
                     .lineLimit(2)
                     .minimumScaleFactor(0.6)
+                    .chalkWriteIn(characters: title.count)
             }
-            body(for: content)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if isSign, case .text(let text) = content {
+                Text(text)
+                    .font(Chalk.font(34, weight: .bold))
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(8)
+                    .minimumScaleFactor(0.6)
+                    .chalkWriteIn(characters: text.count)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                body(for: content)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
-        .padding(32)
+        .padding(18)
+        .padding(insets)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(LinearGradient(colors: [Chalk.board, Chalk.boardDeep], startPoint: .top, endPoint: .bottom))
-        )
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Chalk.frame, lineWidth: 14))
-        .foregroundStyle(Chalk.white)
         .id(content)
-        .transition(.asymmetric(insertion: .opacity.combined(with: .scale(scale: 0.96)), removal: .opacity))
+        .transition(.boardRewrite)
     }
 
     private var title: String? {

@@ -6,6 +6,7 @@ enum Chalk {
     static let board = Color(red: 0.16, green: 0.29, blue: 0.23)
     static let boardDeep = Color(red: 0.12, green: 0.23, blue: 0.18)
     static let frame = Color(red: 0.55, green: 0.38, blue: 0.22)
+    static let frameDeep = Color(red: 0.40, green: 0.26, blue: 0.14)
     static let white = Color(white: 0.96)
     static let yellow = Color(red: 1.0, green: 0.88, blue: 0.40)
     static let pink = Color(red: 1.0, green: 0.62, blue: 0.70)
