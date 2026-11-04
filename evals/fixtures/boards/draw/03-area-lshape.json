@@ -4,164 +4,124 @@
   "model": "claude-sonnet-5-5",
   "ask_board": false,
   "analysis": {
-    "analysis": "元の長方形の面積は 6×8=48cm²。切り取った長方形は 2×3=6cm²。残りは 48−6=42cm²。",
+    "analysis": "全体の長方形の面積から、切り取った長方形の面積をひく。全体は 6×8=48cm²。切り取った部分は 2×3=6cm²。残りは 48−6=42cm²。(別解：L字を2つの長方形に分けて足しても42cm²。例：上の部分 たて2×よこ5=10、下の部分 たて4×よこ8=32、合わせて42。)",
     "answer": "42cm²",
     "answer_variants": [
-      "42平方センチメートル",
       "42cm2",
+      "42平方センチメートル",
       "42"
     ],
     "essay_guidance": "",
     "hint_steps": [
-      "この問題、最後に何を答えればいいんだっけ？『残った紙の面積』って、どの部分のことか言ってみて。",
-      "黒板を見てね。はじめの大きな長方形と、右上から切り取った小さな長方形があるよ。使う数はどれとどれかな？",
-      "L字の形は、そのままだと面積が出しにくいね。『はじめの形から、切り取った分をとる』と考えたらどうなりそう？",
-      "まず大きな長方形の面積はいくつ？次に切り取った長方形の面積は？その2つを使って、残った面積を出すと、ということは？"
+      "この問題で、最後に求めるのは何かな？「残った紙の」というところに注目して、自分の言葉で言ってみよう。",
+      "黒板の図を見てね。もとの長方形と、切り取った長方形は、それぞれたてと横が何cmかな？",
+      "L字の形の面積は、そのままだと計算しにくいよね。『もとの形』から『なくなった部分』をひく、という考え方でできないかな？",
+      "まず、もとの長方形の面積を求めよう。次に、切り取った長方形の面積も求めよう。この2つを使って、残った紙の面積はどうなる？ということは？"
     ],
     "kind": "thinking",
-    "problem_summary": "たて6cm、よこ8cmの長方形の紙の右上から、たて2cm、よこ3cmの長方形を切り取ってL字にした。残った紙の面積を求める。"
+    "problem_summary": "たて6cm、よこ8cmの長方形の紙の右上から、たて2cm、よこ3cmの長方形を切り取ってL字にした。残った紙の面積は何cm²か。"
   },
   "boards": [
     {
       "name": "show_board",
       "input": {
-        "title": "L字の形を見てみよう",
+        "title": "切り取ったあとの形を見てみよう",
         "component": {
           "type": "chalk_drawing",
           "shapes": [
             {
-              "kind": "rect",
+              "kind": "polygon",
               "points": [
                 [
                   20,
-                  15
+                  10
+                ],
+                [
+                  57.5,
+                  10
+                ],
+                [
+                  57.5,
+                  25
                 ],
                 [
                   80,
-                  60
-                ]
-              ],
-              "radius": 0,
-              "text": "",
-              "stamp": "",
-              "size": 1,
-              "color": "white",
-              "dashed": false,
-              "fill": false,
-              "step": 1
-            },
-            {
-              "kind": "double_arrow",
-              "points": [
-                [
-                  14,
-                  15
+                  25
                 ],
                 [
-                  14,
-                  60
-                ]
-              ],
-              "radius": 0,
-              "text": "たて 6cm",
-              "stamp": "",
-              "size": 1,
-              "color": "white",
-              "dashed": false,
-              "fill": false,
-              "step": 1
-            },
-            {
-              "kind": "double_arrow",
-              "points": [
+                  80,
+                  55
+                ],
                 [
                   20,
-                  65
-                ],
-                [
-                  80,
-                  65
+                  55
                 ]
               ],
-              "radius": 0,
-              "text": "よこ 8cm",
-              "stamp": "",
-              "size": 1,
               "color": "white",
-              "dashed": false,
-              "fill": false,
               "step": 1
             },
             {
               "kind": "rect",
               "points": [
                 [
-                  60,
-                  15
+                  57.5,
+                  10
                 ],
                 [
                   80,
-                  30
+                  25
                 ]
               ],
-              "radius": 0,
-              "text": "",
-              "stamp": "",
-              "size": 1,
               "color": "pink",
               "dashed": true,
-              "fill": true,
               "step": 2
             },
             {
               "kind": "text",
               "points": [
                 [
-                  70,
-                  22
+                  50,
+                  63
                 ]
               ],
-              "radius": 0,
-              "text": "切り取る",
-              "stamp": "",
-              "size": 0.8,
-              "color": "pink",
-              "dashed": false,
-              "fill": false,
-              "step": 2
+              "text": "よこ 8cm",
+              "color": "yellow",
+              "step": 1
             },
             {
               "kind": "text",
               "points": [
                 [
-                  70,
-                  10
+                  10,
+                  32
                 ]
               ],
-              "radius": 0,
+              "text": "たて 6cm",
+              "color": "yellow",
+              "step": 1
+            },
+            {
+              "kind": "text",
+              "points": [
+                [
+                  68,
+                  5
+                ]
+              ],
               "text": "よこ 3cm",
-              "stamp": "",
-              "size": 0.8,
-              "color": "yellow",
-              "dashed": false,
-              "fill": false,
+              "color": "pink",
               "step": 2
             },
             {
               "kind": "text",
               "points": [
                 [
-                  88,
-                  22
+                  91,
+                  17
                 ]
               ],
-              "radius": 0,
               "text": "たて 2cm",
-              "stamp": "",
-              "size": 0.8,
-              "color": "yellow",
-              "dashed": false,
-              "fill": false,
+              "color": "pink",
               "step": 2
             },
             {
@@ -169,16 +129,11 @@
               "points": [
                 [
                   40,
-                  45
+                  40
                 ]
               ],
-              "radius": 0,
-              "text": "残り 面積は？",
-              "stamp": "",
-              "size": 1,
+              "text": "のこり ？cm²",
               "color": "yellow",
-              "dashed": false,
-              "fill": false,
               "step": 3
             }
           ]
@@ -189,16 +144,16 @@
   "text": "",
   "stop_reason": "tool_use",
   "usage": {
-    "input_tokens": 13550,
+    "input_tokens": 13768,
     "cache_creation_input_tokens": 0,
     "cache_read_input_tokens": 0,
     "cache_creation": {
       "ephemeral_5m_input_tokens": 0,
       "ephemeral_1h_input_tokens": 0
     },
-    "output_tokens": 1194,
+    "output_tokens": 1413,
     "output_tokens_details": {
-      "thinking_tokens": 0
+      "thinking_tokens": 397
     },
     "service_tier": "standard",
     "inference_geo": "global",

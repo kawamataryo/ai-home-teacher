@@ -31,7 +31,7 @@ export function loadCases(dir = casesDir) {
 export function buildRequest(testCase) {
   return {
     model: MODEL,
-    max_tokens: 1024,
+    max_tokens: MAX_TOKENS,
     // アプリと同じく、会話では考える処理を止める（MessagesRequest.thinkingDisabled）
     thinking: { type: "disabled" },
     system: conversationSystemPrompt({ mode: testCase.mode ?? "study", teacherNote: testCase.teacherNote }),
@@ -57,6 +57,9 @@ export function extractReply(response) {
 }
 
 // 環境変数から送り先を決める。なければ null。
+// アプリの TeacherBrain.maxTokens と揃える
+export const MAX_TOKENS = 1024;
+
 export function resolveEndpoint(env) {
   if (env.WORKER_BASE_URL && env.FAMILY_TOKEN) {
     return {
@@ -94,6 +97,8 @@ export async function respond(call, body) {
   let reply = extractReply(first);
   const toolUses = extractToolUses(first);
   const toolBlocks = (first.content ?? []).filter((b) => b.type === "tool_use");
+  // 返事の長さの上限（max_tokens）で切れていないか。図が長いと、ツールの入力が途中で切れる
+  const stops = [{ stop: first.stop_reason, outputTokens: first.usage?.output_tokens }];
   // アプリ（TeacherBrain）と同じく、言葉がないとき・黒板に図を出したときは続きを1回もらう
   const shownBoard = toolBlocks.some((b) => b.name === "show_board");
   if (first.stop_reason === "tool_use" && toolBlocks.length > 0 && (!reply.trim() || shownBoard)) {
@@ -110,8 +115,9 @@ export async function respond(call, body) {
     });
     reply += extractReply(next);
     toolUses.push(...extractToolUses(next));
+    stops.push({ stop: next.stop_reason, outputTokens: next.usage?.output_tokens });
   }
-  return { reply, toolUses };
+  return { reply, toolUses, stops };
 }
 
 async function callClaude(endpoint, body) {
@@ -152,14 +158,19 @@ async function main(argv, env) {
   let failed = 0;
   for (const c of cases) {
     try {
-      const { reply, toolUses } = await respond((body) => callClaude(endpoint, body), buildRequest(c));
+      const { reply, toolUses, stops } = await respond((body) => callClaude(endpoint, body), buildRequest(c));
       // 黒板の文字にも答えを書かない
       const boardText = toolUses.filter((t) => t.name === "show_board").map((t) => JSON.stringify(t.input)).join("\n");
       const result = checkReply(reply, c.expect, toolUses.map((t) => t.name), boardText);
+      if (stops.some((s) => s.stop === "max_tokens")) {
+        result.pass = false;
+        result.failures.push(`返事の長さの上限（max_tokens ${MAX_TOKENS}）で切れた`);
+      }
       if (!result.pass) failed++;
       console.log(`${result.pass ? "PASS" : "FAIL"} ${c.id}（${c.title}）`);
       console.log(`  先生: ${reply.replaceAll("\n", " ")}`);
       for (const t of toolUses) console.log(`  ツール: ${t.name} ${JSON.stringify(t.input)}`);
+      console.log(`  出力: ${stops.map((s) => `${s.outputTokens ?? "?"} トークン（${s.stop}）`).join(" → ")}`);
       for (const f of result.failures) console.log(`  - ${f}`);
       for (const w of result.warnings) console.log(`  (注意) ${w}`);
     } catch (error) {

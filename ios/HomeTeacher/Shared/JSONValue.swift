@@ -57,11 +57,12 @@ enum JSONValue: Codable, Equatable, Sendable {
 /// strict では全オブジェクトに `additionalProperties: false` と全キーの `required` が要るので、ここで必ず付ける。
 /// 数値や文字数の制約（minimum など）は strict 非対応なので使わない。
 enum Schema {
-    static func object(_ properties: [(String, JSONValue)], description: String? = nil) -> JSONValue {
+    /// `required` を渡さなければ、全部のキーを必須にする（strict のツールは全部必須でないと通らない）
+    static func object(_ properties: [(String, JSONValue)], required: [String]? = nil, description: String? = nil) -> JSONValue {
         var o: [String: JSONValue] = [
             "type": .string("object"),
             "properties": .object(Dictionary(uniqueKeysWithValues: properties)),
-            "required": .array(properties.map { .string($0.0) }),
+            "required": .array((required ?? properties.map(\.0)).map { .string($0) }),
             "additionalProperties": .bool(false),
         ]
         if let description { o["description"] = .string(description) }

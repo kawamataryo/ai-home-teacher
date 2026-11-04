@@ -30,7 +30,7 @@ struct BoardToolsTests {
         #expect(types == BoardComponent.Kind.allCases.map(\.rawValue))
     }
 
-    @Test func 全オブジェクトがadditionalPropertiesなしで全キー必須() {
+    @Test func 全オブジェクトがadditionalPropertiesなしで必須のキーは定義にある() {
         var objects = 0
         func walk(_ node: JSONValue, path: String) {
             switch node {
@@ -42,7 +42,9 @@ struct BoardToolsTests {
                         Issue.record("properties / required が無い: \(path)")
                         return
                     }
-                    #expect(Set(req.compactMap(\.stringValue)) == Set(props.keys), "\(path)")
+                    // show_board は strict ではないので、使うときだけ書くキー（chalk_drawing の図形）は必須にしなくてよい
+                    #expect(Set(req.compactMap(\.stringValue)).isSubset(of: Set(props.keys)), "\(path)")
+                    #expect(!req.isEmpty, "\(path)")
                 }
                 // strict 非対応のキーワードを使っていない
                 for banned in ["minimum", "maximum", "minLength", "maxLength", "multipleOf", "oneOf"] {

@@ -4,7 +4,7 @@
   "model": "claude-sonnet-5-5",
   "ask_board": false,
   "analysis": {
-    "analysis": "てこのつり合い：左のうでの おもりの重さ×支点からの距離 = 右のうでの おもりの重さ×支点からの距離。左は30×4=120。右は□×6=120なので□=120÷6=20。答えは20g。",
+    "analysis": "てこのつり合い：おもりの重さ×支点からの距離が左右で等しい。左は30×4=120。右は□×6=120なので□=120÷6=20g。",
     "answer": "20g",
     "answer_variants": [
       "20グラム",
@@ -12,278 +12,34 @@
     ],
     "essay_guidance": "",
     "hint_steps": [
-      "この問題、何を答えればいいのかな？最後の一文をもう一回読んで、自分の言葉で言ってみよう。",
-      "黒板の図を見てね。左のうでと右のうで、それぞれ『おもりの重さ』と『支点からの目もりの数』はどうなっているかな？わかっている数に注目しよう。",
-      "てこが水平につり合うとき、うでをかたむけるはたらきは左右で同じになるよ。『おもりの重さ × 支点からの目もり』で、左のうでのはたらきを先に出してみよう。",
-      "左のうでのはたらきは、30×4でいくつになったかな？右のうでも同じ大きさになるよ。右は『？g × 6』だから、何をどう計算すれば？に入る数が出せそう？ということは、右のおもりは何gかな？"
+      "この問題で答えるのは何かな？右のうでの6の目もりにつるす、何がわかればいい？自分の言葉で言ってみよう。",
+      "黒板を見てね。左のうでには、支点から何の目もりに何gのおもりがあるかな？右のうでは、わかっているのはどの数で、わからないのはどれかな？",
+      "てこがつり合うとき、「おもりの重さ」と「支点からの目もりの数」には、きまりがあったよね。この2つをかけ算すると、左と右でどうなりそうかな？",
+      "まず左のうでで、おもりの重さ×目もりを計算してみよう。次に、右のうでも同じ数になるはずだよね。右は□g×6になるから、□にいくつ入ると同じ数になるかな？ということは、右につるすおもりは何gかな？"
     ],
     "kind": "thinking",
-    "problem_summary": "てこの左のうで、支点から4の目もりに30gのおもりをつるした。右のうでの6の目もりに何gのおもりをつるすと、水平につり合うかを答える。"
+    "problem_summary": "てこの左のうで、支点から4の目もりに30gのおもりをつるした。右のうでの6の目もりに何gのおもりをつるすと水平につり合うか。"
   },
   "boards": [
     {
       "name": "show_board",
       "input": {
-        "title": "てこの左右をくらべよう",
-        "component": {
-          "type": "chalk_drawing",
-          "shapes": [
-            {
-              "kind": "line",
-              "points": [
-                [
-                  10,
-                  30
-                ],
-                [
-                  90,
-                  30
-                ]
-              ],
-              "radius": 0,
-              "text": "",
-              "stamp": "",
-              "size": 1,
-              "color": "white",
-              "dashed": false,
-              "fill": false,
-              "step": 1
-            },
-            {
-              "kind": "polygon",
-              "points": [
-                [
-                  50,
-                  31
-                ],
-                [
-                  44,
-                  42
-                ],
-                [
-                  56,
-                  42
-                ]
-              ],
-              "radius": 0,
-              "text": "支点",
-              "stamp": "",
-              "size": 1,
-              "color": "yellow",
-              "dashed": false,
-              "fill": true,
-              "step": 1
-            },
-            {
-              "kind": "line",
-              "points": [
-                [
-                  30,
-                  30
-                ],
-                [
-                  30,
-                  40
-                ]
-              ],
-              "radius": 0,
-              "text": "",
-              "stamp": "",
-              "size": 1,
-              "color": "white",
-              "dashed": false,
-              "fill": false,
-              "step": 2
-            },
-            {
-              "kind": "rect",
-              "points": [
-                [
-                  25,
-                  40
-                ],
-                [
-                  35,
-                  50
-                ]
-              ],
-              "radius": 0,
-              "text": "",
-              "stamp": "",
-              "size": 1,
-              "color": "yellow",
-              "dashed": false,
-              "fill": true,
-              "step": 2
-            },
-            {
-              "kind": "text",
-              "points": [
-                [
-                  30,
-                  56
-                ]
-              ],
-              "radius": 0,
-              "text": "30g",
-              "stamp": "",
-              "size": 1,
-              "color": "yellow",
-              "dashed": false,
-              "fill": false,
-              "step": 2
-            },
-            {
-              "kind": "line",
-              "points": [
-                [
-                  70,
-                  30
-                ],
-                [
-                  70,
-                  40
-                ]
-              ],
-              "radius": 0,
-              "text": "",
-              "stamp": "",
-              "size": 1,
-              "color": "white",
-              "dashed": false,
-              "fill": false,
-              "step": 2
-            },
-            {
-              "kind": "rect",
-              "points": [
-                [
-                  65,
-                  40
-                ],
-                [
-                  75,
-                  50
-                ]
-              ],
-              "radius": 0,
-              "text": "",
-              "stamp": "",
-              "size": 1,
-              "color": "pink",
-              "dashed": false,
-              "fill": true,
-              "step": 2
-            },
-            {
-              "kind": "text",
-              "points": [
-                [
-                  70,
-                  56
-                ]
-              ],
-              "radius": 0,
-              "text": "？g",
-              "stamp": "",
-              "size": 1,
-              "color": "pink",
-              "dashed": false,
-              "fill": false,
-              "step": 2
-            },
-            {
-              "kind": "double_arrow",
-              "points": [
-                [
-                  50,
-                  22
-                ],
-                [
-                  30,
-                  22
-                ]
-              ],
-              "radius": 0,
-              "text": "",
-              "stamp": "",
-              "size": 1,
-              "color": "blue",
-              "dashed": false,
-              "fill": false,
-              "step": 3
-            },
-            {
-              "kind": "text",
-              "points": [
-                [
-                  40,
-                  17
-                ]
-              ],
-              "radius": 0,
-              "text": "4の目もり",
-              "stamp": "",
-              "size": 0.8,
-              "color": "blue",
-              "dashed": false,
-              "fill": false,
-              "step": 3
-            },
-            {
-              "kind": "double_arrow",
-              "points": [
-                [
-                  50,
-                  22
-                ],
-                [
-                  70,
-                  22
-                ]
-              ],
-              "radius": 0,
-              "text": "",
-              "stamp": "",
-              "size": 1,
-              "color": "blue",
-              "dashed": false,
-              "fill": false,
-              "step": 3
-            },
-            {
-              "kind": "text",
-              "points": [
-                [
-                  60,
-                  17
-                ]
-              ],
-              "radius": 0,
-              "text": "6の目もり",
-              "stamp": "",
-              "size": 0.8,
-              "color": "blue",
-              "dashed": false,
-              "fill": false,
-              "step": 3
-            }
-          ]
-        }
+        "title": "てこのようすを見てみよう",
+        "component": "{\"type\":\"chalk_drawing\",\"shapes\":[{\"kind\":\"line\",\"points\":[[10,30],[90,30]],\"color\":\"white\",\"step\":1},{\"kind\":\"polygon\",\"points\":[[50,31],[44,44],[56,44]],\"color\":\"yellow\",\"step\":1,\"text\":\"支点\"},{\"kind\":\"line\",\"points\":[[30,30],[30,38]],\"color\":\"white\",\"step\":2},{\"kind\":\"rect\",\"points\":[[25,38],[35,48]],\"color\":\"blue\",\"fill\":true,\"step\":2,\"text\":\"30g\"},{\"kind\":\"double_arrow\",\"points\":[[30,22],[50,22]],\"color\":\"yellow\",\"step\":2,\"text\":\"4の目もり\"},{\"kind\":\"line\",\"points\":[[70,30],[70,38]],\"color\":\"white\",\"step\":3},{\"kind\":\"rect\",\"points\":[[65,38],[75,48]],\"color\":\"pink\",\"step\":3,\"text\":\"？g\"},{\"kind\":\"double_arrow\",\"points\":[[50,22],[70,22]],\"color\":\"yellow\",\"step\":3,\"text\":\"6の目もり\"}]"
       }
     }
   ],
   "text": "",
   "stop_reason": "tool_use",
   "usage": {
-    "input_tokens": 13540,
+    "input_tokens": 13758,
     "cache_creation_input_tokens": 0,
     "cache_read_input_tokens": 0,
     "cache_creation": {
       "ephemeral_5m_input_tokens": 0,
       "ephemeral_1h_input_tokens": 0
     },
-    "output_tokens": 1540,
+    "output_tokens": 1020,
     "output_tokens_details": {
       "thinking_tokens": 0
     },
