@@ -29,6 +29,7 @@
 - テスト: `cd ios && xcodebuild test -project HomeTeacher.xcodeproj -scheme HomeTeacher -destination 'platform=iOS Simulator,name=iPad Pro 11-inch (M5)'`
 - ファイルを追加・削除したら `xcodegen generate` をやり直す
 - 画面の確認用の起動引数: `-skipPermissionOnboarding -sessionPreview idle|teacher|board|tour|…`（`board` は `-previewBoard step_cards|svg|text|…` で図を選ぶ）。横置きは `-canvasSize 1194x834`
+- 実機の画面の確認: `-snapshotEvery 1.5` で Documents/snapshots/ に PNG を残す。`xcrun devicectl device process launch --device <UDID> --terminate-existing com.kawamataryo.HomeTeacher -- -skipPermissionOnboarding -traceToFile -snapshotEvery 1.5 -sessionPreview tour` で起動し、`xcrun devicectl device copy from --device <UDID> --domain-type appDataContainer --domain-identifier com.kawamataryo.HomeTeacher --source Documents/snapshots --destination <出力先>` で取り出す
 
 ### プロンプトの評価
 
