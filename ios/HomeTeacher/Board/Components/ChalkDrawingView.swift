@@ -7,13 +7,17 @@ struct ChalkDrawingView: View {
     @Environment(\.boardRevealCount) private var revealCount
 
     var body: some View {
+        let labelPositions = ChalkLabelLayout.positions(for: model)
         GeometryReader { geometry in
             let frame = Self.frame(in: geometry.size)
             ZStack(alignment: .topLeading) {
                 ForEach(Array(model.shapes.enumerated()), id: \.offset) { index, shape in
                     let unit = model.revealIndex(of: shape)
                     if unit < revealCount, shape.parsedKind != nil {
-                        ChalkShapeView(shape: shape, frame: frame, delay: Self.delay(index: index, unit: unit, in: model))
+                        ChalkShapeView(
+                            shape: shape, frame: frame, delay: Self.delay(index: index, unit: unit, in: model),
+                            labelPositions: labelPositions[index]
+                        )
                             .transition(.opacity)
                     }
                 }
@@ -58,6 +62,8 @@ private struct ChalkShapeView: View {
     let shape: ChalkDrawing.Shape
     let frame: ChalkDrawingView.Frame
     let delay: Double
+    /// 文字どうしが重ならないようにずらした位置（`ChalkLabelLayout`）
+    var labelPositions: [CGPoint] = []
     @Environment(\.boardAnimated) private var animated
     @State private var progress: CGFloat = 0
 
@@ -90,12 +96,12 @@ private struct ChalkShapeView: View {
                     dash: shape.dashed ? [lineWidth * 2.4, lineWidth * 2] : []
                 ))
                 .shadow(color: color.opacity(0.35), radius: 1.5)
-            ForEach(Array(geometry.labels.enumerated()), id: \.offset) { _, label in
+            ForEach(Array(geometry.labels.enumerated()), id: \.offset) { i, label in
                 Text(label.text)
                     .font(Chalk.font(frame.scale * label.size, weight: .bold))
                     .foregroundStyle(label.usesShapeColor ? color : Chalk.white)
                     .fixedSize()
-                    .position(frame.point(label.at))
+                    .position(frame.point(i < labelPositions.count ? labelPositions[i] : label.at))
                     .opacity(Double(drawn))
             }
         }
@@ -130,6 +136,8 @@ struct ChalkGeometry {
         /// 文字の大きさ（黒板の座標で）
         var size: CGFloat
         var usesShapeColor: Bool
+        /// 絵の一部の文字（磁石の N・S、乾電池の ＋・－ など）。ずらさない
+        var isFixed = false
     }
 
     var stroke = Path()
@@ -219,7 +227,7 @@ struct ChalkGeometry {
             accent = art.accent?.applying(transform)
             liquid = art.liquid?.applying(transform)
             for text in art.texts {
-                labels.append(Label(text: text.text, at: text.at.applying(transform), size: height * text.size, usesShapeColor: true))
+                labels.append(Label(text: text.text, at: text.at.applying(transform), size: height * text.size, usesShapeColor: true, isFixed: true))
             }
             if !shape.text.isEmpty {
                 // スタンプの名前は、絵の大きさによらず同じ大きさで絵の下に書く
@@ -269,5 +277,105 @@ struct ChalkGeometry {
             path.addCurve(to: p2, control1: c1, control2: c2)
         }
         return path
+    }
+}
+
+// MARK: - 文字の置き場所
+
+/// 文字どうしが重ならないように置く（#107）。モデルの座標どおりに置くと、ラベルが重なることがあった。
+/// 図形の並び順に置いていき、前に置いた文字と重なったら、近い順に上下（だめなら左右）へずらす。黒板の外には出さない。
+/// 段階表示で何が見えているかによらず、図全体で一度だけ決める（見せ方で文字が動かない）
+enum ChalkLabelLayout {
+    /// 文字の箱（黒板の座標）。日本語は 1 文字が大きさとほぼ同じ幅、英数字はその半分くらい
+    static func box(text: String, at point: CGPoint, size: CGFloat) -> CGRect {
+        let width = text.reduce(CGFloat(0)) { $0 + ($1.isASCII ? 0.58 : 1.0) } * size + 1
+        let height = size * 1.25
+        return CGRect(x: point.x - width / 2, y: point.y - height / 2, width: width, height: height)
+    }
+
+    /// 図形ごとの、文字の位置（`ChalkGeometry.labels` と同じ順）
+    static func positions(for model: ChalkDrawing) -> [[CGPoint]] {
+        let canvas = CGRect(x: 0, y: 0, width: ChalkDrawing.width, height: ChalkDrawing.height)
+        let geometries = model.shapes.map(ChalkGeometry.init(shape:))
+        let strokes = geometries.flatMap { samples(of: $0.stroke) }
+        var placed: [CGRect] = []
+        return geometries.map { geometry in
+            geometry.labels.map { label in
+                let point = label.isFixed ? label.at : place(label, avoiding: placed, strokes: strokes, in: canvas)
+                placed.append(box(text: label.text, at: point, size: label.size))
+                return point
+            }
+        }
+    }
+
+    /// 線の上の点（だいたい 1 ずつ）。文字が線にかぶらないかを調べるのに使う
+    static func samples(of path: Path) -> [CGPoint] {
+        var points: [CGPoint] = []
+        var current = CGPoint.zero
+        var start = CGPoint.zero
+        func line(to end: CGPoint) {
+            let n = max(Int((hypot(end.x - current.x, end.y - current.y)).rounded(.up)), 1)
+            for i in 1...n {
+                let t = CGFloat(i) / CGFloat(n)
+                points.append(CGPoint(x: current.x + (end.x - current.x) * t, y: current.y + (end.y - current.y) * t))
+            }
+            current = end
+        }
+        path.forEach { element in
+            switch element {
+            case .move(let p):
+                current = p
+                start = p
+                points.append(p)
+            case .line(let p):
+                line(to: p)
+            case .quadCurve(let p, let c):
+                let from = current
+                for i in 1...8 {
+                    let t = CGFloat(i) / 8, u = 1 - t
+                    let q = CGPoint(x: u * u * from.x + 2 * u * t * c.x + t * t * p.x, y: u * u * from.y + 2 * u * t * c.y + t * t * p.y)
+                    line(to: q)
+                }
+            case .curve(let p, let c1, let c2):
+                let from = current
+                for i in 1...10 {
+                    let t = CGFloat(i) / 10, u = 1 - t
+                    let a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t
+                    line(to: CGPoint(x: a * from.x + b * c1.x + c * c2.x + d * p.x, y: a * from.y + b * c1.y + c * c2.y + d * p.y))
+                }
+            case .closeSubpath:
+                line(to: start)
+            }
+        }
+        return points
+    }
+
+    /// 前に置いた文字と重ならず、線にもかぶらない、いちばん近い場所。線を避けられなければ文字どうしだけ避ける
+    static func place(_ label: ChalkGeometry.Label, avoiding placed: [CGRect], strokes: [CGPoint], in canvas: CGRect) -> CGPoint {
+        let original = box(text: label.text, at: label.at, size: label.size)
+        let step = original.height * 0.55
+        var offsets: [CGPoint] = [.zero]
+        for k in 1...8 {
+            let d = CGFloat(k) * step
+            offsets += [CGPoint(x: 0, y: d), CGPoint(x: 0, y: -d)]
+        }
+        for k in 1...6 {
+            let d = CGFloat(k) * step * 1.5
+            offsets += [CGPoint(x: d, y: 0), CGPoint(x: -d, y: 0)]
+        }
+        var fallback: CGPoint?
+        for offset in offsets {
+            let point = CGPoint(x: label.at.x + offset.x, y: label.at.y + offset.y)
+            let rect = box(text: label.text, at: point, size: label.size)
+            let inside = rect.minX >= canvas.minX - 2 && rect.maxX <= canvas.maxX + 2 && rect.minY >= canvas.minY - 1 && rect.maxY <= canvas.maxY + 1
+            // 少しだけ触れるのは許す（ぎっしり並べた文字を大きく動かさない）
+            let tight = rect.insetBy(dx: 0.4, dy: 0.3)
+            guard inside, !placed.contains(where: { $0.insetBy(dx: 0.4, dy: 0.3).intersects(tight) }) else { continue }
+            if !strokes.contains(where: { tight.contains($0) }) { return point }
+            // 線を避けるのは近くだけ（遠くへ飛ばすと、何のラベルかわからなくなる）
+            if fallback == nil { fallback = point }
+            if abs(offset.x) + abs(offset.y) > step * 4 { break }
+        }
+        return fallback ?? label.at
     }
 }

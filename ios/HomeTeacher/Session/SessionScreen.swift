@@ -250,10 +250,8 @@ struct SessionContent: View {
                     .offset(x: layout.hud.minX, y: layout.hud.minY)
             }
             StateBadge(phase: coordinator.phase, state: coordinator.conversationState, mode: coordinator.sessionMode)
-                .frame(width: layout.teacher.width, alignment: layout.mode == .board ? .center : .trailing)
-                .padding(.top, layout.mode == .board ? 0 : 16)
-                .padding(.trailing, layout.mode == .board ? 0 : 16)
-                .offset(x: layout.teacher.minX, y: layout.mode == .board ? layout.teacher.minY - 8 : layout.teacher.minY)
+                .fixedSize()
+                .position(layout.badgeCenter)
         }
     }
 
