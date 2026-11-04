@@ -124,7 +124,9 @@ async function callClaude(endpoint, body) {
 async function main(argv, env) {
   const dryRun = argv.includes("--dry-run");
   const only = argv.includes("--case") ? argv[argv.indexOf("--case") + 1] : null;
-  const cases = loadCases().filter((c) => !only || c.id === only);
+  // --case はカンマで区切って複数えらべる
+  const picked = only ? new Set(only.split(",")) : null;
+  const cases = loadCases().filter((c) => !picked || picked.has(c.id));
   if (cases.length === 0) {
     console.error(`評価のケースが見つかりません${only ? `: ${only}` : ""}`);
     return 1;

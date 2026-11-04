@@ -109,7 +109,7 @@ struct AudioSessionMonitorTests {
         #expect(h.monitor.state == .interrupted)
         #expect(h.pipeline.suspendCount == 1)
         #expect(h.pipeline.isRunning == false)
-        #expect(h.session.log == ["pause"])
+        #expect(await eventually { h.session.log == ["pause"] })
 
         await h.send(.interruptionEnded(shouldResume: true))
         #expect(await eventually { h.monitor.state == .running })
@@ -144,7 +144,7 @@ struct AudioSessionMonitorTests {
         await h.send(.interruptionBegan(wasSuspended: false))
         await h.send(.interruptionBegan(wasSuspended: false))
         #expect(h.pipeline.suspendCount == 1)
-        #expect(h.session.log == ["pause"])
+        #expect(await eventually { h.session.log == ["pause"] })
 
         await h.send(.interruptionEnded(shouldResume: true))
         #expect(await eventually { h.monitor.state == .running })
@@ -272,7 +272,7 @@ struct AudioSessionMonitorTests {
         #expect(await eventually { h.monitor.state == .failed })
         #expect(h.pipeline.rebuildCount == 3)
         // 再開しない（先生は「おかえり」と言わない）
-        #expect(h.session.log == ["pause"])
+        #expect(await eventually { h.session.log == ["pause"] })
 
         h.clock.advance(by: .seconds(10))
         await h.settle()
@@ -310,7 +310,7 @@ struct AudioSessionMonitorTests {
         #expect(await eventually { h.pipeline.isHoldingRebuild })
 
         await h.send(.interruptionBegan(wasSuspended: false))
-        #expect(h.session.log == ["pause"])
+        #expect(await eventually { h.session.log == ["pause"] })
         h.pipeline.holdsRebuild = false
         h.pipeline.finishRebuild()
         #expect(await eventually { h.monitor.state == .interrupted })

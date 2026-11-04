@@ -62,10 +62,12 @@ struct BoardToolsTests {
     /// Swift のモデルにフィールドを足して Schema を直し忘れたら、ここで落ちる。
     @Test(arguments: BoardComponent.Kind.allCases)
     func モデルを書き出したJSONがスキーマと一致する(kind: BoardComponent.Kind) throws {
-        let data = Data(BoardSamples.json[kind]!.utf8)
-        let decoded = try BoardTools.makeDecoder().decode(ShowBoardInput.self, from: data)
+        // サンプルは使わないキーを省くことがある（chalk_drawing）。アプリと同じく既定値で埋めてからくらべる
+        let original = SchemaDefaults.fill(
+            try JSONDecoder().decode(JSONValue.self, from: Data(BoardSamples.json[kind]!.utf8)), schema: ShowBoardInput.schema
+        )
+        let decoded = try BoardTools.makeDecoder().decode(ShowBoardInput.self, from: try original.jsonData())
         let encoded = try JSONDecoder().decode(JSONValue.self, from: try BoardTools.makeEncoder().encode(decoded))
-        let original = try JSONDecoder().decode(JSONValue.self, from: data)
         #expect(encoded == original, "読み書きで中身が変わった")
         let errors = SchemaChecker.validate(encoded, against: ShowBoardInput.schema)
         #expect(errors.isEmpty, "\(errors)")

@@ -94,3 +94,16 @@ cd ios && TEST_RUNNER_BOARD_EVAL=before xcodebuild test ... -only-testing:HomeTe
 - 速さ（02）は「反対向きに歩いて出会う」動きまでは見えない（`render_svg` のアニメなら描ける）
 - 写真ではなく文字で送っているので、写真を読む力（撮影した問題の数を読み違えないか）は見ていない。実機での確認が要る
 - 会話（Haiku）の図は `evals/run.mjs` の `board-*` ケースと `-autoSession` で見ている（#81）
+
+
+## 自由に描く黒板（#107）
+
+決まった部品で表せない理科・地理・図形の問題を足して、本番の Claude で確かめた（`node evals/boards.mjs --phase draw --case 03-area-lshape,11-science-convection,12-science-circuit,13-science-lever,14-geo-direction,15-angle-triangle`、会話は `node evals/run.mjs --case board-science-convection,board-geo-direction,board-base-amount,board-not-for-praise`）。
+
+- 分析（Sonnet）：6/6 が `chalk_drawing` で図を出し、答えの漏れは 0/6。画像は `docs/screenshots/boards-eval/draw/`
+- 会話（Haiku）：4/4 が合格。理科と地理の質問で `chalk_drawing` を使い、ほめるだけのときは図を出さない。画像は `docs/screenshots/boards-eval/draw-talk/`
+- 直したこと
+  - `component` が JSON の文字列で返る（はじめ 4/6）→ プロンプトで止めて 1/6。アプリは文字列を読み直し、抜けた最後のかっこを補う
+  - あたためる実験でビーカーとランプが重なる → スタンプ `heating_setup`（三脚と金網つき）を足した
+  - 日本列島の上の印が地方とずれる → 地方の座標をプロンプトに書いた
+- 残っていること：ラベルどうしが少し重なることがある（モデルの置き方による）

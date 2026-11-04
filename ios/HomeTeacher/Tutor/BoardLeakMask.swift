@@ -44,7 +44,8 @@ extension AnswerLeakGuard {
     }
 
     /// 部品の種類や写真の ID は答えと関係ないので触らない。
-    private static let untouchedKeys: Set<String> = ["type", "image_id"]
+    /// 自由に描く黒板（#107）の図形の種類・スタンプの名前・色も触らない。
+    private static let untouchedKeys: Set<String> = ["type", "image_id", "kind", "stamp", "color"]
 
     private static func mapStrings(_ value: JSONValue, key: String? = nil, transform: (String) -> String) -> JSONValue {
         switch value {

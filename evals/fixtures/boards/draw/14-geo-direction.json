@@ -1,0 +1,143 @@
+{
+  "id": "14-geo-direction",
+  "title": "社会（方位と地方）",
+  "model": "claude-sonnet-5-5",
+  "ask_board": false,
+  "analysis": {
+    "analysis": "方位記号は上が北。九州地方は日本列島の左下（南西のはし）、北海道地方は右上（北東のはし）にある。九州から北海道へ向かう線は、上（北）にも右（東）にも進むので、北と東の間の「北東」。右だけ（東）や上だけ（北）ではなく、ななめ右上になる点がポイント。答えは北東。",
+    "answer": "北東",
+    "answer_variants": [
+      "ほくとう",
+      "北東の方位"
+    ],
+    "essay_guidance": "\"\"",
+    "hint_steps": [
+      "この問題、何を答えればいいかな？「どこから見て」「どこが」どの方位かを、自分の言葉で言ってみよう。",
+      "地図で九州地方と北海道地方を見つけて指でさそう。それから、方位記号の『北』がどっちを向いているかも見てみよう。",
+      "九州から北海道へ、指で線を引いてみよう。その線は、上（北）・下（南）・右（東）・左（西）のどっちに向かっているかな？ひとつだけじゃなく、2つの方位が混ざっていないか考えてみよう。",
+      "九州から北海道へ向かう線は、北と東のどちらにも進んでいるかな？八方位は、北と東の間なら何と呼ぶんだったかな。ということは、北海道は九州から見てどの方位？"
+    ],
+    "kind": "reading",
+    "problem_summary": "地図の方位記号（上が北）を見て、九州地方から見た北海道地方の方位を八方位で答える問題。"
+  },
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "九州から北海道は、どっち？",
+        "component": {
+          "type": "chalk_drawing",
+          "shapes": [
+            {
+              "kind": "stamp",
+              "points": [
+                [
+                  50,
+                  35
+                ]
+              ],
+              "radius": 0,
+              "text": "",
+              "stamp": "japan",
+              "size": 4,
+              "color": "white",
+              "dashed": false,
+              "fill": false,
+              "step": 1
+            },
+            {
+              "kind": "stamp",
+              "points": [
+                [
+                  12,
+                  14
+                ]
+              ],
+              "radius": 0,
+              "text": "",
+              "stamp": "compass",
+              "size": 0.8,
+              "color": "white",
+              "dashed": false,
+              "fill": false,
+              "step": 1
+            },
+            {
+              "kind": "circle",
+              "points": [
+                [
+                  22,
+                  59
+                ]
+              ],
+              "radius": 5,
+              "text": "九州",
+              "stamp": "",
+              "size": 1,
+              "color": "yellow",
+              "dashed": false,
+              "fill": false,
+              "step": 2
+            },
+            {
+              "kind": "circle",
+              "points": [
+                [
+                  75,
+                  13
+                ]
+              ],
+              "radius": 5,
+              "text": "北海道",
+              "stamp": "",
+              "size": 1,
+              "color": "yellow",
+              "dashed": false,
+              "fill": false,
+              "step": 2
+            },
+            {
+              "kind": "arrow",
+              "points": [
+                [
+                  27,
+                  54
+                ],
+                [
+                  70,
+                  18
+                ]
+              ],
+              "radius": 0,
+              "text": "どの方位？",
+              "stamp": "",
+              "size": 1,
+              "color": "pink",
+              "dashed": true,
+              "fill": false,
+              "step": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "text": "",
+  "stop_reason": "tool_use",
+  "usage": {
+    "input_tokens": 13530,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 1427,
+    "output_tokens_details": {
+      "thinking_tokens": 346
+    },
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "speed": "standard"
+  }
+}

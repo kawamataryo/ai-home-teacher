@@ -134,7 +134,7 @@ enum BoardTools {
         case showBoardName:
             // strict ではないので、キーが足りない・型が違う入力も来る。スキーマに合わせて直してから読む
             if let raw = try? JSONDecoder().decode(JSONValue.self, from: input),
-               let filled = try? SchemaDefaults.fill(raw, schema: ShowBoardInput.schema).jsonData(),
+               let filled = try? SchemaDefaults.fill(unwrapStringifiedJSON(raw), schema: ShowBoardInput.schema).jsonData(),
                let decoded = try? makeDecoder().decode(ShowBoardInput.self, from: filled),
                !decoded.component.isEmpty {
                 return .component(title: decoded.title, decoded.component)
@@ -154,6 +154,44 @@ enum BoardTools {
         return .text(fallbackText(from: input))
     }
 
+    /// 入れ子が深いと、モデルが `component`（や `shapes`）を JSON の文字列にして返すことがある（#107 の評価で 4/6）。
+    /// 文字列が JSON の配列・オブジェクトとして読めるなら、中身に置きかえる
+    static func unwrapStringifiedJSON(_ value: JSONValue, keys: Set<String> = ["component", "shapes"]) -> JSONValue {
+        guard case .object(var object) = value else { return value }
+        for (key, child) in object {
+            if keys.contains(key), case .string(let text) = child,
+               let first = text.trimmingCharacters(in: .whitespacesAndNewlines).first, first == "{" || first == "[",
+               let parsed = (try? JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)))
+                   ?? (try? JSONDecoder().decode(JSONValue.self, from: Data(closingBrackets(text).utf8))) {
+                object[key] = unwrapStringifiedJSON(parsed, keys: keys)
+            } else {
+                object[key] = unwrapStringifiedJSON(child, keys: keys)
+            }
+        }
+        return .object(object)
+    }
+
+    /// 閉じていないかっこ（`{` `[`）を後ろに足す。文字列にした JSON は最後の `}` が抜けることがあった（#107）
+    static func closingBrackets(_ text: String) -> String {
+        var stack: [Character] = []
+        var inString = false
+        var escaped = false
+        for c in text {
+            if inString {
+                if escaped { escaped = false } else if c == "\\" { escaped = true } else if c == "\"" { inString = false }
+                continue
+            }
+            switch c {
+            case "\"": inString = true
+            case "{": stack.append("}")
+            case "[": stack.append("]")
+            case "}", "]": if stack.last == c { stack.removeLast() }
+            default: break
+            }
+        }
+        return inString ? text : text + String(stack.reversed())
+    }
+
     static func content(toolName: String, input: JSONValue) -> BoardContent {
         content(toolName: toolName, input: (try? input.jsonData()) ?? Data())
     }
@@ -171,7 +209,7 @@ enum BoardTools {
     static let notice = "（図をうまく出せなかったよ）"
 
     /// 部品の種類や ID のような、子どもに見せても意味のない値は拾わない。
-    private static let ignoredKeys: Set<String> = ["type", "image_id", "svg"]
+    private static let ignoredKeys: Set<String> = ["type", "image_id", "svg", "kind", "stamp", "color"]
 
     private static func priority(_ key: String) -> Int {
         ["title", "theme", "name", "heading"].firstIndex(of: key) ?? 99

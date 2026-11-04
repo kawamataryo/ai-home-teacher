@@ -217,3 +217,9 @@ test("必要な言葉がないとき・言ってはいけない言葉を言っ�
   assert.equal(checkReply("話してくれてありがとう。", expect).pass, false);
   assert.equal(checkReply("お父さんに報告します。", expect).pass, false);
 });
+
+test("黒板の部品の種類を確かめる（#107）", () => {
+  const board = JSON.stringify({ title: "図", component: '{"type":"chalk_drawing","shapes":[]}' });
+  assert.equal(checkReply("黒板を見てね。どっちかな？", { boardComponent: "chalk_drawing" }, ["show_board"], board).pass, true);
+  assert.equal(checkReply("黒板を見てね。どっちかな？", { boardComponent: "chalk_drawing" }, ["show_board"], '{"component":{"type":"table"}}').pass, false);
+});

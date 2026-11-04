@@ -1,0 +1,105 @@
+{
+  "id": "board-geo-direction",
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "方位の見方",
+        "component": {
+          "type": "chalk_drawing",
+          "shapes": [
+            {
+              "kind": "stamp",
+              "points": [
+                [
+                  50,
+                  35
+                ]
+              ],
+              "radius": 0,
+              "text": "",
+              "stamp": "japan",
+              "size": 4,
+              "color": "white",
+              "dashed": false,
+              "fill": false,
+              "step": 1
+            },
+            {
+              "kind": "stamp",
+              "points": [
+                [
+                  12,
+                  14
+                ]
+              ],
+              "radius": 0,
+              "text": "",
+              "stamp": "compass",
+              "size": 0.8,
+              "color": "white",
+              "dashed": false,
+              "fill": false,
+              "step": 1
+            },
+            {
+              "kind": "text",
+              "points": [
+                [
+                  75,
+                  11
+                ]
+              ],
+              "radius": 0,
+              "text": "北海道",
+              "stamp": "",
+              "size": 1,
+              "color": "yellow",
+              "dashed": false,
+              "fill": false,
+              "step": 2
+            },
+            {
+              "kind": "text",
+              "points": [
+                [
+                  22,
+                  64
+                ]
+              ],
+              "radius": 0,
+              "text": "九州",
+              "stamp": "",
+              "size": 1,
+              "color": "yellow",
+              "dashed": false,
+              "fill": false,
+              "step": 3
+            },
+            {
+              "kind": "arrow",
+              "points": [
+                [
+                  24,
+                  60
+                ],
+                [
+                  70,
+                  18
+                ]
+              ],
+              "radius": 0,
+              "text": "？",
+              "stamp": "",
+              "size": 1,
+              "color": "pink",
+              "dashed": true,
+              "fill": false,
+              "step": 4
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

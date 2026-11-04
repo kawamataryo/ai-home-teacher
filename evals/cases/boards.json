@@ -5,13 +5,25 @@
     "title": "会話の途中で図を出す（もとにする量ってなに？）",
     "teacherNote": "- 問題の種類: thinking（割合）\n- 問題: 1200円の絵の具セットが、もとの値段の25%引きで売られている。はらう金額を求める\n- 正答: 900円（1200×0.75=900）\n- いまのヒントの段階: 2（どこを見ればよいか）",
     "messages": [
-      { "role": "user", "content": "ねえ先生、割合の問題がよくわからないんだけど、どうやって考えればいい？" },
-      { "role": "assistant", "content": "いいよ、一緒に考えよう。問題に出てくる数は何と何かな？" },
-      { "role": "user", "content": "1200円と25%。ねえ先生、もとにする量ってなに？" }
+      {
+        "role": "user",
+        "content": "ねえ先生、割合の問題がよくわからないんだけど、どうやって考えればいい？"
+      },
+      {
+        "role": "assistant",
+        "content": "いいよ、一緒に考えよう。問題に出てくる数は何と何かな？"
+      },
+      {
+        "role": "user",
+        "content": "1200円と25%。ねえ先生、もとにする量ってなに？"
+      }
     ],
     "expect": {
       "toolUse": "show_board",
-      "forbidden": ["900", "九百"],
+      "forbidden": [
+        "900",
+        "九百"
+      ],
       "maxChars": 200
     }
   },
@@ -21,11 +33,59 @@
     "title": "ほめるだけのときは図を出さない",
     "teacherNote": "- 問題の種類: thinking（割合）\n- 正答: 900円\n- いまのヒントの段階: 3（考え方の方向）",
     "messages": [
-      { "role": "user", "content": "わかった！25%は0.25だから、300円安くなるんだ" }
+      {
+        "role": "user",
+        "content": "わかった！25%は0.25だから、300円安くなるんだ"
+      }
     ],
     "expect": {
       "noToolUse": true,
-      "forbidden": ["900", "九百"],
+      "forbidden": [
+        "900",
+        "九百"
+      ],
+      "maxChars": 200
+    }
+  },
+  {
+    "id": "board-science-convection",
+    "kind": "thinking",
+    "title": "理科の実験は自由に描く（水のあたたまり方）",
+    "teacherNote": "- 問題の種類: thinking（理科・水のあたたまり方）\n- 問題: ビーカーの水の底の左はしをアルコールランプであたためる。おがくずはどう動くか。水は上と下のどちらから先にあたたかくなるか\n- 正答: あたためた所の水が上へ動き、上の方から先にあたたかくなる\n- いまのヒントの段階: 2（どこを見ればよいか）",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、水ってあたためるとどう動くの？どうやって考えればいい？"
+      }
+    ],
+    "expect": {
+      "toolUse": "show_board",
+      "boardComponent": "chalk_drawing",
+      "forbidden": [
+        "上の方から",
+        "上からあたたか"
+      ],
+      "maxChars": 200
+    }
+  },
+  {
+    "id": "board-geo-direction",
+    "kind": "thinking",
+    "title": "地図は自由に描く（方位）",
+    "teacherNote": "- 問題の種類: thinking（社会・方位）\n- 問題: 地図の方位記号は上が北。九州地方から見て、北海道地方はどの方位か（八方位）\n- 正答: 北東\n- いまのヒントの段階: 2（どこを見ればよいか）",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、方位ってどうやって考えればいいの？"
+      }
+    ],
+    "expect": {
+      "toolUse": "show_board",
+      "boardComponent": "chalk_drawing",
+      "forbidden": [
+        "北東",
+        "ほくとう"
+      ],
       "maxChars": 200
     }
   }

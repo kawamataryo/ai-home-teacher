@@ -1,0 +1,40 @@
+{
+  "id": "board-base-amount",
+  "boards": [
+    {
+      "name": "show_board",
+      "input": {
+        "title": "もとにする量ってなに？",
+        "component": {
+          "type": "segment_diagram",
+          "bars": [
+            {
+              "name": "もとの値段",
+              "segments": [
+                {
+                  "length": 1,
+                  "label": "1200円"
+                }
+              ],
+              "total_label": "もとにする量（100%）"
+            },
+            {
+              "name": "はらう金額",
+              "segments": [
+                {
+                  "length": 0.75,
+                  "label": "？円"
+                },
+                {
+                  "length": 0.25,
+                  "label": "25%引き"
+                }
+              ],
+              "total_label": ""
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
