@@ -34,6 +34,14 @@ final class SessionSelfTest {
         "ねえ先生、もとにする量ってなに？",
         "ねえ先生、ありがとう、やってみる",
     ]
+    /// 黒板の台本（起動引数 `-boardScript`。#105・#107）：理科と地理で自由に描く図を出し、図を使わない返事が 2 回続いたらしまう
+    static let boardScript = [
+        "ねえ先生、水ってあたためるとどう動くの？どうやって考えればいい？",
+        "ねえ先生、方位ってどうやって見るの？",
+        "ねえ先生、きのうサッカーしたんだ",
+        "ねえ先生、ゴールも決めたよ",
+    ]
+    static var usesBoardScript: Bool { ProcessInfo.processInfo.arguments.contains("-boardScript") }
     static let endCommand = "終わり"
 
     /// 答えを言う台本（#73）の問題。撮影のかわりに、この分析の結果を入れてから始める
@@ -85,7 +93,7 @@ final class SessionSelfTest {
         }
         results.append(summary("最初のひと言", coordinator))
 
-        for (index, line) in Self.script.enumerated() {
+        for (index, line) in (Self.usesBoardScript ? Self.boardScript : Self.script).enumerated() {
             let before = coordinator.completedReplies
             await childSays(line)
             let replied = await waitUntil(seconds: 40) {
@@ -95,6 +103,7 @@ final class SessionSelfTest {
         }
 
         // 答えを言う台本（#73）：違う → 違う（次のヒントへ・励ます）→ 正しい（ほめる・解けた）
+        if !Self.usesBoardScript {
         record("問題を入れる: \(Self.problem.analysis.problemSummary)（正答 \(Self.problem.analysis.answer)）")
         await coordinator.beginProblem(Self.problem)
         for (index, line) in Self.answerScript.enumerated() {
@@ -108,6 +117,7 @@ final class SessionSelfTest {
         }
         let solved = coordinator.problems.last?.solvedBySelf == true
         results.append("- 解けた記録（solved_by_self）: \(solved ? "true" : "false")、ヒントの段階 \(coordinator.problems.last?.hintLevelReached ?? 0)")
+        }
 
         await childSays(Self.endCommand)
         let ended = await waitUntil(seconds: 90) { coordinator.phase == .idle }
@@ -130,7 +140,7 @@ final class SessionSelfTest {
         let latency = coordinator.lastReplyLatency.map { "1文目まで \(Int($0 / .milliseconds(1)))ms" } ?? "-"
         let text = coordinator.lastReplyFromWorker == true ? "「\(coordinator.lastReplySentences.joined())」" : ""
         // 会話の途中で出した黒板（#70）
-        let board = coordinator.board.map { "、黒板: \(StudySessionCoordinator.describe($0))" } ?? ""
+        let board = coordinator.board.map { "、黒板: \(StudySessionCoordinator.describe($0))" } ?? "、黒板なし（先生だけ）"
         return "- \(label): \(source)、\(latency) \(text)\(board)"
     }
 
