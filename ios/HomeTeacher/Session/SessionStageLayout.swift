@@ -29,6 +29,8 @@ struct SessionStageLayout: Equatable {
     let designBase: CGSize
     /// 先生の体が黒板に重なっている幅（右から）と高さ（下から）。pt
     let occlusion: CGSize
+    /// いまの様子（聞いてる・話してる）のしるしの真ん中。黒板に書いているときは黒板の外に出す
+    let badgeCenter: CGPoint
 
     init(size: CGSize, mode: Mode) {
         self.mode = mode
@@ -72,6 +74,17 @@ struct SessionStageLayout: Equatable {
             board = CGRect(x: 0, y: 0, width: w, height: h * 0.76)
             hud = CGRect(x: 0, y: board.maxY + 16, width: teacher.minX, height: h - board.maxY - 16)
             designBase = CGSize(width: Self.boardDesignBase.width, height: Self.boardDesignBase.width * 0.9)
+        }
+        switch (mode, isWide) {
+        case (.teacher, _):
+            badgeCenter = CGPoint(x: min(teacher.maxX, w) - 90, y: teacher.minY + 34)
+        case (.board, true):
+            // 黒板の右の空いている所（タイマーの下、先生の頭の上）
+            // 右の列は狭いので、画面からはみ出さないところまで寄せる（黒板の枠に少しかかる）
+            badgeCenter = CGPoint(x: min((board.maxX + w) / 2, w - 80), y: max(hud.maxY - 4, 150))
+        case (.board, false):
+            // 黒板の下（タイマーの右）
+            badgeCenter = CGPoint(x: min(hud.midX + 150, teacher.minX - 20), y: hud.minY + 44)
         }
         let bodyLeft = teacher.midX - teacher.width * Self.teacherBodyWidth / 2
         // 先生の頭の上には少し余白がある（枠の上 1 割）

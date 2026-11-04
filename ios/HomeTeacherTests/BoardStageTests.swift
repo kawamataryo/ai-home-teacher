@@ -84,6 +84,17 @@ struct SessionStageLayoutTests {
         #expect(CGRect(origin: .zero, size: size).contains(layout.board))
     }
 
+    @Test(arguments: [landscape, portrait])
+    func 書くときの様子のしるしは黒板にかぶらない(_ size: CGSize) {
+        let layout = SessionStageLayout(size: size, mode: .board)
+        // しるしはおよそ 150×40
+        let badge = CGRect(x: layout.badgeCenter.x - 75, y: layout.badgeCenter.y - 20, width: 150, height: 40)
+        let inner = layout.board.insetBy(dx: 14, dy: 14)
+        let overlap = badge.intersection(inner)
+        #expect(overlap.isNull || overlap.width < 40, "\(badge) と \(inner)")
+        #expect(CGRect(origin: .zero, size: size).insetBy(dx: -10, dy: -10).contains(badge))
+    }
+
     @Test func 中身を描く大きさは場所と同じ比で基準より小さくしない() {
         let base = SessionStageLayout.boardDesignBase
         for size in [CGSize(width: 960, height: 590), CGSize(width: 760, height: 700), CGSize(width: 300, height: 200)] {

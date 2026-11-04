@@ -115,4 +115,59 @@ struct ChalkDrawingTests {
             #expect(BoardSamples.drawing(named: sample.name).flatMap(drawing) != nil, "\(sample.name)")
         }
     }
+
+    @Test func 重なる文字はずらして重ならないようにする() {
+        let m = ChalkDrawing(shapes: [
+            .init(kind: .text, points: [[50, 30]], text: "上と下、先は？"),
+            .init(kind: .text, points: [[52, 31]], text: "おがくずの動き"),
+            .init(kind: .stamp, points: [[50, 20]], text: "ビーカー", stamp: .beaker),
+        ])
+        let positions = ChalkLabelLayout.positions(for: m)
+        // 最初の文字は動かさない
+        #expect(positions[0] == [CGPoint(x: 50, y: 30)])
+        var boxes: [CGRect] = []
+        for (shape, points) in zip(m.shapes, positions) {
+            for (label, point) in zip(ChalkGeometry(shape: shape).labels, points) {
+                boxes.append(ChalkLabelLayout.box(text: label.text, at: point, size: label.size).insetBy(dx: 0.4, dy: 0.3))
+            }
+        }
+        for i in boxes.indices {
+            for j in boxes.indices where j > i { #expect(!boxes[i].intersects(boxes[j]), "\(i) と \(j)") }
+            #expect(boxes[i].minY >= -1 && boxes[i].maxY <= ChalkDrawing.height + 1)
+        }
+    }
+
+    @Test func 重ならない文字は動かさない() {
+        let m = ChalkDrawing(shapes: [
+            .init(kind: .text, points: [[20, 10]], text: "A"),
+            .init(kind: .text, points: [[80, 60]], text: "B"),
+        ])
+        #expect(ChalkLabelLayout.positions(for: m) == [[CGPoint(x: 20, y: 10)], [CGPoint(x: 80, y: 60)]])
+    }
+
+    @Test func 文字が線にかぶるときは近くの空いている所へずらす() {
+        let m = ChalkDrawing(shapes: [
+            .init(kind: .line, points: [[10, 30], [90, 30]]),
+            .init(kind: .text, points: [[50, 30]], text: "ここ"),
+        ])
+        let point = ChalkLabelLayout.positions(for: m)[1][0]
+        let rect = ChalkLabelLayout.box(text: "ここ", at: point, size: 3.6).insetBy(dx: 0.4, dy: 0.3)
+        #expect(!ChalkLabelLayout.samples(of: ChalkGeometry(shape: m.shapes[0]).stroke).contains { rect.contains($0) })
+        #expect(abs(point.y - 30) < 6 && point.x == 50)
+    }
+
+    @Test func 四角の中のラベルは線にかぶらなければそのまま() {
+        let m = ChalkDrawing(shapes: [.init(kind: .rect, points: [[20, 20], [40, 40]], text: "30g")])
+        #expect(ChalkLabelLayout.positions(for: m) == [[CGPoint(x: 30, y: 30)]])
+    }
+
+    @Test func スタンプの中の文字はずらさない() {
+        let m = ChalkDrawing(shapes: [.init(kind: .stamp, points: [[50, 35]], text: "かん電池", stamp: .battery, size: 1.6)])
+        let labels = ChalkGeometry(shape: m.shapes[0]).labels
+        let positions = ChalkLabelLayout.positions(for: m)[0]
+        for (label, point) in zip(labels, positions) where label.isFixed {
+            #expect(point == label.at, "\(label.text)")
+        }
+        #expect(labels.filter(\.isFixed).map(\.text) == ["＋", "－"])
+    }
 }

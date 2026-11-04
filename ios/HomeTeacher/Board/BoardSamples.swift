@@ -127,8 +127,8 @@ enum BoardSamples {
         let stamps = ChalkDrawing.Stamp.allCases
         let shapes = stamps.enumerated().map { i, stamp in
             ChalkDrawing.Shape(
-                kind: .stamp, points: [[10 + Double(i % 6) * 16, 12 + Double(i / 6) * 22]], text: stamp.shortName,
-                stamp: stamp, size: 0.75, fill: [.beaker, .flask, .testTube, .graduatedCylinder].contains(stamp)
+                kind: .stamp, points: [[8 + Double(i % 7) * 14, 11 + Double(i / 7) * 22]], text: stamp.shortName,
+                stamp: stamp, size: 0.68, fill: [.beaker, .flask, .testTube, .graduatedCylinder].contains(stamp)
             )
         }
         return .component(title: "スタンプ", .chalkDrawing(ChalkDrawing(shapes: shapes)))
