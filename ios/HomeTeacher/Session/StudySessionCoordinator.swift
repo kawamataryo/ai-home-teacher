@@ -180,6 +180,10 @@ final class StudySessionCoordinator {
     @ObservationIgnored private var captureJudge: (any CaptureRequestJudge)?
     /// 図を出してから話し始めた文の数（段階表示）
     @ObservationIgnored private var sentencesSinceBoard = 0
+    /// 黒板をしまうかどうか（#105）
+    @ObservationIgnored private var boardStage = BoardStage()
+    /// 休憩のあいだ預かっている、解いている途中の問題の図（#105）
+    @ObservationIgnored private var parkedBoard: (content: BoardContent, reveal: BoardReveal?)?
     @ObservationIgnored private let answerJudge: any AnswerJudging
     /// 次に話し始めるときの表情。話し始めたら neutral に戻す（定型句や声かけに持ち越さない）
     @ObservationIgnored private var pendingEmotion: AvatarEmotion = .neutral
@@ -243,8 +247,7 @@ final class StudySessionCoordinator {
         finishConfirmationDeadline = nil
         // 前のセッションで先生が最後に話した文を、新しいセッションの発話の判断に持ち込まない
         decisionCache?.teacherLastSaid = nil
-        board = nil
-        boardReveal = nil
+        clearBoard()
         lastReplySentences = []
         trace("セッション開始")
 
@@ -638,6 +641,10 @@ final class StudySessionCoordinator {
             // 返事が途中で止まった。話せたところまで話してから聞き直す
             await speakFallback([Self.troubleLine, Self.replyFallback])
         }
+        if failure == nil, outcome == .completed, generation == replyGeneration, phase == .active,
+           boardStage.replyFinished(showedBoard: inFlightBoardShown, pace: board == nil ? nil : boardReveal?.pace) {
+            putAwayBoard(reason: "図を使わない返事が\(BoardStage.quietRepliesBeforePutAway)回続いた")
+        }
         completedReplies += 1
     }
 
@@ -788,6 +795,19 @@ final class StudySessionCoordinator {
         guard mode != sessionMode else { return }
         sessionMode = mode
         avatar.send(mode == .rest ? .breakStarted : .breakEnded)
+        if mode == .rest {
+            if BoardStage.keepsThroughBreak(boardReveal?.pace), let board {
+                parkedBoard = (board, boardReveal)
+            }
+            putAwayBoard(reason: "休憩に入った")
+        } else if let parked = parkedBoard {
+            // 解いていた問題の図を出し直す（見せていたところまで）
+            parkedBoard = nil
+            board = parked.content
+            boardReveal = parked.reveal
+            boardStage.boardPresented()
+            trace("休憩が終わったので、解いていた問題の図を出し直した")
+        }
         trace(mode == .rest ? "休憩に入った（雑談モード）" : "休憩が終わった（勉強モード）")
         await rebuildSystemPrompt()
     }
@@ -876,6 +896,7 @@ final class StudySessionCoordinator {
         timer = nil
         conversationState = .idle
         sessionMode = .study
+        clearBoard()
     }
 
     // MARK: - アバター
@@ -935,24 +956,22 @@ final class StudySessionCoordinator {
 
     /// 表示確認用に、状態を固定して見せる（起動引数 `-sessionPreview`。シミュレーターのスクリーンショット用）
     func showPreview(_ preview: SessionPreviewState) {
-        switch preview {
-        case .idle:
+        if preview == .idle {
             phase = .idle
             return
-        case .listening, .speaking, .praise, .encourage:
-            phase = .active
-            let timer = FocusTimer(clock: deps.clock, settings: settings.timer)
-            timer.start()
-            self.timer = timer
         }
+        phase = .active
+        let timer = FocusTimer(clock: deps.clock, settings: settings.timer)
+        timer.start()
+        self.timer = timer
         switch preview {
         case .praise: pendingEmotion = .praise
         case .encourage: pendingEmotion = .encourage
         default: break
         }
-        conversationStateChanged(to: preview == .listening ? .listening : .speaking)
+        conversationStateChanged(to: [.listening, .teacher].contains(preview) ? .listening : .speaking)
         switch preview {
-        case .listening:
+        case .listening, .teacher:
             caption = "ねえ先生、この割合の問題がよくわかんない"
         case .praise:
             caption = "わかった！24平方センチだ！"
@@ -960,10 +979,52 @@ final class StudySessionCoordinator {
         case .encourage:
             caption = "じゃあ10平方センチかな？"
             board = BoardSamples.content(.stepCards)
-        default:
+        case .board:
+            caption = ""
+            presentBoard(SessionPreviewState.previewBoard(), pace: .sentence)
+            boardReveal?.revealAll()
+        case .tour:
+            caption = ""
+        case .idle, .speaking:
             caption = ""
             board = BoardSamples.content(.stepCards)
             boardReveal = BoardReveal(content: BoardSamples.content(.stepCards), pace: .sentence, initiallyShown: 2)
+        }
+    }
+
+    /// 黒板の出し入れを順にくり返す（`-sessionPreview tour`。動画で切り替えを確かめる。#105）
+    func runBoardTour() async {
+        func wait(_ seconds: Double) async -> Bool {
+            try? await Task.sleep(for: .seconds(seconds))
+            return !Task.isCancelled
+        }
+        while !Task.isCancelled {
+            // 先生だけで聞いている
+            putAwayBoard(reason: "表示確認")
+            conversationStateChanged(to: .listening)
+            caption = "ねえ先生、割合の問題がわかんない"
+            guard await wait(3) else { return }
+            // 書きながら話す：黒板が広がって、先生は右下へ
+            caption = ""
+            conversationStateChanged(to: .speaking)
+            presentBoard(BoardSamples.content(.stepCards), pace: .sentence)
+            for _ in 0..<3 {
+                guard await wait(1.6) else { return }
+                boardReveal?.advance()
+            }
+            guard await wait(2) else { return }
+            // 図の差し替え：黒板消しで消して書き直す
+            for name in ["segment_diagram", "percent_bar", "table", "svg"] {
+                presentBoard(SessionPreviewState.board(named: name), pace: .sentence)
+                guard await wait(3.2) else { return }
+            }
+            // 子どもが話す（黒板は出したまま）
+            conversationStateChanged(to: .listening)
+            caption = "あ、わかったかも！"
+            guard await wait(2.5) else { return }
+            caption = ""
+            conversationStateChanged(to: .speaking)
+            guard await wait(2) else { return }
         }
     }
 
@@ -979,9 +1040,27 @@ final class StudySessionCoordinator {
         }
         board = shown
         boardReveal = BoardReveal(content: shown, pace: pace)
+        boardStage.boardPresented()
+        parkedBoard = nil
         // 1 つ目は、いま話している文（まだなら次に話し始める文）に合わせる
         sentencesSinceBoard = tracker.isSpeaking ? 1 : 0
         trace("黒板: \(Self.describe(shown))（\(boardReveal.map { "\($0.shown)/\($0.total)" } ?? "-")）")
+    }
+
+    /// 黒板をしまって先生だけにする（#105）
+    private func putAwayBoard(reason: String) {
+        guard board != nil else { return }
+        board = nil
+        boardReveal = nil
+        boardStage.reset()
+        trace("黒板をしまった（\(reason)）")
+    }
+
+    private func clearBoard() {
+        board = nil
+        boardReveal = nil
+        boardStage.reset()
+        parkedBoard = nil
     }
 
     /// 話している文に合わせる図は、文を話し始めるたびに 1 つ増やす（最初の 1 つは図を出したときに見せている）

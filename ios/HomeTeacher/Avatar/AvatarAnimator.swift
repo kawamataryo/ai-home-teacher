@@ -19,6 +19,9 @@ final class AvatarAnimator {
     }
     /// 確認用に口の形を固定する（口パクより優先）
     var mouthOverride: MouthShape?
+    /// 体の向き（ラジアン、上から見て反時計回り）。黒板の方を向くときに使う。少しずつ近づける（#105）
+    var targetYaw: Float = 0
+    private var yaw: Float = 0
     private var time: Double = 0
     private var stateStartedAt: Double = 0
     private var poseAtChange = AvatarPose()
@@ -48,6 +51,9 @@ final class AvatarAnimator {
         let k = min(1, timeInState / Self.blendDuration)
         let eased = Float(k * k * (3 - 2 * k))
         currentPose = k >= 1 ? target : AvatarPose.blend(poseAtChange, target, eased)
+        // 体の向きは 0.3 秒くらいで追いつく
+        yaw += (targetYaw - yaw) * Float(min(1, deltaTime * 5))
+        rig.orientation = simd_quatf(angle: yaw, axis: [0, 1, 0])
         apply(currentPose)
     }
 

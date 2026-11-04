@@ -11,6 +11,8 @@ struct AvatarView: View {
     var lipSync: LipSyncPlayer? = nil
     /// 確認用に口の形を固定する（nil なら口パクに任せる）
     var mouth: MouthShape? = nil
+    /// 体の向き（度。正で画面の左を向く）。黒板に書いて話すときに黒板の方へ体を向ける（#105）
+    var turn: Double = 0
 
     @State private var animator: AvatarAnimator?
     @State private var updateSubscription: EventSubscription?
@@ -36,6 +38,7 @@ struct AvatarView: View {
                 animator.setState(state)
                 animator.lipSync = lipSync
                 animator.mouthOverride = mouth
+                animator.targetYaw = Self.yaw(turn)
                 content.add(animator.rig)
                 updateSubscription = content.subscribe(to: SceneEvents.Update.self) { event in
                     MainActor.assumeIsolated {
@@ -50,6 +53,7 @@ struct AvatarView: View {
             animator?.setState(state)
             if animator?.lipSync !== lipSync { animator?.lipSync = lipSync }
             animator?.mouthOverride = mouth
+            animator?.targetYaw = Self.yaw(turn)
         }
         .overlay {
             if let loadError {
@@ -58,6 +62,13 @@ struct AvatarView: View {
                     .padding()
             }
         }
+    }
+}
+
+extension AvatarView {
+    /// 画面の左を向く向きを、上から見た回転（ラジアン）にする。先生は +z（カメラ側）を向いて立っている
+    static func yaw(_ degrees: Double) -> Float {
+        -Float(degrees * .pi / 180)
     }
 }
 
