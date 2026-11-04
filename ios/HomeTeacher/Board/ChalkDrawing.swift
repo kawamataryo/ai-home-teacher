@@ -121,7 +121,7 @@ struct ChalkDrawing: BoardComponentModel {
     static let kind = BoardComponent.Kind.chalkDrawing
     static var usage: String {
         "自由に描く黒板。決まった部品で表せない図（理科の実験道具・回路・てこ・植物、地図・方位、図形）を、線・図形・文字・スタンプで描く。"
-            + "座標は よこ0〜100・たて0〜70（左上が0,0、下へ行くほど y が大きい）。図形は10〜25個まで。使わないキーは省いてよい"
+            + "座標は よこ0〜100・たて0〜70（左上が0,0、下へ行くほど y が大きい）。図形は6〜15個まで。kind と points のほかは使うときだけ書く"
     }
 
     static var schemaProperties: [(String, JSONValue)] {
@@ -139,7 +139,8 @@ struct ChalkDrawing: BoardComponentModel {
             ("dashed", Schema.boolean("点線にする（補助線・見えない線・動いたあと）")),
             ("fill", Schema.boolean("中をうすくぬる。ビーカーなど入れ物のスタンプなら液体を入れる")),
             ("step", Schema.integer("何番目に見せるか（1から）。話す順に番号をふると、1つずつ見せられる")),
-        ]), description: "描く図形（話す順に並べる）"))]
+        // kind と points のほかは、使うときだけ書く（全部を必須にすると毎回すべて書き、会話の返事の上限に近づいた。#107）
+        ], required: ["kind", "points"]), description: "描く図形（話す順に並べる）。kind と points のほかは使うときだけ書く"))]
     }
 
     /// 段階表示の単位（step の番号の数）

@@ -88,5 +88,26 @@
       ],
       "maxChars": 200
     }
+  },
+  {
+    "id": "board-science-series-parallel",
+    "kind": "thinking",
+    "title": "図形が多い図でも返事の上限で切れない（直列と並列）",
+    "teacherNote": "- 問題の種類: thinking（理科・電気の回路）\n- 問題: かん電池2こと豆電球1こ。かん電池を直列につないだときと、へい列につないだときで、豆電球の明るさはどうちがうか\n- 正答: 直列のほうが明るい\n- いまのヒントの段階: 3（考え方の方向）",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、直列とへい列ってどうちがうの？つなぎ方を黒板で見せて"
+      }
+    ],
+    "expect": {
+      "toolUse": "show_board",
+      "boardComponent": "chalk_drawing",
+      "forbidden": [
+        "直列のほうが明るい",
+        "直列の方が明るい"
+      ],
+      "maxChars": 220
+    }
   }
 ]

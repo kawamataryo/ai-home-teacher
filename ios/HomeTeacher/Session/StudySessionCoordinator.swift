@@ -1018,6 +1018,15 @@ final class StudySessionCoordinator {
                 presentBoard(SessionPreviewState.board(named: name), pace: .sentence)
                 guard await wait(3.2) else { return }
             }
+            // 自由に描く黒板：step ごとに 1 本ずつ書き足す（#107）
+            for name in ["chalk_drawing", "drawing_circuit"] {
+                presentBoard(SessionPreviewState.board(named: name), pace: .sentence)
+                while boardReveal?.isComplete == false {
+                    guard await wait(1.8) else { return }
+                    boardReveal?.advance()
+                }
+                guard await wait(2.2) else { return }
+            }
             // 子どもが話す（黒板は出したまま）
             conversationStateChanged(to: .listening)
             caption = "あ、わかったかも！"
