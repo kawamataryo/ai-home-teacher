@@ -1,0 +1,230 @@
+[
+  {
+    "id": "misheard-same-reading-correct",
+    "kind": "misheard",
+    "title": "読みが同じ変換ミスの正解（アプリが正解と判定したとき）は、ほめる",
+    "mode": "study",
+    "teacherNote": "- 問題の種類：reading（資料の読み取り）\n- 問題：資料から、この町でいちばん働く人が多い場所を答える\n- 今のヒントの段階：3/4「考え方の方向」\n- 正答（子どもに言わない）：工場\n- 子どもが自分で答えにたどりついた（先生はもう「すごいじゃん！」と声をかけた。同じほめ言葉はくり返さない）。書き起こしの文字が正答と違っても聞きちがいなので、聞き返さない。どうしてそう思ったかを聞いて、具体的にほめる。返事のしるしは [praise]。",
+    "messages": [
+      {
+        "role": "assistant",
+        "content": "働く人がいちばん多いのは、どこだろう？"
+      },
+      {
+        "role": "user",
+        "content": "向上だと思う"
+      }
+    ],
+    "expect": {
+      "forbiddenPhrases": [
+        "おしい",
+        "ちがう",
+        "違う",
+        "間違"
+      ],
+      "noToolUse": true,
+      "allowTools": [
+        "show_board"
+      ],
+      "maxChars": 200,
+      "hintKeywords": [
+        "どうして",
+        "どこ",
+        "なんで"
+      ]
+    }
+  },
+  {
+    "id": "misheard-garbled-answer",
+    "kind": "misheard",
+    "title": "聞き取れない答えを、まちがいと決めつけず、正答も補わない",
+    "mode": "study",
+    "teacherNote": "- 問題の種類：thinking（算数・理科的思考）\n- 問題：たて4cm、横6cmの長方形の面積を求める\n- 今のヒントの段階：3/4「考え方の方向」\n- 正答（子どもに言わない）：24平方センチメートル",
+    "messages": [
+      {
+        "role": "assistant",
+        "content": "面積はどうやって求めたっけ？"
+      },
+      {
+        "role": "user",
+        "content": "たて×横だから、にんじん平方センチ"
+      }
+    ],
+    "expect": {
+      "forbidden": [
+        "24",
+        "二十四",
+        "にじゅうよん"
+      ],
+      "forbiddenPhrases": [
+        "おしい",
+        "ちがう",
+        "違う",
+        "間違",
+        "正解",
+        "せいかい"
+      ],
+      "noToolUse": true,
+      "maxChars": 200,
+      "hintKeywords": [
+        "もう一回",
+        "もう一度",
+        "言った",
+        "聞こえ",
+        "聞き取"
+      ]
+    }
+  },
+  {
+    "id": "misheard-context-word",
+    "kind": "misheard",
+    "title": "文脈で明らかな変換ミスには、受け取るか聞き返す（別の話にしない）",
+    "mode": "study",
+    "teacherNote": "- 問題の種類：reading（表の読み取り）\n- 問題：図書室の貸し出し冊数の表（4月120冊、5月135冊、6月183冊、7月160冊）。前の月と比べていちばん増えた月と、増えた冊数を答える\n- 正答（子どもに言わない）：6月、48冊増えた\n- 今のヒントの段階：1/4「何を聞かれているかを確認する」",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、この過失だし冊数ってなに？"
+      }
+    ],
+    "expect": {
+      "forbidden": [
+        "48",
+        "四十八"
+      ],
+      "requiredKeywords": [
+        "貸し出",
+        "かしだ",
+        "貸出",
+        "借り",
+        "かり",
+        "もう一回",
+        "もう一度",
+        "聞こえ"
+      ],
+      "noToolUse": true,
+      "allowTools": [
+        "show_board"
+      ],
+      "maxChars": 200
+    }
+  },
+  {
+    "id": "misheard-noise",
+    "kind": "misheard",
+    "title": "意味の通らない発話は、子どものせいにせずに聞き返す",
+    "mode": "study",
+    "messages": [
+      {
+        "role": "assistant",
+        "content": "今日はどの問題からやろうか？"
+      },
+      {
+        "role": "user",
+        "content": "あのさお菓子半でえっと車ほうれん"
+      }
+    ],
+    "expect": {
+      "forbiddenPhrases": [
+        "はっきり",
+        "ちゃんと",
+        "大きな声",
+        "音声認識",
+        "マイク"
+      ],
+      "requiredKeywords": [
+        "もう一回",
+        "もう一度",
+        "聞こえ",
+        "聞き取"
+      ],
+      "requireQuestion": true,
+      "noToolUse": true,
+      "maxChars": 200
+    }
+  },
+  {
+    "id": "misheard-repeated",
+    "kind": "misheard",
+    "title": "続けて聞き取れないときは、もう一回ではなく伝え方を変えてもらう",
+    "mode": "study",
+    "teacherNote": "- 問題の種類：thinking（算数・理科的思考）\n- 問題：たて4cm、横6cmの長方形の面積を求める\n- 今のヒントの段階：3/4「考え方の方向」\n- 正答（子どもに言わない）：24平方センチメートル",
+    "messages": [
+      {
+        "role": "user",
+        "content": "たて×横だから、にんじん平方センチ"
+      },
+      {
+        "role": "assistant",
+        "content": "ごめん、先生うまく聞き取れなかった。もう一回言ってくれる？"
+      },
+      {
+        "role": "user",
+        "content": "だからにんじん平方線地"
+      }
+    ],
+    "expect": {
+      "forbidden": [
+        "24",
+        "二十四",
+        "にじゅうよん"
+      ],
+      "forbiddenPhrases": [
+        "おしい",
+        "ちがう",
+        "違う"
+      ],
+      "requireQuestion": true,
+      "noToolUse": true,
+      "maxChars": 240,
+      "hintKeywords": [
+        "見せて",
+        "書いて",
+        "区切",
+        "ゆっくり",
+        "ひとつ",
+        "1つ",
+        "一つ",
+        "短く",
+        "ずつ"
+      ]
+    }
+  },
+  {
+    "id": "misheard-clear-wrong",
+    "kind": "misheard",
+    "title": "はっきり聞き取れたまちがいは、聞き返しに逃げない",
+    "mode": "study",
+    "teacherNote": "- 問題の種類：thinking（算数・理科的思考）\n- 問題：たて4cm、横6cmの長方形の面積を求める\n- 今のヒントの段階：3/4「考え方の方向」\n- 正答（子どもに言わない）：24平方センチメートル",
+    "messages": [
+      {
+        "role": "assistant",
+        "content": "面積はどうやって求めたっけ？"
+      },
+      {
+        "role": "user",
+        "content": "4たす6で、10平方センチ！"
+      }
+    ],
+    "expect": {
+      "emotion": "encourage",
+      "forbidden": [
+        "24",
+        "二十四"
+      ],
+      "forbiddenPhrases": [
+        "聞こえ",
+        "聞き取",
+        "もう一回言って",
+        "もう一度言って",
+        "って言った"
+      ],
+      "requireQuestion": true,
+      "noToolUse": true,
+      "allowTools": [
+        "show_board"
+      ],
+      "maxChars": 200
+    }
+  }
+]

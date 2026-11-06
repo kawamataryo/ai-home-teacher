@@ -42,7 +42,7 @@ enum TeacherNote {
         }
 
         if ladder.isSolved {
-            lines.append("- 子どもが自分で答えにたどりついた（先生はもう「\(ReplyCue.praisePhrase)」と声をかけた。同じほめ言葉はくり返さない）。どうしてそう思ったかを聞いて、具体的にほめる。返事のしるしは [praise]。")
+            lines.append("- 子どもが自分で答えにたどりついた（先生はもう「\(ReplyCue.praisePhrase)」と声をかけた。同じほめ言葉はくり返さない）。書き起こしの文字が正答と違っても聞きちがいなので、聞き返さない。どうしてそう思ったかを聞いて、具体的にほめる。返事のしるしは [praise]。")
         } else if reaction == .wrongAttempt(advanced: true) {
             lines.append("- 子どもは前の段階で\(ladder.wrongAttemptsToAdvance)回まちがえたので、段階を1つ進めた。責めずに「おしい」「いいところまで来てる」と励ましてから、今のヒントを1つだけ出す。返事のしるしは [encourage]。")
         } else if ladder.wrongAttempts > 0 {
