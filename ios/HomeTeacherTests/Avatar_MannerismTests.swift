@@ -252,7 +252,7 @@ struct VoxelCharacterAssetTests {
 
     @Test func 選べるキャラに今の先生を含むすべてが並ぶ() {
         let selectable = CharacterCatalog().selectableCharacters.map(\.id)
-        #expect(selectable == ["haru", "rika", "boru", "muni", "pon", "noa", "sora"])
+        #expect(selectable == ["haru", "rika", "boru", "muni", "pon", "noa", "sora", "kona"])
     }
 
     @Test func 今の先生の見た目は光らない() {

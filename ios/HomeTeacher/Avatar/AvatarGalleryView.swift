@@ -19,7 +19,7 @@ struct AvatarGalleryView: View {
         VStack {
             Text(state.rawValue)
                 .font(.title2.monospaced())
-            AvatarView(state: state, lipSync: lipSync, mouth: mouth, look: look, mannerisms: mannerisms, touchable: true)
+            AvatarView(state: state, lipSync: lipSync, mouth: mouth, look: look, mannerisms: mannerisms, touchable: true, isOnBoard: false)
             Picker("状態", selection: $state) {
                 ForEach(AvatarState.allCases, id: \.self) { state in
                     Text(state.rawValue).tag(state)

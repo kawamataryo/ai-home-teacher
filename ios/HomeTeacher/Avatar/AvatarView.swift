@@ -26,6 +26,8 @@ struct AvatarView: View {
     /// 今の先生にも、ほかのキャラと同じまわりの光を当てる（選ぶ画面）。
     /// RealityView が何枚も並ぶと、まわりの光のない今の先生は起動ごとに明るさが変わるので、並べるときだけ光をそろえる
     var studioLight = false
+    /// 黒板の中に重ねている（チョークのキャラは背景を描かない。#127）
+    var isOnBoard = false
 
     /// 触った回数。増えたら表示の中で反応を始める
     @State private var touches = 0
@@ -47,8 +49,12 @@ struct AvatarView: View {
                     state: state, lipSync: lipSync, mouth: mouth, turn: turn, look: shown, mannerisms: mannerisms, touches: touches,
                     onLoadFailed: { failedLook = shown }
                 )
-            case .paper, .chalk:
+            case .paper:
                 PaperAvatarView(state: state, lipSync: lipSync, mouth: mouth, turn: turn, mannerisms: mannerisms, touches: touches)
+            case .chalk:
+                ChalkAvatarView(
+                    state: state, lipSync: lipSync, mouth: mouth, turn: turn, mannerisms: mannerisms, touches: touches, isOnBoard: isOnBoard
+                )
             }
         }
         // キャラが替わったら作り直す。同じキャラなら作り直さない（#105）
