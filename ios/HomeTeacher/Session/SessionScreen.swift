@@ -17,6 +17,8 @@ struct SessionScreen: View {
     @State private var showsDebugMenu = false
     /// 起動引数 `-showSettings` なら設定を開いた状態で始める（設定画面の表示確認用）
     @State private var showsSettings = ProcessInfo.processInfo.arguments.contains("-showSettings")
+    /// 先生を選ぶ画面（#123）。起動引数 `-characterPicker` で開いた状態で始める
+    @State private var showsPicker = ProcessInfo.processInfo.arguments.contains("-characterPicker")
 
     var body: some View {
         NavigationStack {
@@ -42,6 +44,15 @@ struct SessionScreen: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        showsPicker = true
+                    } label: {
+                        Image(systemName: "person.2.fill")
+                    }
+                    .accessibilityLabel("先生をえらぶ")
+                    .disabled(model.coordinator?.phase != .idle)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         showsSettings = true
                     } label: {
                         Image(systemName: "gearshape")
@@ -64,7 +75,10 @@ struct SessionScreen: View {
         }
         .modifier(DebugCanvasSize())
         .sheet(isPresented: $showsSettings) {
-            SessionSettingsView(preferences: model.preferences)
+            SessionSettingsView(preferences: model.preferences, onChooseCharacter: { showsPicker = true })
+        }
+        .fullScreenCover(isPresented: $showsPicker, onDismiss: { model.applySelectedCharacter() }) {
+            CharacterPickerView(model: model)
         }
         // 音声の検証画面はマイクを借りるので、閉じたらセッションのエンジンを作り直す（#75）
         .sheet(isPresented: $showsDebugMenu, onDismiss: { model.reclaimAudio() }) {
@@ -82,6 +96,8 @@ struct SessionScreen: View {
                 if preview == .tour { await model.coordinator?.runBoardTour() }
             } else {
                 await model.prepare()
+                // 初めてなら、勉強の前に先生に会ってもらう（選ばなければ今までと同じ先生）
+                if model.needsCharacterChoice { showsPicker = true }
             }
         }
         // 机に立てて 25 分使うので、自動ロックで止まらないようにする

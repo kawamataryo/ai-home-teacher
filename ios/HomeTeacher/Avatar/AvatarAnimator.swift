@@ -98,7 +98,8 @@ final class AvatarAnimator {
         } else if let idleMouth {
             model.setMouth(idleMouth)
         } else if let lipSync {
-            lipSync.update()
+            // 選ぶ画面と学習の画面で同じ口パクを使うので、つなぎ先に頼らず自分のモデルに入れる
+            model.setMouth(lipSync.update())
         } else {
             model.setMouth(.closed)
         }
