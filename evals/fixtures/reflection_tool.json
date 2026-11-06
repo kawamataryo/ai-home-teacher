@@ -1,0 +1,133 @@
+{
+  "max_tokens" : 2000,
+  "model" : "claude-sonnet-5-5",
+  "tool_choice" : {
+    "type" : "auto"
+  },
+  "tools" : [
+    {
+      "description" : "学習セッションの終わりに、ふり返りを記録する。親向けの要約・先生のひとこと・今夜の声かけ・子どもに読み上げるふり返り・記憶の更新を必ずまとめて渡す。",
+      "input_schema" : {
+        "additionalProperties" : false,
+        "properties" : {
+          "memory" : {
+            "additionalProperties" : false,
+            "description" : "次回の会話に使う記憶の更新。今日の会話でわかったことだけ。なければ空の配列",
+            "properties" : {
+              "events" : {
+                "additionalProperties" : false,
+                "properties" : {
+                  "add" : {
+                    "description" : "最近の出来事として新しく覚えること",
+                    "items" : {
+                      "description" : "短い言葉（例：サッカー、割合の文章題）",
+                      "type" : "string"
+                    },
+                    "type" : "array"
+                  },
+                  "remove" : {
+                    "description" : "最近の出来事から忘れること（もう当てはまらないもの）",
+                    "items" : {
+                      "description" : "「いま覚えていること」にある文をそのまま",
+                      "type" : "string"
+                    },
+                    "type" : "array"
+                  }
+                },
+                "required" : [
+                  "add",
+                  "remove"
+                ],
+                "type" : "object"
+              },
+              "likes" : {
+                "additionalProperties" : false,
+                "properties" : {
+                  "add" : {
+                    "description" : "好きなこととして新しく覚えること",
+                    "items" : {
+                      "description" : "短い言葉（例：サッカー、割合の文章題）",
+                      "type" : "string"
+                    },
+                    "type" : "array"
+                  },
+                  "remove" : {
+                    "description" : "好きなことから忘れること（もう当てはまらないもの）",
+                    "items" : {
+                      "description" : "「いま覚えていること」にある文をそのまま",
+                      "type" : "string"
+                    },
+                    "type" : "array"
+                  }
+                },
+                "required" : [
+                  "add",
+                  "remove"
+                ],
+                "type" : "object"
+              },
+              "weak_points" : {
+                "additionalProperties" : false,
+                "properties" : {
+                  "add" : {
+                    "description" : "苦手な単元として新しく覚えること",
+                    "items" : {
+                      "description" : "短い言葉（例：サッカー、割合の文章題）",
+                      "type" : "string"
+                    },
+                    "type" : "array"
+                  },
+                  "remove" : {
+                    "description" : "苦手な単元から忘れること（もう当てはまらないもの）",
+                    "items" : {
+                      "description" : "「いま覚えていること」にある文をそのまま",
+                      "type" : "string"
+                    },
+                    "type" : "array"
+                  }
+                },
+                "required" : [
+                  "add",
+                  "remove"
+                ],
+                "type" : "object"
+              }
+            },
+            "required" : [
+              "likes",
+              "events",
+              "weak_points"
+            ],
+            "type" : "object"
+          },
+          "parent_prompt" : {
+            "description" : "今夜の声かけ。親が夜に子どもへかける一言の提案を1つ。今日の勉強で実際にあったことだけをもとにし、雑談の内容は使わない。答えの数字や言葉、評価のことば、問い詰める言い方は書かない。勉強の記録がなければ空文字",
+            "type" : "string"
+          },
+          "spoken_closing" : {
+            "description" : "子どもに読み上げるふり返り。取り組んだ問題の数、自力で解けたところ、よかった点を、話し言葉で3〜5文。最後は次回が楽しみになるひと言",
+            "type" : "string"
+          },
+          "summary" : {
+            "description" : "親向けの要約。何に取り組み、どこでつまずき、どこを自力で解けたかを2〜4文で。正答の数字や言葉は書かない",
+            "type" : "string"
+          },
+          "teacher_note" : {
+            "description" : "先生からのひとこと（親のダッシュボードに出す）。自力で解けたところやよかった点を、具体的に1〜2文でほめる",
+            "type" : "string"
+          }
+        },
+        "required" : [
+          "summary",
+          "teacher_note",
+          "parent_prompt",
+          "spoken_closing",
+          "memory"
+        ],
+        "type" : "object"
+      },
+      "name" : "record_reflection",
+      "strict" : true
+    }
+  ]
+}

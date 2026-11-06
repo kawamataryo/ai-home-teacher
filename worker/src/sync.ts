@@ -33,6 +33,8 @@ const sessionInput = z
     focus_minutes: z.int().min(0).max(24 * 60),
     summary: z.string().max(4000).default(""),
     teacher_note: z.string().max(1000).default(""),
+    // 今夜の声かけ（#158）。古いアプリは送ってこない
+    parent_prompt: z.string().max(500).default(""),
     flags: z.array(z.string().min(1).max(500)).max(20).default([]),
     problems: z.array(problemInput).max(100).default([]),
   })
@@ -72,6 +74,7 @@ type SessionRow = {
   focus_minutes: number;
   summary: string;
   teacher_note: string;
+  parent_prompt: string;
   flags: string;
   updated_at: string;
 };
@@ -136,12 +139,12 @@ sync.post("/sessions", async (c) => {
   await db.batch([
     db
       .prepare(
-        `INSERT INTO sessions (id, child_id, started_at, ended_at, focus_minutes, summary, teacher_note, flags, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO sessions (id, child_id, started_at, ended_at, focus_minutes, summary, teacher_note, parent_prompt, flags, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            child_id = excluded.child_id, started_at = excluded.started_at, ended_at = excluded.ended_at,
            focus_minutes = excluded.focus_minutes, summary = excluded.summary,
-           teacher_note = excluded.teacher_note, flags = excluded.flags, updated_at = excluded.updated_at`,
+           teacher_note = excluded.teacher_note, parent_prompt = excluded.parent_prompt, flags = excluded.flags, updated_at = excluded.updated_at`,
       )
       .bind(
         input.id,
@@ -151,6 +154,7 @@ sync.post("/sessions", async (c) => {
         input.focus_minutes,
         input.summary,
         input.teacher_note,
+        input.parent_prompt,
         JSON.stringify(input.flags),
         now,
       ),

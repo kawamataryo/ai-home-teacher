@@ -214,7 +214,7 @@
 - **終わり**：その日のふり返り（取り組んだ問題数、自力で解けたところ、よかった点）を先生が話す。同時に要約を作って保存する
 - **雑談**：休憩中は自由に雑談する。勉強中は少し付き合ってから、やさしく勉強に戻す
 - **記憶**：好きなこと・最近の出来事・苦手な単元を `memory` として保存し、次回の会話に使う
-  - 終わりのふり返りは `claude-sonnet-5-5` の strict tool use（`record_reflection`）で、親向けの要約・先生のひとこと・子どもに話すふり返り・記憶の更新（カテゴリごとの add / remove）をまとめて作る。何を覚えて何を忘れるかの判断が次回以降に響くので、1セッション1回の呼び出しは Haiku より質を取る。待ち時間は定型句でつなぐ
+  - 終わりのふり返りは `claude-sonnet-5-5` の strict tool use（`record_reflection`）で、親向けの要約・先生のひとこと・今夜の声かけ・子どもに話すふり返り・記憶の更新（カテゴリごとの add / remove）をまとめて作る。何を覚えて何を忘れるかの判断が次回以降に響くので、1セッション1回の呼び出しは Haiku より質を取る。待ち時間は定型句でつなぐ
   - 記憶は1カテゴリ20件まで（あふれたら古いものから捨てる）。同じ内容は重ねず、更新日時だけ新しくする
   - Claude が失敗しても、セッションと「要確認」は必ず端末（SwiftData）に保存し、数えられることだけで決まり文句のふり返りをする
   - 始まりの「前回のこと」（`prompts/opening.md`）には前回の要約・問題・先生のひとことと記憶を入れる。「要確認」は入れない（先生から深刻な話を蒸し返さない）
@@ -242,6 +242,7 @@
 - ダッシュボードの表示内容
   - 日ごとの学習時間（グラフ）
   - セッションごとの要約：取り組んだ問題、つまずいたところ、自力で解けたところ
+  - 一番上に、今夜の声かけ（#158）。最新のセッションから、親が夜に子どもへかける一言を提案する（「『もとにする量をどうやって見つけたの？』と聞いてみてください」）。問題への取り組みだけをもとにし、雑談の内容、答え、評価のことばを書かない。項目のないセッションなら出さない
   - 先生からのひとこと（「今日は割合の問題を自力で解けました！」）
   - 「要確認」のメモ
 - 保存するのは文字の情報だけ。写真と音声は保存しない
@@ -290,7 +291,7 @@
 - `families`：id, name, created_at
 - `parents`：id, family_id, email
 - `children`：id, family_id, nickname, grade
-- `sessions`：id, child_id, started_at, ended_at, focus_minutes, summary, teacher_note, flags
+- `sessions`：id, child_id, started_at, ended_at, focus_minutes, summary, teacher_note, parent_prompt, flags
 - `problems`：id, session_id, kind, summary, solved_by_self, hint_level_reached, created_at
 - `memories`：id, child_id, category (likes / events / weak_points), content, updated_at
 

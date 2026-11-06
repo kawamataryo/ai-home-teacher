@@ -20,6 +20,8 @@ struct SessionReflection: Equatable, Sendable {
     var summary: String
     /// 先生からのひとこと（親のダッシュボードに出す）。
     var teacherNote: String
+    /// 今夜の声かけ（親が子どもにかける一言の提案。#158）。今日の勉強から作れなければ空。
+    var parentPrompt: String = ""
     /// 子どもに読み上げるふり返り。
     var spokenClosing: String
     var memoryUpdates: MemoryUpdates
@@ -45,7 +47,7 @@ enum SessionReflectorError: Error, Equatable {
 
 /// セッションの終わりのふり返り（spec §3④）。
 /// Worker 経由で Claude に会話と問題を渡し、strict tool use（record_reflection）で
-/// 親向けの要約・先生のひとこと・子どもに話すふり返り・記憶の更新を返させる。
+/// 親向けの要約・先生のひとこと・今夜の声かけ・子どもに話すふり返り・記憶の更新を返させる。
 ///
 /// モデルは Sonnet。1セッションに1回だけなので費用は小さく、
 /// 「何を覚えておくか / 何を忘れるか」の判断を誤ると次回以降の会話にずっと響くため、Haiku より質を取る。
@@ -114,6 +116,7 @@ struct SessionReflector: Sendable {
             focusMinutes: input.focusMinutes,
             summary: reflection.summary,
             teacherNote: reflection.teacherNote,
+            parentPrompt: reflection.parentPrompt,
             flags: input.flags.needsReview.map(\.reason),
             problems: input.problems
         ).clampedToServerLimits()
@@ -249,7 +252,7 @@ struct SessionReflector: Sendable {
     // MARK: - ツール
 
     static let toolDescription = """
-        学習セッションの終わりに、ふり返りを記録する。親向けの要約・先生のひとこと・子どもに読み上げるふり返り・記憶の更新を必ずまとめて渡す。
+        学習セッションの終わりに、ふり返りを記録する。親向けの要約・先生のひとこと・今夜の声かけ・子どもに読み上げるふり返り・記憶の更新を必ずまとめて渡す。
         """
 
     /// record_reflection のツール定義（strict）。
@@ -266,6 +269,7 @@ struct SessionReflector: Sendable {
         Schema.object([
             ("summary", Schema.string("親向けの要約。何に取り組み、どこでつまずき、どこを自力で解けたかを2〜4文で。正答の数字や言葉は書かない")),
             ("teacher_note", Schema.string("先生からのひとこと（親のダッシュボードに出す）。自力で解けたところやよかった点を、具体的に1〜2文でほめる")),
+            ("parent_prompt", Schema.string("今夜の声かけ。親が夜に子どもへかける一言の提案を1つ。今日の勉強で実際にあったことだけをもとにし、雑談の内容は使わない。答えの数字や言葉、評価のことば、問い詰める言い方は書かない。勉強の記録がなければ空文字")),
             ("spoken_closing", Schema.string("子どもに読み上げるふり返り。取り組んだ問題の数、自力で解けたところ、よかった点を、話し言葉で3〜5文。最後は次回が楽しみになるひと言")),
             ("memory", Schema.object(
                 MemoryCategory.allCases.map { ($0.rawValue, changeSchema(for: $0)) },
@@ -298,6 +302,7 @@ struct SessionReflector: Sendable {
 
         var summary: String
         var teacherNote: String
+        var parentPrompt: String?
         var spokenClosing: String
         var memory: Memory?
     }
@@ -334,6 +339,7 @@ struct SessionReflector: Sendable {
         return SessionReflection(
             summary: summary,
             teacherNote: decoded.teacherNote.trimmingCharacters(in: .whitespacesAndNewlines),
+            parentPrompt: (decoded.parentPrompt ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
             spokenClosing: closing,
             memoryUpdates: updates
         )

@@ -53,6 +53,8 @@ struct StudySessionRecord: Equatable, Sendable {
     var summary: String
     /// 先生からのひとこと（親のダッシュボードに出す）。
     var teacherNote: String
+    /// 今夜の声かけ（親が子どもにかける一言の提案。#158）。作れなかったときは空。
+    var parentPrompt: String
     /// 「要確認」メモ（SessionFlags の reason）。
     var flags: [String]
     var problems: [ProblemRecord]
@@ -66,6 +68,7 @@ struct StudySessionRecord: Equatable, Sendable {
         focusMinutes: Int,
         summary: String = "",
         teacherNote: String = "",
+        parentPrompt: String = "",
         flags: [String] = [],
         problems: [ProblemRecord] = [],
         syncedAt: Date? = nil
@@ -76,6 +79,7 @@ struct StudySessionRecord: Equatable, Sendable {
         self.focusMinutes = focusMinutes
         self.summary = summary
         self.teacherNote = teacherNote
+        self.parentPrompt = parentPrompt
         self.flags = flags
         self.problems = problems
         self.syncedAt = syncedAt
@@ -88,6 +92,7 @@ struct StudySessionRecord: Equatable, Sendable {
         s.focusMinutes = min(max(s.focusMinutes, 0), ServerLimits.focusMinutesMax)
         s.summary = String(s.summary.prefix(ServerLimits.summary))
         s.teacherNote = String(s.teacherNote.prefix(ServerLimits.teacherNote))
+        s.parentPrompt = String(s.parentPrompt.prefix(ServerLimits.parentPrompt))
         s.flags = s.flags
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -117,6 +122,7 @@ struct MemoryRecord: Equatable, Sendable {
 enum ServerLimits {
     static let summary = 4000
     static let teacherNote = 1000
+    static let parentPrompt = 500
     static let flagsCount = 20
     static let flag = 500
     static let problemsCount = 100
@@ -137,6 +143,8 @@ final class StudySession {
     var focusMinutes: Int
     var summary: String
     var teacherNote: String
+    // 宣言に既定値を付ける（既存の端末のストアを軽量マイグレーションで開くため）
+    var parentPrompt: String = ""
     var flags: [String]
     /// 問題は JSON にして持つ（Codable の配列をそのまま持つより、スキーマが変わっても壊れにくい）。
     var problemsJSON: Data
@@ -149,6 +157,7 @@ final class StudySession {
         focusMinutes = record.focusMinutes
         summary = record.summary
         teacherNote = record.teacherNote
+        parentPrompt = record.parentPrompt
         flags = record.flags
         problemsJSON = Self.encode(record.problems)
         syncedAt = record.syncedAt
@@ -160,6 +169,7 @@ final class StudySession {
         focusMinutes = record.focusMinutes
         summary = record.summary
         teacherNote = record.teacherNote
+        parentPrompt = record.parentPrompt
         flags = record.flags
         problemsJSON = Self.encode(record.problems)
         syncedAt = record.syncedAt
@@ -168,7 +178,7 @@ final class StudySession {
     var record: StudySessionRecord {
         StudySessionRecord(
             id: id, startedAt: startedAt, endedAt: endedAt, focusMinutes: focusMinutes,
-            summary: summary, teacherNote: teacherNote, flags: flags,
+            summary: summary, teacherNote: teacherNote, parentPrompt: parentPrompt, flags: flags,
             problems: (try? Self.decoder.decode([ProblemRecord].self, from: problemsJSON)) ?? [],
             syncedAt: syncedAt
         )

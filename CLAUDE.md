@@ -36,6 +36,7 @@
 
 - プロンプトは `prompts/`（アプリに同梱される）。会話用は teacher → hint_ladder → safety → small_talk → board_talk → web_search の順につなぐ（`PromptLibrary` と `evals/prompt.mjs` で揃える）
 - 判定ロジックのテスト（API 不要）: `node --test evals/*.test.mjs`
+- ふり返り（今夜の声かけ）の評価: `WORKER_BASE_URL=... FAMILY_TOKEN=... node evals/reflection.mjs`。ツールの定義を変えたら `TEST_RUNNER_REFLECTION_EXPORT=1 xcodebuild test ...` で `evals/fixtures/reflection_tool.json` を書き出す
 - 実際に Claude を呼ぶ評価: `WORKER_BASE_URL=... FAMILY_TOKEN=... node evals/run.mjs`（または `ANTHROPIC_API_KEY=...`）。設定がなければスキップする
 
 ### 定型句の音声

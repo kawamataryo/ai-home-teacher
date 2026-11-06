@@ -88,7 +88,7 @@ struct SyncDTOTests {
         let data = try SyncCoding.encoder.encode(session)
         let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         #expect(Set(object.keys) == [
-            "id", "child_id", "started_at", "ended_at", "focus_minutes", "summary", "teacher_note", "flags", "problems",
+            "id", "child_id", "started_at", "ended_at", "focus_minutes", "summary", "teacher_note", "parent_prompt", "flags", "problems",
         ])
         #expect(object["started_at"] as? String == "2026-11-03T07:00:00.000Z")
         let problem = try #require((object["problems"] as? [[String: Any]])?.first)
