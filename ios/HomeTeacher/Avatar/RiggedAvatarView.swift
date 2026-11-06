@@ -120,6 +120,24 @@ enum StudioLighting {
         }
     }
 
+    /// 同じ光を使い回す（1 枚作るのに数秒かかり、選ぶ画面では何人も並ぶ）
+    @MainActor private static var shared: Task<EnvironmentResource?, Never>?
+
+    /// `rig` の下に光を置いて当てる
+    @MainActor
+    static func light(_ rig: Entity) async {
+        let task = shared ?? Task { @MainActor in
+            guard let image = equirectangular() else { return nil }
+            return try? await EnvironmentResource(equirectangular: image)
+        }
+        shared = task
+        guard let environment = await task.value else { return }
+        let ibl = Entity()
+        ibl.components.set(ImageBasedLightComponent(source: .single(environment), intensityExponent: 0.4))
+        rig.addChild(ibl)
+        receive(ibl, on: rig)
+    }
+
     @MainActor
     static func receive(_ light: Entity, on entity: Entity) {
         entity.components.set(ImageBasedLightReceiverComponent(imageBasedLight: light))

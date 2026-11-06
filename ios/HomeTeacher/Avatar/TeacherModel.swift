@@ -37,21 +37,24 @@ final class TeacherModel: MouthTarget {
     private var textures: [String: TextureResource] = [:]
     /// 顔のテクスチャの名前の頭（`face` なら face_eyes_open.png）
     private let faceTextures: String
+    /// 顔のテクスチャを光らせる（ロボの LED）
+    private let glowingFace: Bool
     /// いま貼っているテクスチャ（毎フレーム呼ばれても同じなら差し替えない）
     private var currentTextures: [TeacherPart: String] = [:]
 
-    init(entity: Entity, faceTextures: String = "face") {
+    init(entity: Entity, faceTextures: String = "face", glowingFace: Bool = false) {
         self.entity = entity
         self.faceTextures = faceTextures
+        self.glowingFace = glowingFace
         for part in TeacherPart.allCases {
             parts[part] = entity.name == part.rawValue ? entity : entity.findEntity(named: part.rawValue)
         }
     }
 
     /// アプリに同梱した usdz を読み込む（既定は今の先生の teacher.usdz）
-    static func load(name: String = "teacher", faceTextures: String = "face", bundle: Bundle = .main) async throws -> TeacherModel {
+    static func load(name: String = "teacher", faceTextures: String = "face", glowingFace: Bool = false, bundle: Bundle = .main) async throws -> TeacherModel {
         let entity = try await Entity(named: name, in: bundle)
-        return TeacherModel(entity: entity, faceTextures: faceTextures)
+        return TeacherModel(entity: entity, faceTextures: faceTextures, glowingFace: glowingFace)
     }
 
     func part(_ part: TeacherPart) -> Entity? {
@@ -85,6 +88,14 @@ final class TeacherModel: MouthTarget {
         currentTextures[target] = name
         for model in Self.modelEntities(under: entity) {
             guard var component = model.components[ModelComponent.self] else { continue }
+            if glowingFace {
+                // LED の画面：光の当たり方に左右されず、テクスチャの色のまま見せる
+                var screen = UnlitMaterial()
+                screen.color = .init(tint: .white, texture: .init(texture))
+                component.materials = [screen]
+                model.components.set(component)
+                continue
+            }
             // usdz のマテリアルをそのまま使い、テクスチャだけ替える（頭の肌と同じ光の当たり方にするため）
             var material = component.materials.first as? PhysicallyBasedMaterial ?? PhysicallyBasedMaterial()
             material.baseColor = .init(tint: .white, texture: .init(texture))

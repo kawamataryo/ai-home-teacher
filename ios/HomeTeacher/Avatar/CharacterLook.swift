@@ -18,6 +18,8 @@ struct CharacterLook: Codable, Equatable, Hashable, Sendable {
     var model: String?
     /// 顔のテクスチャの名前の頭（voxel のとき）
     var faceTextures: String?
+    /// 顔のテクスチャが自分で光る（ロボの LED の画面。voxel のとき）
+    var glowingFace: Bool?
 
     var modelName: String { model ?? "teacher" }
     var faceTexturePrefix: String { faceTextures ?? "face" }

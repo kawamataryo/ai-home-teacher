@@ -23,6 +23,9 @@ struct AvatarView: View {
     var mannerisms: MannerismSet = .haru
     /// 指で触ると短く反応する（声は出さない。会話の状態にも音声にも触らない）
     var touchable = false
+    /// 今の先生にも、ほかのキャラと同じまわりの光を当てる（選ぶ画面）。
+    /// RealityView が何枚も並ぶと、まわりの光のない今の先生は起動ごとに明るさが変わるので、並べるときだけ光をそろえる
+    var studioLight = false
 
     /// 触った回数。増えたら表示の中で反応を始める
     @State private var touches = 0
@@ -36,6 +39,7 @@ struct AvatarView: View {
             case .voxel:
                 VoxelAvatarView(
                     state: state, lipSync: lipSync, mouth: mouth, turn: turn, look: shown, mannerisms: mannerisms, touches: touches,
+                    studioLight: studioLight || shown != .haru,
                     onLoadFailed: { failedLook = shown }
                 )
             case .rigged:
@@ -68,6 +72,8 @@ struct VoxelAvatarView: View {
     var look: CharacterLook
     var mannerisms: MannerismSet
     var touches: Int
+    /// まわりの光を当てる。金属が黒くならないように。今の先生は太陽の光だけのまま（見え方を変えない）
+    var studioLight: Bool
     var onLoadFailed: () -> Void
 
     @State private var animator: AvatarAnimator?
@@ -88,7 +94,7 @@ struct VoxelAvatarView: View {
             content.add(sun)
 
             do {
-                let loaded = try await TeacherModel.load(name: look.modelName, faceTextures: look.faceTexturePrefix)
+                let loaded = try await TeacherModel.load(name: look.modelName, faceTextures: look.faceTexturePrefix, glowingFace: look.glowingFace ?? false)
                 try await loaded.preloadFaceTextures()
                 let animator = AvatarAnimator(model: loaded, mannerisms: mannerisms)
                 animator.setState(state)
@@ -96,6 +102,10 @@ struct VoxelAvatarView: View {
                 animator.mouthOverride = mouth
                 animator.targetYaw = AvatarView.yaw(turn)
                 content.add(animator.rig)
+                // 光の用意に時間がかかるので、先に体を出してから当てる
+                if studioLight {
+                    Task { await StudioLighting.light(animator.rig) }
+                }
                 updateSubscription = content.subscribe(to: SceneEvents.Update.self) { event in
                     MainActor.assumeIsolated {
                         animator.update(deltaTime: event.deltaTime)

@@ -43,3 +43,6 @@ voice-compare/
 __pycache__/
 avatar/*/textures/
 avatar/proto_rig/
+
+# Blender のバックアップ
+*.blend1

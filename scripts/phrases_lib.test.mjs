@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { azureAlignment, azureDuration, bundledPhraseName, phrasesFor } from "./phrases_lib.mjs";
+import { azureAlignment, azureDuration, bundledPhraseName, ownPhrases, phrasesFor } from "./phrases_lib.mjs";
 
 test("今の先生は今までの名前、ほかのキャラは別の名前にする", () => {
   assert.equal(bundledPhraseName("haru", "iine"), "phrase_iine");
@@ -24,4 +24,9 @@ test("Azure の音声の長さから文字タイミングを作る", () => {
   assert.deepEqual(alignment.character_end_times_seconds, [0.5, 1]);
   assert.equal(azureAlignment("", 6000), null);
   assert.equal(azureAlignment("はい", 0), null);
+});
+
+test("自己紹介とあいさつも定型句にする。なければ出さない", () => {
+  assert.deepEqual(ownPhrases({ intro: "ボルだよ", greeting: "よろしく" }).map((p) => p.key), ["intro", "greeting"]);
+  assert.deepEqual(ownPhrases({ intro: "", greeting: "よろしく" }).map((p) => p.key), ["greeting"]);
 });
