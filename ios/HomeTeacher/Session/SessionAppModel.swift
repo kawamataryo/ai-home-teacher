@@ -72,6 +72,8 @@ final class SessionAppModel: AudioEngineLeaseHolder {
 
     @ObservationIgnored let services: AppServices
     @ObservationIgnored private var microphone: MicrophoneSpeechInput?
+    /// いま話している声（キャラを替えるときに差し替える）
+    @ObservationIgnored private var currentVoice: TeacherVoice?
     @ObservationIgnored private(set) var audioMonitor: AudioSessionMonitor?
     @ObservationIgnored private var lease: AudioEngineLease = .shared
     /// 作り直したあとに出す、使っている認識エンジン
@@ -176,15 +178,32 @@ final class SessionAppModel: AudioEngineLeaseHolder {
 
     /// 先生の声。Worker の設定がなければ端末の声（AVSpeechSynthesizer）だけで話す
     private func makeVoice(player: any SpeechAudioPlayer) -> TeacherVoice {
-        let system = SystemTTSProvider()
-        let primary: any TTSProvider = services.config.map { $0.ttsProvider.makeProvider(client: services.client) } ?? system
-        return TeacherVoice(
+        let (primary, cache) = voiceParts(for: preferences.selectedCharacter)
+        let voice = TeacherVoice(
             primary: primary,
-            fallback: services.config == nil ? nil : system,
+            fallback: services.config == nil ? nil : SystemTTSProvider(),
             player: player,
             lipSync: lipSync,
-            phraseCache: try? PhraseCache(preferredProvider: primary.identifier)
+            phraseCache: cache
         )
+        currentVoice = voice
+        return voice
+    }
+
+    /// キャラの声と定型句。声と定型句は必ず同じキャラのものを組にする
+    private func voiceParts(for character: TeacherCharacter) -> (primary: any TTSProvider, phraseCache: PhraseCache?) {
+        let primary: any TTSProvider = services.config.map { $0.ttsProvider.makeProvider(client: services.client, voice: character.voice) } ?? SystemTTSProvider()
+        return (primary, try? PhraseCache(preferredProvider: primary.identifier, character: character))
+    }
+
+    /// 選んだキャラの声にする。次に話す文から、話す文も定型句も同じ声になる（#120）
+    func applySelectedCharacter() {
+        let character = preferences.selectedCharacter
+        let (primary, cache) = voiceParts(for: character)
+        currentVoice?.use(primary: primary, phraseCache: cache)
+        coordinator?.use(library: PromptLibrary(character: character))
+        let config = services.config
+        Task { await PhraseCache.warmUp(config: config, character: character) }
     }
 
     private func makeWatchOver(clock: any ConversationClock) -> WatchOver {

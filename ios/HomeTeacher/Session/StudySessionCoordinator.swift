@@ -109,6 +109,12 @@ final class StudySessionCoordinator {
     static let cameraDeniedLine = "ごめんね、カメラが使えないんだ。問題を声で読んでくれる？"
     static let analysisFailedLine = "ごめん、写真がよく見えなかった。もう一回撮ってみようか？"
 
+    /// 話すキャラのプロンプトに替える（#120）。次のセッションの最初のひと言から効く。記憶と学習記録は共通のまま
+    func use(library: PromptLibrary) {
+        deps.library = library
+        openingBuilder = OpeningPromptBuilder(library: library)
+    }
+
     // MARK: - 画面に出すもの
 
     /// 調べものカードの中身（#115）。調べていなければ nil
@@ -156,8 +162,8 @@ final class StudySessionCoordinator {
 
     // MARK: - 中身
 
-    @ObservationIgnored private let deps: Dependencies
-    @ObservationIgnored private let openingBuilder: OpeningPromptBuilder
+    @ObservationIgnored private var deps: Dependencies
+    @ObservationIgnored private var openingBuilder: OpeningPromptBuilder
     @ObservationIgnored private let logger = Logger(subsystem: "com.kawamataryo.HomeTeacher", category: "StudySession")
     @ObservationIgnored private var inputTask: Task<Void, Never>?
     @ObservationIgnored private var controllerEventsTask: Task<Void, Never>?

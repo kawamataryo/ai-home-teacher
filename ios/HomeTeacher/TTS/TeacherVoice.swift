@@ -17,11 +17,11 @@ final class TeacherVoice: SpeechOutput {
         case failed
     }
 
-    private let primary: any TTSProvider
+    private var primary: any TTSProvider
     private let fallback: (any TTSProvider)?
     private let player: any SpeechAudioPlayer
     private let lipSync: LipSyncPlayer
-    private let phraseCache: PhraseCache?
+    private var phraseCache: PhraseCache?
     var primaryTimeout: Duration
     /// `primary` が失敗したら、この間は `primary` を使わずに `fallback` で話す（#66。つながらない Worker を 1 文ごとに待たない）
     var primaryCooldown: Duration = .seconds(60)
@@ -65,13 +65,23 @@ final class TeacherVoice: SpeechOutput {
         )
     }
 
+    /// 話す声を替える（キャラを替えたとき。#120）。話している文は止める。前の声の失敗は持ち越さない
+    func use(primary: any TTSProvider, phraseCache: PhraseCache?) {
+        stop()
+        self.primary = primary
+        self.phraseCache = phraseCache
+        primaryFailedAt = nil
+    }
+
     func speak(_ text: String) async {
         await say(text)
     }
 
     /// 1 文を話して、終わったら（または止められたら）戻る
     @discardableResult
-    func say(_ text: String) async -> Outcome {
+    func say(_ requested: String) async -> Outcome {
+        // 共通の定型句は、このキャラの言い方で話す（#120）
+        let text = phraseCache?.spokenText(for: requested) ?? requested
         generation += 1
         let id = generation
         isSpeaking = true
