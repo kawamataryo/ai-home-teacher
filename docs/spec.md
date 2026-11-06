@@ -31,7 +31,7 @@
 │  TeacherBrain            … Claude 呼び出し (Haiku/Sonnet) │
 │  DecisionClient          … Jev の判断呼び出し             │
 │  Camera + Vision         … 撮影・手の動き/顔の検出        │
-│  AvatarView (RealityKit) … ボクセル先生・口パク・状態     │
+│  AvatarView … キャラごとの表示（3D/2D）・口パク・状態     │
 │  BoardView               … Generative UI (ネイティブ部品 + WKWebView SVG) │
 │  SessionStore (SwiftData) … ローカルキャッシュ             │
 └──────────────────────────┬───────────────────────────┘
@@ -148,6 +148,19 @@
   - 図が替わるときは、薄く消して書き直すように入れ替える
 
 ### ③ 先生のアバター
+
+子どもは見た目・声・性格がそろった 8 人から選ぶ（#117）。既定はハル先生で、選ばなければ今までと同じ。記憶と学習記録はキャラで分けない。`hint_ladder` と `safety` は全キャラ共通。
+
+| id | 呼び名 | 形式 | 関係 | Azure の声 |
+|---|---|---|---|---|
+| haru | ハル先生 | ボクセル | 先生 | Worker の既定（Nanami） |
+| rika | リカ先生 | ボクセル | 先生 | Shiori |
+| boru | ボル先生 | ボクセル | 先生 | Daichi |
+| muni | ムニ先生 | 骨とシェイプキー | 先生 | Mayu |
+| pon | ポン先生 | 骨とシェイプキー | 先生 | Naoki |
+| noa | ノア先生 | 骨とシェイプキー | 先生 | Nanami |
+| sora | ソラ | 切り絵の 2D | 同い年の仲間 | Aoi |
+| kona | コナ先生 | チョークの 2D | 先生 | Keita |
 
 - **表示の形式**（#121）：`AvatarView` は状態（`AvatarState`）と口の形（`MouthShape`）を受け取り、キャラの `look.kind` で中身を分ける。`voxel`：パーツの transform（下のボクセルの先生）、`rigged`：骨とシェイプキー（`RiggedModel` / `RigPose`）、`paper` / `chalk`：SwiftUI の 2D。読み込みに失敗したら既定の先生を出して、会話を止めない
 - **骨とシェイプキーの 3D**：Blender から USDZ に書き出したものが、後処理なしで RealityKit で動く（#121 の試作で確認）。作り方と落とし穴は `avatar/README.md`
@@ -304,7 +317,7 @@
 
 1. 声の対話の土台（割り込み込み）
 2. 「見て」で撮影 → ヒント → Generative UI
-3. ボクセルの先生アバター
+3. 先生のアバター（ボクセルの先生。11/8 に向けて、選べるキャラに広げた：#117）
 4. 時間での声かけ ＋ 前回の記憶
 5. クラウド同期 ＋ 親の Web ダッシュボード
 6. Vision での見守り ＋ Jev での判断
