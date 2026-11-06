@@ -3,6 +3,10 @@ import Testing
 @testable import HomeTeacher
 
 struct CharacterCatalogTests {
+    private static let other = TeacherCharacter(
+        id: "other", name: "ほか", honorific: "先生", relation: .teacher, roleLine: "付き添います。", roleNoun: "家庭教師", nudgeTone: "明るく", selectable: true
+    )
+
     private func makeDefaults() -> UserDefaults {
         let name = "CharacterCatalogTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
@@ -13,7 +17,7 @@ struct CharacterCatalogTests {
     @Test func 同梱の一覧に今の先生があり定義と一致する() {
         let catalog = CharacterCatalog()
         #expect(catalog.defaultCharacter == .haru)
-        #expect(catalog.character(id: "haru").name == "ハル")
+        #expect(catalog.character(id: "haru").callName == "ハル先生")
         #expect(Set(catalog.characters.map(\.id)).count == catalog.characters.count)
     }
 
@@ -32,14 +36,13 @@ struct CharacterCatalogTests {
     }
 
     @Test func 一覧に既定の先生がなくても先頭に足す() {
-        let other = TeacherCharacter(id: "other", name: "ほか", callName: "ほか先生", relation: .teacher)
-        let catalog = CharacterCatalog(characters: [other])
+        let catalog = CharacterCatalog(characters: [Self.other])
         #expect(catalog.characters.map(\.id) == ["haru", "other"])
     }
 
     @MainActor @Test func 選択は保存され再起動後も残る() {
         let defaults = makeDefaults()
-        let other = TeacherCharacter(id: "other", name: "ほか", callName: "ほか先生", relation: .teacher)
+        let other = Self.other
         let catalog = CharacterCatalog(characters: [.haru, other])
         let first = SessionPreferences(defaults: defaults, catalog: catalog)
         #expect(first.selectedCharacter == .haru)
