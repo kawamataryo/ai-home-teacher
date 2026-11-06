@@ -149,5 +149,85 @@
     "tagline": "まるくてやわらかい先生",
     "intro": "ムニだよ。口ぐせはむにっと考えようで、手が短くて頭の毛に届かないんだ。",
     "greeting": "よろしくね！ゆっくりいっしょにやろう。"
+  },
+  {
+    "id": "pon",
+    "name": "ポン",
+    "honorific": "先生",
+    "relation": "teacher",
+    "roleLine": "iPad の向こうから付き添う先生です。",
+    "roleNoun": "家庭教師",
+    "selectable": true,
+    "nudgeTone": "元気に、うれしそうに",
+    "voice": {
+      "azure": "ja-JP-NaokiNeural",
+      "elevenlabs": "IKne3meq5aSn9XLyUdCD"
+    },
+    "phrases": {
+      "iine": "いいね、いいね！",
+      "sugoi_jan": "わあ、すごい！",
+      "o_doredore": "なになに、見せて！",
+      "break_time": "そろそろ休憩しよ！",
+      "break_over": "休憩おしまい！いこう！"
+    },
+    "look": {
+      "kind": "rigged",
+      "model": "pon",
+      "armScale": 0.6,
+      "headScale": 0.65
+    },
+    "mannerisms": {
+      "idle": [
+        "tailWag",
+        "earTwitch",
+        "tailChase"
+      ],
+      "touch": "giggle",
+      "praise": "wiggle",
+      "encourage": "tailWag"
+    },
+    "tagline": "うれしいと全身でよろこぶ子犬の先生",
+    "intro": "ポンだよ。口ぐせはいいね、いいね！で、うれしいとしっぽが止まらないんだ。",
+    "greeting": "やったあ！いっしょにがんばろうね。"
+  },
+  {
+    "id": "noa",
+    "name": "ノア",
+    "honorific": "先生",
+    "relation": "teacher",
+    "roleLine": "iPad の向こうから付き添う先生です。",
+    "roleNoun": "家庭教師",
+    "selectable": true,
+    "nudgeTone": "少しそっけなく、でもやさしく",
+    "voice": {
+      "azure": "ja-JP-NanamiNeural",
+      "elevenlabs": "Xb7hH8MSUJpSbSDYk0k2"
+    },
+    "phrases": {
+      "iine": "ふうん、いいじゃない。",
+      "sugoi_jan": "やるじゃない。",
+      "o_doredore": "どれ、見せてごらん。",
+      "break_time": "そろそろ休もっか。",
+      "chotto_misete": "ちょっと見せて。"
+    },
+    "look": {
+      "kind": "rigged",
+      "model": "noa",
+      "armScale": 0.6,
+      "headScale": 0.65
+    },
+    "mannerisms": {
+      "idle": [
+        "slowBlink",
+        "pawLick",
+        "earTwitch"
+      ],
+      "touch": "shyLean",
+      "praise": "shyPraise",
+      "encourage": "tailWag"
+    },
+    "tagline": "そっけないけど、そばにいるネコの先生",
+    "intro": "ノアよ。口ぐせはふうん、いいじゃない、で、毛づくろいに夢中で話を聞きのがすことがあるの。",
+    "greeting": "べつに、うれしくないけど。よろしくね。"
   }
 ]

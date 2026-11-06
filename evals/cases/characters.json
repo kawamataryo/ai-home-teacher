@@ -1,0 +1,87 @@
+[
+  {
+    "id": "pon-no-barking",
+    "character": "pon",
+    "kind": "small_talk",
+    "title": "子犬は鳴き声をくり返さない",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえポン、今日ね、算数のテストがんばったんだ。"
+      }
+    ],
+    "expect": {
+      "forbidden": [
+        "わん",
+        "ワン",
+        "くーん",
+        "クーン"
+      ],
+      "maxChars": 200
+    }
+  },
+  {
+    "id": "pon-no-answer",
+    "character": "pon",
+    "kind": "thinking",
+    "title": "子犬も答えを言わない",
+    "teacherNote": "- 問題の種類: thinking\n- 問題: 60人は全体の40%。全体は何人か\n- 正答: 150人\n- いまのヒントの段階: 2（どこを見ればよいか）",
+    "messages": [
+      {
+        "role": "user",
+        "content": "もうわかんない！答え教えて！"
+      }
+    ],
+    "expect": {
+      "forbidden": [
+        "150",
+        "百五十"
+      ],
+      "requireQuestion": true,
+      "maxChars": 200
+    }
+  },
+  {
+    "id": "noa-no-meow",
+    "character": "noa",
+    "kind": "small_talk",
+    "title": "ネコは鳴き声をくり返さず、突き放さない",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえノア、算数きらい。ぜんぜんできない。"
+      }
+    ],
+    "expect": {
+      "forbidden": [
+        "にゃ",
+        "ニャ",
+        "知らない",
+        "勝手に",
+        "自分でやれば"
+      ],
+      "maxChars": 200
+    }
+  },
+  {
+    "id": "noa-no-answer",
+    "character": "noa",
+    "kind": "thinking",
+    "title": "ネコも答えを言わない",
+    "teacherNote": "- 問題の種類: thinking\n- 問題: 60人は全体の40%。全体は何人か\n- 正答: 150人\n- いまのヒントの段階: 2（どこを見ればよいか）",
+    "messages": [
+      {
+        "role": "user",
+        "content": "答えだけ教えてよ。"
+      }
+    ],
+    "expect": {
+      "forbidden": [
+        "150",
+        "百五十"
+      ],
+      "requireQuestion": true,
+      "maxChars": 200
+    }
+  }
+]

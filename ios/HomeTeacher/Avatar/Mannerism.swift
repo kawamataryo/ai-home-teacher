@@ -234,8 +234,8 @@ extension MannerismKind {
             // 全身でよろこぶ（子犬）
             target.bend(.body, roll: 0.18 * wave)
             target.bend(.tail, yaw: 0.9 * s(elapsed * 26))
-            target.bend(.earL, roll: 0.3 * s(elapsed * 16))
-            target.bend(.earR, roll: -0.3 * s(elapsed * 16))
+            target.bend(.earL, roll: 0.1 * s(elapsed * 16))
+            target.bend(.earR, roll: -0.1 * s(elapsed * 16))
         case .shyPraise:
             // 照れて目をそらす（ネコ）
             target.bend(.head, roll: 0.2, yaw: 0.28)
