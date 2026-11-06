@@ -187,6 +187,7 @@ def main():
             rig.render(os.path.join(args.render, f"{name}.png"))
         pose_for_render(skin, arm)
         arm.rotation_euler = (0, 0, 0)
+    bpy.ops.file.pack_all()  # 画像も .blend に入れる（textures はコミットしないので、clone 直後でも質感が欠けないように）
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, f"{NAME}.blend"), compress=True)
 
 
