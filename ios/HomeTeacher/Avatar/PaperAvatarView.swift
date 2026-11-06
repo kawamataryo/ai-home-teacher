@@ -69,17 +69,21 @@ struct PaperAvatarView: View {
     var lipSync: LipSyncPlayer?
     var mouth: MouthShape?
     var turn: Double
+    var mannerisms: MannerismSet = MannerismSet()
+    var touches: Int = 0
 
     @State private var started = Date()
     @State private var stateChangedAt = Date()
+    @State private var motion = PaperMotion()
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1 / 30)) { context in
             let now = context.date
-            let pose = PaperPose.make(
-                state: state, timeInState: now.timeIntervalSince(stateChangedAt), time: now.timeIntervalSince(started)
+            let (pose, idleMouth) = motion.pose(
+                state: state, timeInState: now.timeIntervalSince(stateChangedAt), time: now.timeIntervalSince(started),
+                mannerisms: mannerisms, touches: touches
             )
-            let shape = mouth ?? lipSync?.update() ?? .closed
+            let shape = mouth ?? idleMouth ?? lipSync?.update() ?? .closed
             GeometryReader { geometry in
                 let scale = min(geometry.size.width / 320, geometry.size.height / 400)
                 PaperDoll(pose: pose, mouth: shape)
@@ -90,6 +94,35 @@ struct PaperAvatarView: View {
             }
         }
         .onChange(of: state) { stateChangedAt = Date() }
+    }
+}
+
+/// 姿勢に癖を重ねる（`TimelineView` の中から呼ぶ）
+@MainActor
+final class PaperMotion {
+    private var scheduler: MannerismScheduler?
+    private var seenTouches = 0
+
+    func pose(
+        state: AvatarState, timeInState: Double, time: Double, mannerisms: MannerismSet, touches: Int
+    ) -> (PaperPose, MouthShape?) {
+        var scheduler = scheduler ?? MannerismScheduler(set: mannerisms)
+        var pose = PaperPose.make(state: state, timeInState: timeInState, time: time)
+        if touches != seenTouches {
+            seenTouches = touches
+            scheduler.touch(time: time)
+        }
+        if let overlay = scheduler.stateOverlay(for: state) {
+            overlay.apply(elapsed: timeInState.truncatingRemainder(dividingBy: overlay.duration), to: &pose)
+        }
+        var mouth: MouthShape?
+        if let forced = MannerismDemo.forcedKind {
+            mouth = forced.apply(elapsed: time.truncatingRemainder(dividingBy: forced.duration + 1), to: &pose)
+        } else if let active = scheduler.update(state: state, time: time) {
+            mouth = active.kind.apply(elapsed: time - active.startedAt, to: &pose)
+        }
+        self.scheduler = scheduler
+        return (pose, mouth)
     }
 }
 

@@ -17,14 +17,21 @@ test("既定の先生は haru", () => {
   assert.equal(new Set(CHARACTERS.map((c) => c.id)).size, CHARACTERS.length);
 });
 
+// 「そのキャラらしさ」（#122 で今の先生に足した口ぐせと抜けたところ）を除いた形で比べる。アプリの PromptGoldenTests と揃える。
+function withoutCharm(prompt) {
+  const start = prompt.indexOf("\n\n## そのキャラらしさ");
+  if (start < 0) return prompt;
+  return prompt.slice(0, start) + prompt.slice(prompt.indexOf("\n\n## 話し方", start));
+}
+
 // 比べるのはキャラに関わる部分だけ（teacher と声かけ）。hint_ladder など共通の部分は別の変更で変わってよい。
 test("先生のプロンプトと声かけが分ける前と同じ", () => {
-  assert.equal(loadPrompt("teacher"), golden("teacher"));
+  assert.equal(withoutCharm(loadPrompt("teacher")), golden("teacher"));
   assert.equal(loadPrompt("nudge_variation"), golden("nudge_variation"));
 });
 
 test("会話は分ける前の先生のプロンプトから始まる", () => {
-  assert.ok(conversationSystemPrompt({ mode: "study", variables }).startsWith(golden("teacher") + SEPARATOR));
+  assert.ok(withoutCharm(conversationSystemPrompt({ mode: "study", variables })).startsWith(golden("teacher") + SEPARATOR));
 });
 
 test("どのキャラでも性格のファイルがあり、hint_ladder と safety が必ず入る", () => {

@@ -9,6 +9,8 @@ struct RiggedAvatarView: View {
     var mouth: MouthShape?
     var turn: Double
     var look: CharacterLook
+    var mannerisms: MannerismSet
+    var touches: Int
     var onLoadFailed: () -> Void
 
     @State private var animator: RiggedAnimator?
@@ -19,7 +21,7 @@ struct RiggedAvatarView: View {
             content.camera = .virtual
             do {
                 let model = try await RiggedModel.load(name: look.modelName)
-                let animator = RiggedAnimator(model: model)
+                let animator = RiggedAnimator(model: model, mannerisms: mannerisms)
                 animator.setState(state)
                 animator.lipSync = lipSync
                 animator.mouthOverride = mouth
@@ -61,6 +63,7 @@ struct RiggedAvatarView: View {
             if animator?.lipSync !== lipSync { animator?.lipSync = lipSync }
             animator?.mouthOverride = mouth
             animator?.targetYaw = AvatarView.yaw(turn)
+            animator?.receiveTouches(touches)
         }
     }
 }

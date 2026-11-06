@@ -158,10 +158,25 @@ final class RiggedAnimator {
     private var currentPose = RigPose()
     private var mouthWeights: [RigShape: Float] = [:]
 
-    init(model: RiggedModel) {
+    private var scheduler: MannerismScheduler
+    private var seenTouches = 0
+    private var idleMouth: MouthShape?
+
+    init(model: RiggedModel, mannerisms: MannerismSet = MannerismSet()) {
         self.model = model
+        scheduler = MannerismScheduler(set: mannerisms)
         rig.addChild(model.entity)
     }
+
+    /// 触った回数が増えていたら、短く反応する。姿勢に重ねるだけで、状態と口には触らない
+    func receiveTouches(_ count: Int) {
+        guard count != seenTouches else { return }
+        seenTouches = count
+        scheduler.touch(time: time)
+    }
+
+    /// 反応している動き（テスト用）
+    var activeMannerism: MannerismKind? { scheduler.active?.kind }
 
     func setState(_ newState: AvatarState) {
         guard newState != state else { return }
@@ -177,12 +192,23 @@ final class RiggedAnimator {
         let k = min(1, timeInState / Self.blendDuration)
         let eased = Float(k * k * (3 - 2 * k))
         currentPose = k >= 1 ? target : RigPose.blend(poseAtChange, target, eased)
+        idleMouth = nil
+        if let overlay = scheduler.stateOverlay(for: state) {
+            overlay.apply(elapsed: timeInState.truncatingRemainder(dividingBy: overlay.duration), to: &currentPose)
+        }
+        if let forced = MannerismDemo.forcedKind {
+            idleMouth = forced.apply(elapsed: time.truncatingRemainder(dividingBy: forced.duration + 1), to: &currentPose)
+        } else if let active = scheduler.update(state: state, time: time) {
+            idleMouth = active.kind.apply(elapsed: time - active.startedAt, to: &currentPose)
+        }
         yaw += (targetYaw - yaw) * Float(min(1, deltaTime * 5))
         rig.orientation = simd_quatf(angle: yaw, axis: [0, 1, 0])
         rig.position.y = currentPose.lift
 
         if let mouthOverride {
             model.setMouth(mouthOverride)
+        } else if let idleMouth {
+            model.setMouth(idleMouth)
         } else if let lipSync {
             lipSync.update()
         } else {

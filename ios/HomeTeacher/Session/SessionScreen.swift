@@ -171,10 +171,10 @@ struct SessionContent: View {
                 boardPanel(layout)
                     .frame(width: layout.board.width, height: layout.board.height)
                     .offset(x: layout.board.minX, y: layout.board.minY)
-                AvatarView(state: coordinator.avatar.state, lipSync: lipSync, turn: teacherTurn, look: Self.previewLook ?? coordinator.character.look)
+                AvatarView(state: coordinator.avatar.state, lipSync: lipSync, turn: teacherTurn, look: Self.previewLook ?? coordinator.character.look,
+                           mannerisms: coordinator.character.mannerisms, touchable: true)
                     .frame(width: layout.teacher.width, height: layout.teacher.height)
                     .offset(x: layout.teacher.minX, y: layout.teacher.minY)
-                    .allowsHitTesting(false)
                 hud(layout)
                 caption(layout, stageWidth: geometry.size.width)
                 captureOverlay
