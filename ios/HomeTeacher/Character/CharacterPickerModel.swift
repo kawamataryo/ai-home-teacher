@@ -24,6 +24,10 @@ final class CharacterPickerModel {
     private(set) var speakingID: String?
     /// 選んであいさつしているところ
     private(set) var isGreeting = false
+    /// いまの先生の id
+    private(set) var currentID: String
+    /// 吹き出しに出す言葉。最後に話した言葉を残す（あいさつのあと閉じるまで自己紹介に戻さない）
+    private(set) var line: String
 
     @ObservationIgnored private let voice: any CharacterIntroVoice
     /// 話す前に、声をそのキャラのものに替える
@@ -36,7 +40,10 @@ final class CharacterPickerModel {
         voice: any CharacterIntroVoice, useVoice: @escaping (TeacherCharacter) -> Void, save: @escaping (String) -> Void
     ) {
         self.characters = characters
-        focused = characters.contains(selected) ? selected : (characters.first ?? selected)
+        let first = characters.contains(selected) ? selected : (characters.first ?? selected)
+        focused = first
+        currentID = selected.id
+        line = first.intro
         self.voice = voice
         self.useVoice = useVoice
         self.save = save
@@ -55,6 +62,7 @@ final class CharacterPickerModel {
         isGreeting = true
         focused = character
         save(character.id)
+        currentID = character.id
         await speak(character.greeting, as: character)
         isGreeting = false
     }
@@ -73,6 +81,7 @@ final class CharacterPickerModel {
         voice.stopSpeaking()
         useVoice(character)
         speakingID = character.id
+        self.line = line
         await voice.speakLine(line)
         // 別のキャラに触っていたら、あとのキャラの「話している」を消さない
         if id == generation { speakingID = nil }

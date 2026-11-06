@@ -58,6 +58,28 @@ final class CharacterPickerUITests: XCTestCase {
         XCTAssertTrue(app.buttons["先生をえらぶ"].waitForExistence(timeout: 5))
     }
 
+    /// 全員を舞台に出して、縦と横のスクリーンショットを残す。出ている間も全員の席に触れる
+    @MainActor
+    func test全員が舞台に出られて縦でも横でも席に触れる() throws {
+        let app = launch()
+        let ids = ["haru", "rika", "boru", "muni", "pon", "noa", "sora", "kona"]
+        XCTAssertTrue(app.descendants(matching: .any)["character_haru"].waitForExistence(timeout: 15))
+        sleep(3)
+        for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
+            XCUIDevice.shared.orientation = orientation
+            sleep(2)
+            let name = orientation == .portrait ? "portrait" : "landscape"
+            for id in ids {
+                let seat = app.descendants(matching: .any)["character_\(id)"]
+                XCTAssertTrue(seat.isHittable, id)
+                seat.tap()
+                sleep(2)
+                XCTAssertTrue(app.buttons["picker_choose"].label.hasSuffix("にする"))
+                saveShot("stage_\(name)_\(id)")
+            }
+        }
+    }
+
     @MainActor
     func test選んだキャラが次に開いても残る() throws {
         var app = launch()

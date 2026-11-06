@@ -44,6 +44,8 @@ struct TeacherCharacter: Codable, Identifiable, Equatable, Sendable {
     var intro = ""
     /// 選んだときのあいさつ
     var greeting = ""
+    /// 選ぶ画面でそのキャラの場所に塗る色（`#RRGGBB`）
+    var color = "#9CCFA8"
 
     /// 子どもからの呼ばれ方（「ハル先生」。仲間なら「ソラ」）
     var callName: String { name + honorific }
@@ -68,7 +70,7 @@ struct TeacherCharacter: Codable, Identifiable, Equatable, Sendable {
         roleLine: "iPad の向こうから付き添う先生です。", roleNoun: "家庭教師", nudgeTone: "やさしく、明るく", selectable: true,
         voice: Voice(), phrases: [:], look: .haru, mannerisms: .haru,
         tagline: "メガネのお兄さん先生",
-        intro: "ハルだよ。口ぐせはお、いいね！で、かけてるメガネをよくさがしちゃうんだ。",
+        intro: "お、いいね！が口ぐせのハルだよ。かけてるメガネを、よくさがしちゃうんだけどね。",
         greeting: "よろしくね！いっしょにがんばろう。"
     )
 }
