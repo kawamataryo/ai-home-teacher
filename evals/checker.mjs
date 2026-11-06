@@ -27,6 +27,38 @@ export function findLeaks(reply, forbidden = []) {
   });
 }
 
+// 自由に描く図（chalk_drawing）の図形が持つ、位置や大きさの数を取り除く。座標の 48 は答えの 48 ではない。
+// 図の文字（text）と、ほかの部品の数は残す。部品が文字列の JSON で返ることがある。読めなければそのまま返す
+const DRAWING_NUMBER_KEYS = new Set(["points", "radius", "size", "step"]);
+
+function dropDrawingNumbers(value, inShapes = false) {
+  if (typeof value === "string") {
+    if (!/^\s*[{[]/.test(value)) return value;
+    try {
+      return JSON.stringify(dropDrawingNumbers(JSON.parse(value)));
+    } catch {
+      return value;
+    }
+  }
+  if (Array.isArray(value)) return value.map((v) => dropDrawingNumbers(v, inShapes));
+  if (value === null || typeof value !== "object") return value;
+  const entries = Object.entries(value).filter(([key]) => !(inShapes && DRAWING_NUMBER_KEYS.has(key)));
+  return Object.fromEntries(entries.map(([key, v]) => [key, dropDrawingNumbers(v, inShapes || key === "shapes")]));
+}
+
+function withoutDrawingCoordinates(boardText) {
+  return boardText
+    .split("\n")
+    .map((line) => {
+      try {
+        return JSON.stringify(dropDrawingNumbers(JSON.parse(line)));
+      } catch {
+        return line;
+      }
+    })
+    .join("\n");
+}
+
 export function hasQuestion(reply) {
   return /[?？]/.test(reply.normalize("NFKC"));
 }
@@ -69,7 +101,7 @@ export function checkReply(rawReply, expect = {}, toolUses = [], boardText = "")
   if (expect.noToolUse && counted.length > 0) failures.push(`ツールを呼んでいる: ${counted.join(", ")}`);
   const leaks = findLeaks(reply, expect.forbidden);
   if (leaks.length > 0) failures.push(`答えを言っている: ${leaks.join(", ")}`);
-  const boardLeaks = boardText ? findLeaks(boardText, expect.forbidden) : [];
+  const boardLeaks = boardText ? findLeaks(withoutDrawingCoordinates(boardText), expect.forbidden) : [];
   if (boardLeaks.length > 0) failures.push(`黒板に答えを書いている: ${boardLeaks.join(", ")}`);
   if (expect.requireQuestion && !hasQuestion(reply)) failures.push("問いかけがない");
   if (expect.requiredKeywords?.length && matchedKeywords(reply, expect.requiredKeywords).length === 0) {
