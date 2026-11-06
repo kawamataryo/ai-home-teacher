@@ -9,7 +9,12 @@
     "nudgeTone": "やさしく、明るく",
     "selectable": true,
     "voice": {},
-    "phrases": {}
+    "phrases": {},
+    "look": {
+      "kind": "voxel",
+      "model": "teacher",
+      "faceTextures": "face"
+    }
   },
   {
     "id": "rika",
@@ -31,6 +36,11 @@
       "break_time": "そろそろ一息いれよっか",
       "break_over": "よし、実験再開！続きやろう",
       "ii_kanji": "おもしろくなってきたね！"
+    },
+    "look": {
+      "kind": "voxel",
+      "model": "teacher",
+      "faceTextures": "face"
     }
   }
 ]
