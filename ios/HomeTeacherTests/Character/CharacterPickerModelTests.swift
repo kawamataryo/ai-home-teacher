@@ -26,6 +26,19 @@ struct CharacterPickerModelTests {
         return (model, voice, haruVoice, rikaVoice, { box.values })
     }
 
+    @Test func 吹き出しは最後に話した言葉のまま閉じるまで残る() async {
+        let (model, _, _, _, _) = make()
+        #expect(model.line == Self.haru.intro)
+        #expect(model.currentID == "haru")
+        let task = Task { await model.choose(Self.rika) }
+        await player.waitUntilPlaying(count: 1)
+        #expect(model.line == Self.rika.greeting)
+        #expect(model.currentID == "rika")
+        player.finish()
+        await task.value
+        #expect(model.line == Self.rika.greeting)
+    }
+
     @Test func 触ると自分の声で自己紹介を話す() async {
         let (model, _, _, _, started) = make()
         let task = Task { await model.meet(Self.rika) }
