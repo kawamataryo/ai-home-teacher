@@ -176,9 +176,11 @@ struct SessionContent: View {
                 caption(layout, stageWidth: geometry.size.width)
                 captureOverlay
                     .frame(width: geometry.size.width, height: geometry.size.height)
+                researchOverlay(layout, stage: geometry.size)
             }
             .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
             .animation(.spring(duration: 0.8, bounce: 0.2), value: layout.mode)
+            .animation(.spring(duration: 0.4, bounce: 0.2), value: coordinator.research == nil)
         }
     }
 
@@ -186,6 +188,35 @@ struct SessionContent: View {
     private var teacherTurn: Double {
         guard stageMode == .board else { return 0 }
         return coordinator.avatar.state == .talking ? 22 : 8
+    }
+
+    // MARK: - 調べもの（#115）
+
+    /// 調べものカード。先生だけのときは黒板の看板の上に、図を書いているときは図をなるべく隠さないよう黒板の左下に出す
+    @ViewBuilder
+    private func researchOverlay(_ layout: SessionStageLayout, stage: CGSize) -> some View {
+        if let research = coordinator.research {
+            let width = min(max(layout.mode == .teacher ? layout.board.width : 520, 400), stage.width - 16)
+            ResearchCardView(status: research)
+                .frame(width: research.isCompact ? nil : width, alignment: .leading)
+                .frame(width: width, height: 0, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .offset(researchCardOffset(layout, isCompact: research.isCompact, width: width))
+                .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// カードの左端と、縦の真ん中の位置
+    private func researchCardOffset(_ layout: SessionStageLayout, isCompact: Bool, width: CGFloat) -> CGSize {
+        switch layout.mode {
+        case .teacher:
+            // 小さくしたら、看板の字に重ならないよう看板の下に置く
+            if isCompact { return CGSize(width: max(layout.board.minX, 8), height: layout.board.maxY + 34) }
+            return CGSize(width: max(layout.board.midX - width / 2, 8), height: layout.board.midY)
+        case .board:
+            return CGSize(width: 28, height: layout.board.maxY - 110)
+        }
     }
 
     // MARK: - 黒板
