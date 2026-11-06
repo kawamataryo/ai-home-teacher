@@ -167,6 +167,35 @@ struct MemoryPutRequest: Codable, Equatable, Sendable {
     }
 }
 
+/// 親の伝言（#159）。GET /v1/messages の1件。端末では SyncState に置いて、先生が話し終えるまで持っておく。
+struct ParentMessage: Codable, Equatable, Sendable {
+    var id: String
+    /// 先生が言う送り主の呼び方。親が決める（先生に推測させない）。
+    var senderLabel: String
+    var body: String
+    var createdAt: Date
+
+    private enum CodingKeys: String, CodingKey {
+        case id, body
+        case senderLabel = "sender_label"
+        case createdAt = "created_at"
+    }
+}
+
+/// GET /v1/messages のレスポンス。
+struct ParentMessageListResponse: Codable, Equatable, Sendable {
+    var messages: [ParentMessage]
+}
+
+/// POST /v1/messages/:id/delivered の本文。話し終えた時刻を送る（オフラインであとから送っても、時刻がずれない）。
+struct ParentMessageDeliveredRequest: Codable, Equatable, Sendable {
+    var deliveredAt: Date
+
+    private enum CodingKeys: String, CodingKey {
+        case deliveredAt = "delivered_at"
+    }
+}
+
 /// POST /v1/sessions のレスポンス。
 struct SessionResponse: Codable, Equatable, Sendable {
     var session: SessionDTO

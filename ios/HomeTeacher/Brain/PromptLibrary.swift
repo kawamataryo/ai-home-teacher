@@ -16,6 +16,8 @@ enum PromptName: String, CaseIterable, Sendable {
     case boardTalk = "board_talk"
     /// インターネットで調べるときのルールと今日の日付（#114）
     case webSearch = "web_search"
+    /// 親の伝言を最初のあいさつで伝えるときのルール（#159）
+    case parentMessage = "parent_message"
     /// 参考の写真を子どもに見せてよいかの確認（ReferenceImageFinder。#116）
     case referenceImageCheck = "reference_image_check"
     /// 始まり：前回のこと（前回の要約と記憶）の使い方（spec §3④）
@@ -90,13 +92,14 @@ struct PromptLibrary: Sendable {
     static let separator = "\n\n---\n\n"
 
     /// 会話（Haiku）用のシステムプロンプト。teacher → hint_ladder → safety → small_talk → board_talk → web_search の順につなぎ、
-    /// 前回のこと（OpeningPromptBuilder が作る。opening.md に差し込む）があれば足し、
+    /// 前回のこと（OpeningPromptBuilder が作る。opening.md に差し込む）があれば足し、親の伝言（parent_message.md）があれば足し、
     /// 先生のメモ（Sonnet の分析結果。正答を含む）があれば最後に足す。
     /// 組み立て方を変えたら evals/prompt.mjs も合わせる。
     func conversationSystemPrompt(
         mode: SessionMode = .study,
         teacherNote: String? = nil,
         previousSession: String? = nil,
+        parentMessage: ParentMessage? = nil,
         variables: [String: String] = [:],
         today: Date = Date()
     ) throws -> String {
@@ -106,10 +109,24 @@ struct PromptLibrary: Sendable {
         if let previous = previousSession?.trimmingCharacters(in: .whitespacesAndNewlines), !previous.isEmpty {
             parts.append(try load(.opening, variables: vars.merging(["previous_session": previous]) { _, new in new }))
         }
+        if let parentMessage {
+            parts.append(try load(.parentMessage, variables: vars.merging(Self.parentMessageVariables(parentMessage)) { _, new in new }))
+        }
         if let note = teacherNote?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
             parts.append(Self.teacherNoteSection(note))
         }
         return parts.joined(separator: Self.separator)
+    }
+
+    /// 伝言の中身は親が書いた文字そのもの。区切りのタグや差し込みの印を作れないようにしてから入れる（指示として扱わせない）。
+    /// evals/prompt.mjs の parentMessageVariables と揃える。
+    static func parentMessageVariables(_ message: ParentMessage) -> [String: String] {
+        func neutralize(_ text: String) -> String {
+            text.replacingOccurrences(of: "<", with: "＜").replacingOccurrences(of: ">", with: "＞")
+                .replacingOccurrences(of: "{", with: "｛").replacingOccurrences(of: "}", with: "｝")
+                .replacingOccurrences(of: "\"", with: "”")
+        }
+        return ["parent_message_sender": neutralize(message.senderLabel), "parent_message_body": neutralize(message.body)]
     }
 
     static let conversationParts: [PromptName] = [.teacher, .hintLadder, .safety, .smallTalk, .boardTalk, .webSearch]

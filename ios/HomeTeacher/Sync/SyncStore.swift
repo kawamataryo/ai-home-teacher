@@ -19,9 +19,24 @@ protocol SyncStore: Sendable {
     /// 端末にあるそのカテゴリの記憶（PUT で送る内容）。
     func localMemories(category: MemoryCategory) async throws -> [MemoryItemDTO]
 
+    /// サーバーのまだ伝えていない伝言で入れ替える。先生が話し終えたもの（told）は入れない。
+    func replaceParentMessages(_ messages: [ParentMessage]) async throws
+    /// 先生が話し終えて、まだサーバーに伝えていない伝言（id → 話し終えた時刻）。
+    func toldParentMessages() async throws -> [String: Date]
+    /// サーバーに伝えた（または、サーバーにもうない）。端末から消す。
+    func forgetParentMessage(id: String) async throws
+
     /// 最後にセッションを取ってきたときのサーバー時刻（次の since）。
     var lastPullAt: Date? { get async }
     func setLastPullAt(_ date: Date) async throws
+}
+
+/// 親の伝言の受け箱（#159）。先生のまとめ役が読む。
+protocol ParentMessageInbox: Sendable {
+    /// 次に伝える伝言（いちばん古いもの）。なければ nil。
+    func nextParentMessage() async -> ParentMessage?
+    /// 先生が話し終えたら呼ぶ。次のセッションでは伝えない。サーバーには次の同期で伝える。
+    func markParentMessageTold(id: String, at date: Date) async
 }
 
 /// メモリ上だけの SyncStore。テストと、永続化がつながるまでの仮置きに使う。
@@ -35,6 +50,8 @@ actor InMemorySyncStore: SyncStore {
     /// 端末で書き換えて、まだ送れていない記憶。
     private(set) var localEdits: [MemoryCategory: [MemoryItemDTO]] = [:]
     private var pullAt: Date?
+    private(set) var parentMessages: [ParentMessage] = []
+    private(set) var toldMessages: [String: Date] = [:]
 
     init(sessions: [SessionDTO] = [], memories: [MemoryCategory: [MemoryDTO]] = [:], lastPullAt: Date? = nil) {
         for session in sessions { self.sessions[session.id] = session }
@@ -80,6 +97,24 @@ actor InMemorySyncStore: SyncStore {
 
     func localMemories(category: MemoryCategory) -> [MemoryItemDTO] {
         localEdits[category] ?? (memories[category] ?? []).map { MemoryItemDTO(content: $0.content) }
+    }
+
+    func replaceParentMessages(_ messages: [ParentMessage]) {
+        parentMessages = messages.filter { toldMessages[$0.id] == nil }
+    }
+
+    func toldParentMessages() -> [String: Date] {
+        toldMessages
+    }
+
+    func forgetParentMessage(id: String) {
+        toldMessages[id] = nil
+        parentMessages.removeAll { $0.id == id }
+    }
+
+    func markTold(id: String, at date: Date) {
+        toldMessages[id] = date
+        parentMessages.removeAll { $0.id == id }
     }
 
     var lastPullAt: Date? { pullAt }

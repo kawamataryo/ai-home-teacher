@@ -6,6 +6,8 @@ enum SyncReason: String, Sendable {
     case sessionEnded
     case connectivityRestored
     case manual
+    /// セッションを始める直前（親の伝言や、消された記憶を取ってくる）
+    case sessionStarting
 }
 
 /// 1回の同期の結果。
@@ -28,6 +30,9 @@ struct SyncReport: Equatable, Sendable {
     var rejectedMemoryCategories: [MemoryCategory] = []
     var pulledMemoryCategories: [MemoryCategory] = []
     var pulledSessionCount = 0
+    /// 「伝えた」とサーバーに伝えた親の伝言。
+    var acknowledgedMessageIDs: [String] = []
+    var pulledMessageCount = 0
 }
 
 /// 端末（SyncStore）と Worker の同期 API をつなぐ。
@@ -37,6 +42,7 @@ struct SyncReport: Equatable, Sendable {
 /// 2. 端末で書き換えた記憶のカテゴリを PUT /v1/memory
 /// 3. GET /v1/memory で記憶を取ってきて、カテゴリごとに入れ替える（記憶はサーバーが正）
 /// 4. GET /v1/sessions?since=lastPullAt&order=updated&limit=200 でセッションを取ってくる（200 件ならページ送り）
+/// 5. 先生が話し終えた親の伝言を POST /v1/messages/:id/delivered で伝え、GET /v1/messages で次の伝言を取ってくる
 ///
 /// 通信エラーと 5xx は指数バックオフでやり直し、4xx はやり直さない。
 /// つながらないときは pending のまま残し、つながったら（ConnectivityMonitoring）もう一度同期する。
@@ -128,6 +134,7 @@ actor SyncService {
             try await pushMemories(into: &report)
             try await pullMemories(into: &report)
             try await pullSessions(into: &report)
+            try await syncParentMessages(into: &report)
         } catch {
             report.outcome = RetryPolicy.isNetworkError(error) ? .offline : .failed(String(describing: error))
         }
@@ -202,6 +209,29 @@ actor SyncService {
         }
         // 最初のページのサーバー時刻を次の since にする（ページ送り中に保存されたものも次回取れる）
         if let firstServerTime { try await store.setLastPullAt(firstServerTime) }
+    }
+
+    private func syncParentMessages(into report: inout SyncReport) async throws {
+        for (id, toldAt) in try await store.toldParentMessages().sorted(by: { $0.value < $1.value }) {
+            let body = try SyncCoding.encoder.encode(ParentMessageDeliveredRequest(deliveredAt: toldAt))
+            do {
+                _ = try await withRetry { try await self.client.postJSON(path: "/v1/messages/\(id)/delivered", body: body) }
+            } catch WorkerError.http(let status, _) where (400..<500).contains(status) {
+                // もうサーバーにない。送り直しても同じなので、端末からも消す
+            }
+            try await store.forgetParentMessage(id: id)
+            report.acknowledgedMessageIDs.append(id)
+        }
+        let data: Data
+        do {
+            data = try await withRetry { try await self.client.getJSON(path: "/v1/messages") }
+        } catch WorkerError.http(let status, _) where (400..<500).contains(status) {
+            // 受け付けられないときも、ほかの同期は成功のままにする。今ある伝言は残す
+            return
+        }
+        let response = try SyncCoding.decoder.decode(ParentMessageListResponse.self, from: data)
+        try await store.replaceParentMessages(response.messages)
+        report.pulledMessageCount = response.messages.count
     }
 
     private func withRetry<T: Sendable>(_ operation: @Sendable () async throws -> T) async throws -> T {

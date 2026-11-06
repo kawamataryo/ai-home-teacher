@@ -10,6 +10,7 @@ iPad アプリの API キーを守るための Cloudflare Worker。アプリは�
 | `POST /v1/sessions` | D1 | 終わったセッションを保存（同じ `id` なら上書き） |
 | `GET /v1/sessions` | D1 | セッション一覧 |
 | `GET /v1/memory` / `PUT /v1/memory` | D1 | 記憶の一覧 / カテゴリごとの入れ替え |
+| `GET /v1/messages` / `POST /v1/messages/:id/delivered` | D1 | まだ伝えていない親の伝言 / 伝えた印 |
 
 `/v1/*` には `Authorization: Bearer <家族トークン>` が必要（ない、または違うと 401）。データはトークンに対応する家族の分だけ読み書きできる。家族トークンは次のどちらか。
 
@@ -102,6 +103,10 @@ iPad アプリの API キーを守るための Cloudflare Worker。アプリは�
 ```
 
 `category` は `likes`（好きなこと）/ `events`（最近の出来事）/ `weak_points`（苦手な単元）。カテゴリ順、保存した順。
+
+### `GET /v1/messages` / `POST /v1/messages/:id/delivered`
+
+親の伝言（#159）。`GET` はまだ伝えていない伝言を古い順に返す（`{ "messages": [{ "id", "child_id", "sender_label", "body", "created_at", "delivered_at": null }] }`）。先生が話し終えたら `POST /v1/messages/:id/delivered`（本文 `{ "delivered_at": "ISO 8601" }`、省略すると受け取った時刻）。何度送っても最初の時刻のまま。別の家族の id は 404。
 
 ### `PUT /v1/memory`
 

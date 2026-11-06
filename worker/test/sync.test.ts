@@ -294,3 +294,54 @@ describe("/v1/memory", () => {
     expect((await send("GET", "/v1/memory?category=secrets")).status).toBe(400);
   });
 });
+
+describe("/v1/messages（親の伝言）", () => {
+  async function seedMessages() {
+    await seedOtherFamily();
+    const db = d1.db();
+    const insert = (id: string, child: string, body: string, created: string, delivered: string | null = null) =>
+      db
+        .prepare("INSERT INTO parent_messages (id, child_id, sender_label, body, created_at, delivered_at) VALUES (?, ?, 'お母さん', ?, ?, ?)")
+        .bind(id, child, body, created, delivered);
+    await db.batch([
+      insert("new", "default", "新しい伝言", "2026-11-03T02:00:00.000Z"),
+      insert("old", "default", "古い伝言", "2026-11-03T01:00:00.000Z"),
+      insert("told", "default", "伝えた伝言", "2026-11-02T01:00:00.000Z", "2026-11-02T07:00:00.000Z"),
+      insert("other-msg", "other-child", "よその伝言", "2026-11-03T00:00:00.000Z"),
+    ]);
+  }
+
+  it("まだ伝えていない自分の家族の伝言だけを古い順に返す", async () => {
+    await seedMessages();
+    const res = await send("GET", "/v1/messages");
+    expect(res.status).toBe(200);
+    const { messages } = (await res.json()) as any;
+    expect(messages.map((m: any) => m.id)).toEqual(["old", "new"]);
+    expect(messages[0]).toMatchObject({ sender_label: "お母さん", body: "古い伝言", delivered_at: null });
+  });
+
+  it("伝えた印を付けると返さなくなる。送り直しても最初の時刻のまま", async () => {
+    await seedMessages();
+    const first = await send("POST", "/v1/messages/old/delivered", { delivered_at: "2026-11-03T07:00:00+09:00" });
+    expect(first.status).toBe(200);
+    const again = await send("POST", "/v1/messages/old/delivered", { delivered_at: "2026-11-04T07:00:00+09:00" });
+    expect(again.status).toBe(200);
+    const row = await d1.db().prepare("SELECT delivered_at FROM parent_messages WHERE id = 'old'").first<{ delivered_at: string }>();
+    expect(row?.delivered_at).toBe("2026-11-02T22:00:00.000Z");
+    const { messages } = (await (await send("GET", "/v1/messages")).json()) as any;
+    expect(messages.map((m: any) => m.id)).toEqual(["new"]);
+  });
+
+  it("別の家族の伝言は既読にできない（存在も明かさない）", async () => {
+    await seedMessages();
+    const res = await send("POST", "/v1/messages/other-msg/delivered", {});
+    expect(res.status).toBe(404);
+    const row = await d1.db().prepare("SELECT delivered_at FROM parent_messages WHERE id = 'other-msg'").first<{ delivered_at: string | null }>();
+    expect(row?.delivered_at).toBeNull();
+  });
+
+  it("トークンなしは 401", async () => {
+    const res = await app.request("/v1/messages", {}, env());
+    expect(res.status).toBe(401);
+  });
+});

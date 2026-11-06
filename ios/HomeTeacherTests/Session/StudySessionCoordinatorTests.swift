@@ -119,7 +119,7 @@ struct StudySessionCoordinatorTests {
         let saved = try await h.store.recentSessions(limit: 5)
         #expect(saved.count == 1)
         #expect(saved.first?.summary.contains("割合") == true)
-        #expect(await h.sync.reasons == [.sessionEnded])
+        #expect(await h.sync.reasons == [.sessionStarting, .sessionEnded])
         // ふり返りには会話の履歴を渡している
         let reflection = try #require(await h.transport.bodyData(.data, "/v1/claude").first)
         #expect(String(decoding: reflection, as: UTF8.self).contains("こんにちは"))
@@ -134,7 +134,7 @@ struct StudySessionCoordinatorTests {
         #expect(h.coordinator.phase == .idle)
         #expect(h.voice.spoken.last == SessionReflector.fallback(for: .init(startedAt: .now, endedAt: .now, focusMinutes: 0, transcript: [], problems: [])).spokenClosing)
         #expect(try await h.store.recentSessions(limit: 5).count == 1)
-        #expect(await h.sync.reasons == [.sessionEnded])
+        #expect(await h.sync.reasons == [.sessionStarting, .sessionEnded])
     }
 
     @Test func 休憩に入るとプロンプトを雑談モードに組み直す() async throws {

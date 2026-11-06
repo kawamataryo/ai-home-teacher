@@ -5,6 +5,28 @@ import os
 struct SyncState: Codable, Equatable, Sendable {
     var lastPullAt: Date?
     var dirtyMemoryCategories: Set<MemoryCategory> = []
+    /// まだ伝えていない親の伝言（古い順）。#159
+    var parentMessages: [ParentMessage] = []
+    /// 先生が話し終えて、まだサーバーに伝えていない伝言（id → 話し終えた時刻）。
+    var toldParentMessages: [String: Date] = [:]
+
+    init(lastPullAt: Date? = nil, dirtyMemoryCategories: Set<MemoryCategory> = []) {
+        self.lastPullAt = lastPullAt
+        self.dirtyMemoryCategories = dirtyMemoryCategories
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case lastPullAt, dirtyMemoryCategories, parentMessages, toldParentMessages
+    }
+
+    // 古い版のアプリが保存した JSON にない項目があっても読めるようにする（読めないと未送信の印まで失う）
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        lastPullAt = try c.decodeIfPresent(Date.self, forKey: .lastPullAt)
+        dirtyMemoryCategories = try c.decodeIfPresent(Set<MemoryCategory>.self, forKey: .dirtyMemoryCategories) ?? []
+        parentMessages = try c.decodeIfPresent([ParentMessage].self, forKey: .parentMessages) ?? []
+        toldParentMessages = try c.decodeIfPresent([String: Date].self, forKey: .toldParentMessages) ?? [:]
+    }
 }
 
 /// SyncState の保存先。
@@ -51,7 +73,7 @@ final class InMemorySyncStateStorage: SyncStateStorage {
 /// SyncStore として SyncService に渡し、MemoryStore としてアプリ（SessionReflector など）にも渡す。
 /// アプリが記憶を書き換えたら（applyMemoryUpdates / replaceMemories(category:with:)）そのカテゴリを
 /// 「まだ送れていない」にして、次の同期で PUT /v1/memory する。値型（〜Record）だけでやりとりする。
-actor MemorySyncStore: SyncStore, MemoryStore {
+actor MemorySyncStore: SyncStore, MemoryStore, ParentMessageInbox {
     private let base: any MemoryStore
     private let stateStorage: any SyncStateStorage
     private var state: SyncState
@@ -93,6 +115,38 @@ actor MemorySyncStore: SyncStore, MemoryStore {
 
     func localMemories(category: MemoryCategory) async throws -> [MemoryItemDTO] {
         try await base.memories(category: category).map { MemoryItemDTO(content: $0.content) }
+    }
+
+    func replaceParentMessages(_ messages: [ParentMessage]) {
+        update { state in
+            state.parentMessages = messages
+                .filter { state.toldParentMessages[$0.id] == nil }
+                .sorted { $0.createdAt < $1.createdAt }
+        }
+    }
+
+    func toldParentMessages() -> [String: Date] {
+        state.toldParentMessages
+    }
+
+    func forgetParentMessage(id: String) {
+        update {
+            $0.toldParentMessages[id] = nil
+            $0.parentMessages.removeAll { $0.id == id }
+        }
+    }
+
+    // MARK: - ParentMessageInbox
+
+    func nextParentMessage() -> ParentMessage? {
+        state.parentMessages.first
+    }
+
+    func markParentMessageTold(id: String, at date: Date) {
+        update {
+            $0.toldParentMessages[id] = date
+            $0.parentMessages.removeAll { $0.id == id }
+        }
     }
 
     var lastPullAt: Date? { state.lastPullAt }

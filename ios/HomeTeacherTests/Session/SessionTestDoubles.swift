@@ -171,7 +171,7 @@ final class SessionHarness {
         // Jev の答えは transport に /v1/decide で積む（積んでいなければ失敗として規則に任せる）
         let decisions = usesDecisions ? TeacherDecisions(client: DecisionClient(worker: client)) : nil
         coordinator = StudySessionCoordinator(dependencies: .init(
-            client: client, input: input, voice: voice, store: store, sync: sync, clock: clock, decisions: decisions,
+            client: client, input: input, voice: voice, store: store, sync: sync, parentMessages: store, clock: clock, decisions: decisions,
             preferences: preferences, camera: camera, countdown: InstantCountdown(), now: { now }, answerJudge: answerJudge,
             watchOver: watchOver
         ))

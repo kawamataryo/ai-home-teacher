@@ -36,7 +36,13 @@ export function buildRequest(testCase, character = DEFAULT_CHARACTER) {
     max_tokens: MAX_TOKENS,
     // アプリと同じく、会話では考える処理を止める（MessagesRequest.thinkingDisabled）
     thinking: { type: "disabled" },
-    system: conversationSystemPrompt({ mode: testCase.mode ?? "study", teacherNote: testCase.teacherNote, character: speaker }),
+    system: conversationSystemPrompt({
+      mode: testCase.mode ?? "study",
+      teacherNote: testCase.teacherNote,
+      previousSession: testCase.previousSession,
+      parentMessage: testCase.parentMessage,
+      character: speaker,
+    }),
     messages: testCase.messages.map((m) => ({
       role: m.role,
       content: [{ type: "text", text: m.content }],

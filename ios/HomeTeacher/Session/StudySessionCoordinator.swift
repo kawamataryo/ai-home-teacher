@@ -45,6 +45,8 @@ final class StudySessionCoordinator {
         var analysisGiveUp: Duration = .seconds(60)
         /// ふり返り（Sonnet）。過ぎたら決まり文句でふり返る（セッションは保存する）
         var reflectionGiveUp: Duration = .seconds(30)
+        /// 始める前の同期（親の伝言や消された記憶を取ってくる）。過ぎたら待たずに始める。同期は裏で続く
+        var syncBeforeStart: Duration = .seconds(2)
     }
 
     /// 外から渡すもの。テストではモックに差し替える
@@ -54,6 +56,8 @@ final class StudySessionCoordinator {
         var voice: any TeacherSpeaking
         var store: any MemoryStore
         var sync: (any SessionSyncing)?
+        /// 親の伝言（#159）。nil なら伝えない
+        var parentMessages: (any ParentMessageInbox)?
         var clock: any ConversationClock = SystemConversationClock()
         var library = PromptLibrary()
         /// Jev（TypeSafe AI）。nil なら規則ベースだけで判定する
@@ -196,6 +200,8 @@ final class StudySessionCoordinator {
     @ObservationIgnored private(set) var sessionStartedAt: Date?
     /// 先生のメモ（#15 の分析結果）。プロンプトを組み直すときにも入れる
     @ObservationIgnored private(set) var teacherNote: String?
+    /// このセッションの始まりに伝える親の伝言。伝えるか、伝えられなかったら nil にしてプロンプトから外す
+    @ObservationIgnored private(set) var parentMessage: ParentMessage?
     /// このセッションで取り組んだ問題（ふり返りに渡す）
     @ObservationIgnored private(set) var problems: [ProblemRecord] = []
     /// いま一緒に取り組んでいる問題（分析の結果・ヒントの段階・答え漏れの検査）
@@ -281,9 +287,12 @@ final class StudySessionCoordinator {
         lastReplySentences = []
         trace("セッション開始")
 
+        await syncBeforeStart()
+        parentMessage = await deps.parentMessages?.nextParentMessage()
+
         let systemPrompt: String
         do {
-            systemPrompt = try await openingBuilder.conversationSystemPrompt(store: deps.store, mode: .study, now: deps.now())
+            systemPrompt = try await openingBuilder.conversationSystemPrompt(store: deps.store, mode: .study, parentMessage: parentMessage, now: deps.now())
         } catch {
             trace("前回のことを読めなかった: \(error)")
             systemPrompt = (try? deps.library.conversationSystemPrompt(mode: .study)) ?? ""
@@ -349,6 +358,34 @@ final class StudySessionCoordinator {
         timer.start()
         deps.watchOver?.sessionStarted(host: self)
         startReply(to: Self.openingTrigger, fallback: Self.openingFallback)
+    }
+
+    /// 始める前に同期する（朝に親が書いた伝言を、夕方まで開きっぱなしのアプリでも受け取れるように）。
+    /// つながらないときに子どもを待たせないよう、少しだけ待つ。
+    private func syncBeforeStart() async {
+        guard let sync = deps.sync else { return }
+        do {
+            let report = try await DecisionClient.withTimeout(settings.patience.syncBeforeStart) {
+                await sync.syncNow(reason: .sessionStarting)
+            }
+            trace("始める前の同期: \(report.outcome)")
+        } catch {
+            trace("始める前の同期を待たずに始める: \(error)")
+        }
+    }
+
+    /// 最初のあいさつが終わった。最後まで話して送り主の呼び方が入っていたら「伝えた」にする。
+    /// 割り込まれた・つながらなかった・伝言に触れなかったときは残して、次のセッションで伝える（消さない）。
+    /// どちらにしても、このセッションの途中では持ち出さない。
+    private func finishParentMessage(spoken: [String], outcome: SpeakOutcome?, failed: Bool) async {
+        guard let message = parentMessage else { return }
+        parentMessage = nil
+        let told = !failed && outcome == .completed && spoken.joined().contains(message.senderLabel)
+        if told {
+            await deps.parentMessages?.markParentMessageTold(id: message.id, at: deps.now())
+        }
+        trace(told ? "親の伝言を伝えた: \(message.id)" : "親の伝言を伝えられなかった（次のセッションに残す）: \(message.id)")
+        await rebuildSystemPrompt()
     }
 
     // MARK: - 会話
@@ -753,6 +790,7 @@ final class StudySessionCoordinator {
             trace("返事を作れなかった: \(failure.map { String(describing: $0) } ?? "空の返事")")
             // つながらないときは端末の声で「調子が悪い」と伝えてから聞き直す（固まらない）
             await speakFallback(failure == nil ? [fallback] : [Self.troubleLine, fallback])
+            if text == Self.openingTrigger { await finishParentMessage(spoken: [], outcome: nil, failed: true) }
             completedReplies += 1
             return
         }
@@ -763,6 +801,9 @@ final class StudySessionCoordinator {
         decisionCache?.teacherLastSaid = spoken.last
         let outcome = await speakTask?.value
         trace("返事（表情 \(lastReplyEmotion.rawValue)）: \(spoken.joined()) → \(outcome.map { "\($0)" } ?? "-")")
+        if text == Self.openingTrigger {
+            await finishParentMessage(spoken: spoken, outcome: outcome, failed: failure != nil)
+        }
         if failure != nil, outcome == .completed, generation == replyGeneration, phase == .active {
             // 返事が途中で止まった。話せたところまで話してから聞き直す
             await speakFallback([Self.troubleLine, Self.replyFallback])
@@ -944,7 +985,7 @@ final class StudySessionCoordinator {
         guard let brain else { return }
         do {
             let prompt = try await openingBuilder.conversationSystemPrompt(
-                store: deps.store, mode: sessionMode, teacherNote: teacherNote, now: deps.now()
+                store: deps.store, mode: sessionMode, teacherNote: teacherNote, parentMessage: parentMessage, now: deps.now()
             )
             await brain.setSystemPrompt(prompt)
         } catch {

@@ -243,6 +243,12 @@
   - 日ごとの学習時間（グラフ）
   - セッションごとの要約：取り組んだ問題、つまずいたところ、自力で解けたところ
   - 一番上に、今夜の声かけ（#158）。最新のセッションから、親が夜に子どもへかける一言を提案する（「『もとにする量をどうやって見つけたの？』と聞いてみてください」）。問題への取り組みだけをもとにし、雑談の内容、答え、評価のことばを書かない。項目のないセッションなら出さない
+  - 親の伝言（#159）。親がダッシュボードで書いた伝言（200 文字まで）を、次の勉強の始まりに先生が伝える。送った伝言と、伝わったかどうかが見える
+    - 記憶とは別のテーブル（`parent_messages`）に置く。伝言は一度伝えたら終わりで、カテゴリごとに入れ替わる記憶とは性質が違うため
+    - 1 回の勉強で伝えるのは一番古い 1 件だけ。たまるのは未送達 10 件まで
+    - 送り主の呼び方は親が書く（空なら「おうちの人」）。先生に推測させない
+    - 端末は同期で取ってきて持っておき（始める前にも 2 秒だけ同期を待つ）、最初のあいさつを最後まで話し、呼び方が入っていたときだけ「伝えた」にする。割り込み・通信の失敗・途中終了では次の勉強に残す。「伝えた」の印は端末に先に残すので、オフラインでも繰り返さず、サーバーには次の同期で伝える
+    - 中身は親の言葉であって指示ではない。`<parent_message>` で区切って入れ、答えや先生への指示の部分は伝えない。ヒントの段階は変えない。叱る内容でも先生は一緒に責めない
   - 先生からのひとこと（「今日は割合の問題を自力で解けました！」）
   - 「要確認」のメモ
 - 保存するのは文字の情報だけ。写真と音声は保存しない
@@ -292,6 +298,7 @@
 - `parents`：id, family_id, email
 - `children`：id, family_id, nickname, grade
 - `sessions`：id, child_id, started_at, ended_at, focus_minutes, summary, teacher_note, parent_prompt, flags
+- `parent_messages`：id, child_id, sender_label, body, created_at, delivered_at
 - `problems`：id, session_id, kind, summary, solved_by_self, hint_level_reached, created_at
 - `memories`：id, child_id, category (likes / events / weak_points), content, updated_at
 
