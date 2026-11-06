@@ -12,7 +12,13 @@ export const DEFAULT_CHARACTER = CHARACTERS.find((c) => c.id === "haru");
 
 // アプリの TeacherCharacter.promptVariables と揃える。
 export function characterVariables(character = DEFAULT_CHARACTER) {
-  return { teacher_name: character.name };
+  return {
+    teacher_name: character.name,
+    honorific: character.honorific,
+    role_line: character.roleLine,
+    role_noun: character.roleNoun,
+    nudge_tone: character.nudgeTone,
+  };
 }
 // アプリの SessionMode.label と揃える。
 export const SESSION_MODE_LABELS = { study: "勉強中", rest: "休憩中" };
@@ -32,8 +38,20 @@ export function render(template, variables) {
   );
 }
 
+// キャラごとの性格（prompts/characters/<id>.md）。アプリの PromptLibrary.characterProfile と揃える。
+export function characterProfile(character = DEFAULT_CHARACTER) {
+  return readFileSync(join(promptsDir, "characters", `${character.id}.md`), "utf8").trim();
+}
+
+export function characterById(id) {
+  const character = CHARACTERS.find((c) => c.id === id);
+  if (!character) throw new Error(`知らないキャラ: ${id}`);
+  return character;
+}
+
 export function loadPrompt(name, variables = {}, character = DEFAULT_CHARACTER) {
-  const raw = readFileSync(join(promptsDir, `${name}.md`), "utf8");
+  // キャラごとの性格を先に入れる。中の {{key}} も下で差し込む
+  const raw = readFileSync(join(promptsDir, `${name}.md`), "utf8").replaceAll("{{character_profile}}", () => characterProfile(character));
   return render(raw, { ...characterVariables(character), ...variables });
 }
 

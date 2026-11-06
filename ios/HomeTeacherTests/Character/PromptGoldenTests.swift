@@ -13,29 +13,68 @@ struct PromptGoldenTests {
         try String(contentsOf: Self.directory.appending(path: "\(name).txt"), encoding: .utf8)
     }
 
-    /// 書き出した日（2026年11月6日）
-    private var today: Date {
-        var parts = DateComponents()
-        parts.year = 2026; parts.month = 11; parts.day = 6; parts.hour = 12
-        parts.timeZone = TimeZone(identifier: "Asia/Tokyo")
-        return Calendar(identifier: .gregorian).date(from: parts)!
-    }
-
-    @Test func 会話_勉強中() throws {
-        #expect(try PromptLibrary().conversationSystemPrompt(mode: .study, today: today) == golden("conversation_study"))
-    }
-
-    @Test func 会話_休憩中_前回のことと先生のメモあり() throws {
-        let prompt = try PromptLibrary().conversationSystemPrompt(
-            mode: .rest, teacherNote: "- 正答: 40", previousSession: "## 前回の勉強（昨日）\n\n割合の問題", today: today
-        )
-        #expect(prompt == (try golden("conversation_rest_full")))
-    }
-
-    @Test func ふり返りと言いかえ() throws {
+    // 比べるのはキャラに関わる部分だけ（teacher と声かけ）。hint_ladder など共通の部分は別の変更で変わってよい。
+    @Test func 先生のプロンプトと声かけ() throws {
         let library = PromptLibrary()
-        let reflection = [try library.load(.teacher), try library.load(.reflection)].joined(separator: PromptLibrary.separator)
-        #expect(reflection == (try golden("reflection_system")))
+        #expect(try library.load(.teacher) == golden("teacher"))
         #expect(try library.load(.nudgeVariation) == golden("nudge_variation"))
+    }
+
+    @Test func 会話とふり返りは分ける前の先生のプロンプトから始まる() throws {
+        let library = PromptLibrary()
+        let start = try golden("teacher") + PromptLibrary.separator
+        #expect(try library.conversationSystemPrompt(mode: .study).hasPrefix(start))
+        #expect(try SessionReflector(client: .unconfigured, library: library).systemPrompt().hasPrefix(start))
+    }
+}
+
+/// どのキャラでも、共通のルールが必ず入る（#119）
+struct CharacterPromptTests {
+    @Test(arguments: CharacterCatalog().characters)
+    func hint_ladderとsafetyが必ず入る(character: TeacherCharacter) throws {
+        let library = PromptLibrary(character: character)
+        let prompt = try library.conversationSystemPrompt(mode: .study)
+        #expect(prompt.contains(try library.raw(.hintLadder)))
+        #expect(prompt.contains(try library.raw(.safety)))
+        #expect(prompt.contains("答えをそのまま言わない"))
+        #expect(prompt.contains(try library.characterProfile()))
+        #expect(prompt.contains("「\(character.callName)」"))
+        #expect(!prompt.contains("{{"))
+        #expect(!(try library.load(.nudgeVariation)).contains("{{"))
+        // ふり返りも同じキャラの話し方になる
+        let reflector = SessionReflector(client: .unconfigured, library: library)
+        #expect(try reflector.systemPrompt().contains(try library.characterProfile()))
+    }
+
+    @Test(arguments: CharacterCatalog().characters)
+    func 先生のメモが変わっても前半は同じでキャッシュが効く(character: TeacherCharacter) throws {
+        let library = PromptLibrary(character: character)
+        let a = PromptLibrary.splitAtTeacherNote(try library.conversationSystemPrompt(mode: .study, teacherNote: "- 段階 1"))
+        let b = PromptLibrary.splitAtTeacherNote(try library.conversationSystemPrompt(mode: .study, teacherNote: "- 段階 2"))
+        #expect(a.head == b.head)
+        #expect(a.tail != b.tail)
+        #expect(a.head.contains(try library.characterProfile()))
+    }
+
+    @Test func キャラを替えると性格が替わる() throws {
+        let catalog = CharacterCatalog()
+        let haru = try PromptLibrary(character: catalog.character(id: "haru")).conversationSystemPrompt(mode: .study)
+        let rika = try PromptLibrary(character: catalog.character(id: "rika")).conversationSystemPrompt(mode: .study)
+        #expect(haru.contains("お兄さん先生"))
+        #expect(!rika.contains("お兄さん先生"))
+        #expect(rika.contains("お姉さん先生"))
+    }
+
+    @Test func 知らないキャラの性格のファイルはエラーにする() {
+        let unknown = TeacherCharacter(
+            id: "nobody", name: "だれ", honorific: "先生", relation: .teacher, roleLine: "付き添います。", roleNoun: "家庭教師", nudgeTone: "明るく", selectable: false
+        )
+        #expect(throws: PromptError.self) { try PromptLibrary(character: unknown).load(.teacher) }
+    }
+
+    @Test func 選ぶ画面には見た目までそろったキャラだけ出す() {
+        let catalog = CharacterCatalog()
+        #expect(catalog.selectableCharacters.contains(.haru))
+        #expect(catalog.selectableCharacters.allSatisfy { $0.selectable })
     }
 }

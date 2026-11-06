@@ -66,7 +66,22 @@ struct PromptLibrary: Sendable {
 
     /// プロンプトを読み、`{{key}}` を差し込む。
     func load(_ name: PromptName, variables: [String: String] = [:]) throws -> String {
-        Self.render(try raw(name), variables: character.promptVariables.merging(variables) { _, new in new })
+        var template = try raw(name)
+        // キャラごとの性格（prompts/characters/<id>.md）を先に入れる。中の {{key}} も下で差し込む
+        if template.contains(Self.characterProfileMarker) {
+            template = template.replacingOccurrences(of: Self.characterProfileMarker, with: try characterProfile())
+        }
+        return Self.render(template, variables: character.promptVariables.merging(variables) { _, new in new })
+    }
+
+    static let characterProfileMarker = "{{character_profile}}"
+
+    /// キャラごとの性格（prompts/characters/<id>.md）。前後の改行は取り除く
+    func characterProfile() throws -> String {
+        guard let url = bundle.url(forResource: character.id, withExtension: "md", subdirectory: "\(subdirectory)/characters") else {
+            throw PromptError.notFound("\(subdirectory)/characters/\(character.id).md")
+        }
+        return try String(contentsOf: url, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// プロンプトの区切り。evals/prompt.mjs と揃える。
