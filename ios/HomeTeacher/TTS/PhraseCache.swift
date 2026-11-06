@@ -62,8 +62,12 @@ final class PhraseCache {
         bundle: Bundle = .main, directory: URL? = PhraseCache.defaultDirectory, preferredProvider: String? = nil,
         character: TeacherCharacter = .haru
     ) throws {
+        // 自己紹介とあいさつも定型句としてためる（選ぶ画面で 2 回目から待たない）
+        let own = [("intro", character.intro), ("greeting", character.greeting)]
+            .filter { !$0.1.isEmpty }
+            .map { Phrase(key: $0.0, text: $0.1) }
         try self.init(
-            phrases: Self.loadManifest(bundle: bundle), bundle: bundle,
+            phrases: Self.loadManifest(bundle: bundle) + own, bundle: bundle,
             directory: directory.map { Self.directory(for: character, base: $0) }, preferredProvider: preferredProvider,
             character: character
         )

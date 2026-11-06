@@ -113,11 +113,25 @@ final class SessionPreferences {
 /// 設定画面（学習セッション画面の右上の歯車から開く）
 struct SessionSettingsView: View {
     @Bindable var preferences: SessionPreferences
+    /// 先生を選ぶ画面を開く（#123）
+    var onChooseCharacter: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Button {
+                        dismiss()
+                        onChooseCharacter()
+                    } label: {
+                        LabeledContent("先生をえらぶ", value: preferences.selectedCharacter.callName)
+                    }
+                } header: {
+                    Text("先生")
+                } footer: {
+                    Text("替えても、覚えていることと勉強の記録はそのまま続きます。次の勉強から変わります。")
+                }
                 Section {
                     Picker("集中", selection: $preferences.focusMinutes) {
                         ForEach(SessionPreferences.focusChoices, id: \.self) { Text("\($0)分").tag($0) }

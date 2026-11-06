@@ -38,6 +38,12 @@ struct TeacherCharacter: Codable, Identifiable, Equatable, Sendable {
     var look = CharacterLook.haru
     /// 動きの癖（#122）
     var mannerisms = MannerismSet.haru
+    /// 選ぶ画面のひとこと（#123）
+    var tagline = ""
+    /// 選ぶ画面で触ったときの自己紹介（1〜2 文。口ぐせと少し抜けたところが伝わるように）
+    var intro = ""
+    /// 選んだときのあいさつ
+    var greeting = ""
 
     /// 子どもからの呼ばれ方（「ハル先生」。仲間なら「ソラ」）
     var callName: String { name + honorific }
@@ -51,7 +57,10 @@ struct TeacherCharacter: Codable, Identifiable, Equatable, Sendable {
     static let haru = TeacherCharacter(
         id: "haru", name: "ハル", honorific: "先生", relation: .teacher,
         roleLine: "iPad の向こうから付き添う先生です。", roleNoun: "家庭教師", nudgeTone: "やさしく、明るく", selectable: true,
-        voice: Voice(), phrases: [:]
+        voice: Voice(), phrases: [:], look: .haru, mannerisms: .haru,
+        tagline: "メガネのお兄さん先生",
+        intro: "ハルだよ。口ぐせはお、いいね！で、かけてるメガネをよくさがしちゃうんだ。",
+        greeting: "よろしくね！いっしょにがんばろう。"
     )
 }
 

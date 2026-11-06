@@ -196,6 +196,22 @@ final class SessionAppModel: AudioEngineLeaseHolder {
         return (primary, try? PhraseCache(preferredProvider: primary.identifier, character: character))
     }
 
+    /// 選ぶ画面で話す声。セッションの声（マイクと同じエンジン）を借りる。まだなければ自分の声を作る
+    func introVoice() -> TeacherVoice {
+        currentVoice ?? makeVoice(player: AudioClipPlayer())
+    }
+
+    /// 選ぶ画面で、キャラの声に替える（選択は変えない。閉じたら `applySelectedCharacter` で戻す）
+    func useVoice(of character: TeacherCharacter, on voice: TeacherVoice) {
+        let (primary, cache) = voiceParts(for: character)
+        voice.use(primary: primary, phraseCache: cache)
+    }
+
+    /// 初めて開いたときにキャラを選んでもらうか。選ばなければ今までと同じ先生のまま
+    var needsCharacterChoice: Bool {
+        preferences.characterID == nil && preferences.catalog.selectableCharacters.count > 1 && !Self.skipsPermissionOnboarding
+    }
+
     /// 選んだキャラの声にする。次に話す文から、話す文も定型句も同じ声になる（#120）
     func applySelectedCharacter() {
         let character = preferences.selectedCharacter
