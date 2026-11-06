@@ -97,6 +97,10 @@ final class StudySessionCoordinator {
     static let imageLead = "写真を探してみるね。"
     /// 調べものが遅いときのつなぎ（定型句。1 回だけ）
     static let researchSlowLine = "もうちょっとで見つかりそう。"
+    /// 調べたあとの答えは、ここまで話したら止める（声で聞くには長い。プロンプトだけでは守られなかった）
+    static let researchMaxSentences = 3
+    /// 止めるときの問いかけ（定型句）
+    static let researchFollowUp = "もっと聞きたい？"
     /// 答えを話し始めてから、調べものカードを小さくするまで
     static let researchCollapseDelay: Duration = .seconds(2)
     /// 話し終えてから、調べたサイトをしまうまで
@@ -559,6 +563,8 @@ final class StudySessionCoordinator {
         /// この返事でインターネットを調べた
         var researched = false
         var saidResearchSlow = false
+        /// 調べたあとに話した文の数
+        var researchSentences = 0
         if let lead = cue?.lead {
             pendingEmotion = emotion ?? .neutral
             speakTask = Task { await controller.speak(sentences) }
@@ -655,6 +661,7 @@ final class StudySessionCoordinator {
                 if researched {
                     avatar.send(.lookAwayFromNotebook)
                     scheduleResearchCollapse()
+                    researchSentences += 1
                 }
                 // 答えを先に言ってしまう文は、読み上げる前に差し替える（AnswerLeakGuard）
                 var line = cleaned
@@ -670,6 +677,11 @@ final class StudySessionCoordinator {
                     line = replacement
                     blockedReplacement = replacement
                     trace("答えを言いそうな文を差し替えた")
+                } else if researchSentences > Self.researchMaxSentences {
+                    // 続きは聞かれてから話す。残りの文は話さず、履歴も話したところまでにそろえる（差し替えと同じ流れ）
+                    line = Self.researchFollowUp
+                    blockedReplacement = Self.researchFollowUp
+                    trace("調べたあとの答えが長いので、\(Self.researchMaxSentences)文で止めた")
                 }
                 if lastReplyLatency == nil {
                     let latency = deps.clock.now - acceptedAt
