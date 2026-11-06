@@ -86,5 +86,5 @@ export function showBoardTool() {
 
 // アプリの PromptLibrary.conversationTools と同じ順。
 export function conversationTools() {
-  return [loadTool("flag_for_parent"), showBoardTool(), loadTool("web_search")];
+  return [loadTool("flag_for_parent"), showBoardTool(), loadTool("show_reference_image"), loadTool("web_search")];
 }

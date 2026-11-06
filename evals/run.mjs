@@ -89,7 +89,7 @@ export const TOOL_RESULT_TEXT = "記録しました。子どもには伝えず�
 export const BOARD_RESULT_TEXT = "黒板に図を出しました（子どもに見えています）。もう話したことはくり返さずに、図を見ながら答えられる短い問いかけを1つだけ言ってください。もう問いかけで終えていれば、何も言わなくてかまいません。";
 
 export function toolResultText(name) {
-  return name === "show_board" || name === "render_svg" ? BOARD_RESULT_TEXT : TOOL_RESULT_TEXT;
+  return name === "show_board" || name === "render_svg" || name === "show_reference_image" ? BOARD_RESULT_TEXT : TOOL_RESULT_TEXT;
 }
 
 // アプリと同じく、ツールだけ呼んで言葉がなかったときは tool_result を付けて1回だけ続きを呼ぶ。
@@ -102,7 +102,7 @@ export async function respond(call, body) {
   // 返事の長さの上限（max_tokens）で切れていないか。図が長いと、ツールの入力が途中で切れる
   const stops = [{ stop: first.stop_reason, outputTokens: first.usage?.output_tokens }];
   // アプリ（TeacherBrain）と同じく、言葉がないとき・黒板に図を出したときは続きを1回もらう
-  const shownBoard = toolBlocks.some((b) => b.name === "show_board");
+  const shownBoard = toolBlocks.some((b) => b.name === "show_board" || b.name === "show_reference_image");
   if (first.stop_reason === "tool_use" && toolBlocks.length > 0 && (!reply.trim() || shownBoard)) {
     const next = await call({
       ...body,
@@ -163,7 +163,7 @@ async function main(argv, env) {
     try {
       const { reply, toolUses, stops } = await respond((body) => callClaude(endpoint, body), buildRequest(c, character));
       // 黒板の文字にも答えを書かない
-      const boardText = toolUses.filter((t) => t.name === "show_board").map((t) => JSON.stringify(t.input)).join("\n");
+      const boardText = toolUses.filter((t) => t.name === "show_board" || t.name === "show_reference_image").map((t) => JSON.stringify(t.input)).join("\n");
       const result = checkReply(reply, c.expect, toolUses.map((t) => t.name), boardText);
       if (stops.some((s) => s.stop === "max_tokens")) {
         result.pass = false;

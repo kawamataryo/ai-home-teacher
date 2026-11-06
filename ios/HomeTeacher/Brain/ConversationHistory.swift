@@ -99,6 +99,16 @@ struct ConversationHistory: Equatable, Sendable {
         }
     }
 
+    /// tool_use の id を指定して、結果を書き換える（結果を待つ間も対を崩さないよう、先に仮の結果を入れておくとき）
+    mutating func setToolResult(toolUseID: String, content: String) {
+        for index in messages.indices where messages[index].role == .user {
+            messages[index].content = messages[index].content.map { block in
+                guard case .toolResult(let id, _) = block, id == toolUseID else { return block }
+                return .toolResult(toolUseID: id, content: content)
+            }
+        }
+    }
+
     /// 最後の先生の発言（text のみ）。
     var lastAssistantText: String? {
         messages.last(where: { $0.role == .assistant })?.text

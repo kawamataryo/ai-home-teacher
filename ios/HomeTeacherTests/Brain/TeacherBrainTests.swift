@@ -147,7 +147,7 @@ struct TeacherBrainTests {
 
         let body = try json(try #require(await transport.requestBodies().first))
         let sent = try #require(body["tools"] as? [[String: Any]])
-        #expect(sent.map { $0["name"] as? String } == ["flag_for_parent", "show_board"])
+        #expect(sent.map { $0["name"] as? String } == ["flag_for_parent", "show_board", "show_reference_image"])
         let schema = try #require(sent[0]["input_schema"] as? [String: Any])
         #expect(schema["required"] as? [String] == ["category", "reason"])
         // strict は書いたツールだけに付ける

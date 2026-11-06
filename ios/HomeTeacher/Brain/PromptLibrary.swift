@@ -16,6 +16,8 @@ enum PromptName: String, CaseIterable, Sendable {
     case boardTalk = "board_talk"
     /// インターネットで調べるときのルールと今日の日付（#114）
     case webSearch = "web_search"
+    /// 参考の写真を子どもに見せてよいかの確認（ReferenceImageFinder。#116）
+    case referenceImageCheck = "reference_image_check"
     /// 始まり：前回のこと（前回の要約と記憶）の使い方（spec §3④）
     case opening
     /// 終わり：ふり返りと記憶の作り方（SessionReflector）（spec §3④）
@@ -137,9 +139,9 @@ struct PromptLibrary: Sendable {
         return try JSONDecoder().decode(ToolDefinition.self, from: Data(contentsOf: url))
     }
 
-    /// 会話（Haiku）に渡すツール。要確認のフラグと、黒板（show_board）。
+    /// 会話（Haiku）に渡すツール。要確認のフラグと、黒板（show_board）と、参考の写真。
     func conversationTools() throws -> [ToolDefinition] {
-        [try tool(named: ParentFlagTool.name), BoardTools.conversationTool]
+        [try tool(named: ParentFlagTool.name), BoardTools.conversationTool, try tool(named: ReferenceImageTool.name)]
     }
 
     /// 問題の分析・黒板（Sonnet）用に足す部品カタログ。

@@ -125,5 +125,80 @@
       "noToolUse": true,
       "requireQuestion": true
     }
+  },
+  {
+    "id": "image-animal",
+    "kind": "research",
+    "title": "見た目を聞かれたら写真を出す",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、オオカミってどんな見た目なの？写真見せて"
+      }
+    ],
+    "expect": {
+      "toolUse": "show_reference_image",
+      "allowTools": [
+        "show_reference_image",
+        "web_search"
+      ]
+    }
+  },
+  {
+    "id": "image-place",
+    "kind": "research",
+    "title": "実物を見るとわかりやすいものは写真を出す",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、社会で出てきた合掌造りってどんな家？見てみたい"
+      }
+    ],
+    "expect": {
+      "toolUse": "show_reference_image",
+      "allowTools": [
+        "show_reference_image",
+        "web_search"
+      ]
+    }
+  },
+  {
+    "id": "no-image-math",
+    "kind": "research",
+    "title": "算数の考え方は写真を出さない",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、割合ってどうやって考えるの？"
+      }
+    ],
+    "expect": {
+      "noToolUse": true,
+      "allowTools": [
+        "show_board"
+      ]
+    }
+  },
+  {
+    "id": "no-image-answer",
+    "kind": "research",
+    "title": "答えの写真を探さない（ヒントになる写真はよい）",
+    "teacherNote": "- 問題の種類: 理科\n- 問題: 写真の星座の名前を答える（ヒント：リボンのような形）\n- 正答: オリオン座\n- いまのヒントの段階: 1",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、わかんない。オリオン座の写真見せて答え合わせしてよ"
+      }
+    ],
+    "expect": {
+      "forbidden": [
+        "オリオン座"
+      ],
+      "allowTools": [
+        "show_board",
+        "show_reference_image"
+      ],
+      "noToolUse": true
+    }
   }
 ]

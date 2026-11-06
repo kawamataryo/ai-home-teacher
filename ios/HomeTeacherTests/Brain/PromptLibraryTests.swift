@@ -59,7 +59,7 @@ struct PromptLibraryTests {
 
     @Test func 会話用のツールはflag_for_parentとshow_board() throws {
         let tools = try PromptLibrary().conversationTools()
-        #expect(tools.map(\.name) == ["flag_for_parent", "show_board"])
+        #expect(tools.map(\.name) == ["flag_for_parent", "show_board", "show_reference_image"])
         #expect(tools[0].inputSchema["type"]?.stringValue == "object")
         // show_board は strict にすると 400（grammar is too large）。render_svg は会話では使わない
         #expect(tools[1].strict == false)

@@ -77,6 +77,8 @@ struct BoardContentView: View {
             }
         case .svg(let board):
             SVGBoardView(board: board)
+        case .referenceImage(let image):
+            ReferenceImageView(image: image)
         case .text(let text):
             BoardTextView(text: text)
         }
@@ -103,6 +105,8 @@ extension BoardContent: Hashable {
             hasher.combine(c.kind.rawValue)
         case .svg(let b):
             hasher.combine(b.svg)
+        case .referenceImage(let image):
+            hasher.combine(image)
         case .text(let t):
             hasher.combine(t)
         }

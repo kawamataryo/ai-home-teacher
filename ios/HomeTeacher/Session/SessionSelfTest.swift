@@ -46,6 +46,8 @@ final class SessionSelfTest {
     static let researchScript = [
         "ねえ先生、今週の日本の天気ってどんな感じ？",
         "ねえ先生、最近の宇宙のニュースでおもしろいのある？",
+        "ねえ先生、オオカミってどんな見た目なの？写真見せて",
+        "ねえ先生、割合ってどうやって考えるの？",
         "ねえ先生、きのうサッカーしたんだ",
     ]
     static var usesResearchScript: Bool { ProcessInfo.processInfo.arguments.contains("-researchScript") }

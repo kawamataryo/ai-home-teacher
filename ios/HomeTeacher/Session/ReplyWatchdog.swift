@@ -50,7 +50,7 @@ enum ReplyWatchdog {
                         timers.researchSlow?.cancel()
                         timers.researchSlow = nil
                         armGiveUp()
-                    case .research(.searching):
+                    case .research(let update) where update.isStart:
                         // 調べている間は調べものカードと専用の声でつなぐ
                         timers.filler?.cancel()
                         timers.filler = nil
