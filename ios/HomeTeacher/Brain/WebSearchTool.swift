@@ -8,6 +8,25 @@ enum ResearchUpdate: Equatable, Sendable {
     case found(query: String, sites: [String])
     /// 調べられなかった、何も見つからなかった
     case failed(query: String)
+    /// 参考の写真を探し始めた（#116）
+    case searchingImage(query: String)
+    case foundImage(query: String)
+    case missedImage(query: String)
+
+    /// 調べ始めの知らせか
+    var isStart: Bool {
+        switch self {
+        case .searching, .searchingImage: true
+        default: false
+        }
+    }
+
+    var isImage: Bool {
+        switch self {
+        case .searchingImage, .foundImage, .missedImage: true
+        default: false
+        }
+    }
 
     init(results: [WebSearchTool.Result], errorCode: String?, query: String) {
         let sites = WebSearchTool.sites(from: results)

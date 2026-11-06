@@ -68,6 +68,8 @@ final class StudySessionCoordinator {
         var answerJudge: (any AnswerJudging)?
         /// 見守り（#30）。nil なら見守らない
         var watchOver: (any WatchOverControlling)?
+        /// 参考の写真を探す（#116）。nil なら `client` でウィキペディアから探す
+        var imageFinder: (any ReferenceImageFinding)?
     }
 
     /// 最初のひと言を作れなかったときの決まり文句
@@ -91,6 +93,8 @@ final class StudySessionCoordinator {
     static let troubleLine = "ちょっと調子が悪いみたい。"
     /// 調べ始めるときのつなぎ（定型句。先生が何も言わずに調べ始めたとき）
     static let researchLead = "ちょっと調べてみるね。"
+    /// 写真を探し始めるときのつなぎ（定型句）
+    static let imageLead = "写真を探してみるね。"
     /// 調べものが遅いときのつなぎ（定型句。1 回だけ）
     static let researchSlowLine = "もうちょっとで見つかりそう。"
     /// 答えを話し始めてから、調べものカードを小さくするまで
@@ -272,7 +276,8 @@ final class StudySessionCoordinator {
         }
         let brain = TeacherBrain(
             client: deps.client, systemPrompt: systemPrompt, tools: (try? deps.library.conversationTools()) ?? [],
-            serverTools: (try? deps.library.conversationServerTools()) ?? []
+            serverTools: (try? deps.library.conversationServerTools()) ?? [],
+            imageFinder: deps.imageFinder ?? ReferenceImageFinder(client: deps.client, library: deps.library)
         )
         self.brain = brain
 
@@ -490,6 +495,8 @@ final class StudySessionCoordinator {
         researchTimer = nil
         var status = research ?? ResearchStatus(query: "")
         status.apply(update)
+        // 写真は黒板に出るので、カードが重ならないようすぐ小さくする
+        if case .foundImage = update { status.collapse() }
         research = status
         trace("調べもの: \(status.headline)「\(status.query)」 \(status.sites.map(\.host).joined(separator: ", "))")
     }
@@ -523,6 +530,7 @@ final class StudySessionCoordinator {
         let acceptedAt = deps.clock.now
         lastReplyLatency = nil
         let patience = settings.patience
+        await brain.setImageGuard(tutoring?.leakGuard)
         let stream = ReplyWatchdog.watch(
             await brain.respondWithBoards(to: text), clock: deps.clock,
             // 定型句を先に流す返事（すごいじゃん！）は、もうつないでいる
@@ -603,14 +611,15 @@ final class StudySessionCoordinator {
                     guard generation == replyGeneration else { break replyLoop }
                     researched = true
                     showResearch(update)
-                    if case .searching = update {
+                    if update.isStart {
                         avatar.send(.lookAtNotebook)
                         // 先生が何も言わずに調べ始めたら、黙らないように先にひと言つなぐ
                         if speakTask == nil {
                             pendingEmotion = emotion ?? .neutral
                             speakTask = Task { await controller.speak(sentences) }
-                            spoken.append(Self.researchLead)
-                            continuation.yield(Self.researchLead)
+                            let lead = update.isImage ? Self.imageLead : Self.researchLead
+                            spoken.append(lead)
+                            continuation.yield(lead)
                             if lastReplyLatency == nil { lastReplyLatency = deps.clock.now - acceptedAt }
                         }
                     }
@@ -1195,6 +1204,7 @@ final class StudySessionCoordinator {
         switch content {
         case .component(let title, let component): "\(component.kind.rawValue)「\(title)」"
         case .svg: "svg"
+        case .referenceImage(let image): "写真「\(image.query)」"
         case .text: "文字"
         }
     }

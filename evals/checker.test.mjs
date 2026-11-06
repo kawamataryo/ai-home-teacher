@@ -95,7 +95,7 @@ test("リクエストはアプリと同じ組み立てのシステムプロン�
   assert.ok(parts[6].includes(c.teacherNote));
   assert.ok(!body.system.includes("{{"));
   assert.equal(conversationSystemPrompt().split(SEPARATOR).length, 6);
-  assert.deepEqual(body.tools.map((t) => t.name), ["flag_for_parent", "show_board", "web_search"]);
+  assert.deepEqual(body.tools.map((t) => t.name), ["flag_for_parent", "show_board", "show_reference_image", "web_search"]);
   // アプリと同じく show_board は strict にしない（strict だと API が 400）
   assert.equal(body.tools[1].strict, false);
   assert.equal(body.max_tokens, 1024);

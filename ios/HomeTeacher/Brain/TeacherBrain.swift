@@ -52,6 +52,8 @@ actor TeacherBrain {
     let tools: [ToolDefinition]
     /// Anthropic 側で動くツール（web_search）
     let serverTools: [JSONValue]
+    /// 参考の写真を探す（#116）
+    let imageFinder: (any ReferenceImageFinding)?
     /// 検索を受け付けてもらえなかったので、このセッションでは検索なしで話す
     private(set) var isSearchUnavailable = false
     private(set) var history = ConversationHistory()
@@ -65,7 +67,8 @@ actor TeacherBrain {
         model: ClaudeModel = .haiku,
         maxTokens: Int = 1024,
         tools: [ToolDefinition] = [],
-        serverTools: [JSONValue] = []
+        serverTools: [JSONValue] = [],
+        imageFinder: (any ReferenceImageFinding)? = nil
     ) {
         self.client = client
         self.systemPrompt = systemPrompt
@@ -73,6 +76,14 @@ actor TeacherBrain {
         self.maxTokens = maxTokens
         self.tools = tools
         self.serverTools = serverTools
+        self.imageFinder = imageFinder
+    }
+
+    /// 問題の答えを探す写真を出さないための見張り（返事ごとに、今の問題のものを入れる）
+    private var imageGuard: AnswerLeakGuard?
+
+    func setImageGuard(_ guardian: AnswerLeakGuard?) {
+        imageGuard = guardian
     }
 
     /// システムプロンプトを差し替える（先生のメモ・モードの切り替えなど）。次の呼び出しから効く。
@@ -138,7 +149,8 @@ actor TeacherBrain {
     /// （tool_use は消さずに対を保つ。「黒板に図を出しました」のままだと、次の返事が見えていない図の話をする）
     func markLastReplyBoardsNotShown() {
         history.rewriteLastReplyToolResults { name, content in
-            BoardTools.isBoardTool(name) && content == Self.boardResultText ? Self.boardNotShownText : content
+            (BoardTools.isBoardTool(name) || name == ReferenceImageTool.name) && content == Self.boardResultText
+                ? Self.boardNotShownText : content
         }
     }
 
@@ -188,7 +200,7 @@ actor TeacherBrain {
             }
             // 図を出したら、話していても続きを1回もらう（図を見ながらの問いかけで締める）。
             // 続きのリクエストは、それまでの文を読み上げている間に走るので、待ち時間は増えない
-            guard turn.calledTools, !turn.spokeText || turn.shownBoard, continuations < Self.maxToolContinuations else { return }
+            guard turn.calledTools, !turn.spokeText || turn.shownBoard || turn.missedImage, continuations < Self.maxToolContinuations else { return }
             continuations += 1
         }
     }
@@ -207,6 +219,8 @@ actor TeacherBrain {
         var spokeText = false
         var calledTools = false
         var shownBoard = false
+        /// 写真が見つからなかった（話していても、言葉や図でのつなぎをもらう）
+        var missedImage = false
     }
 
     private func streamOnce(
@@ -247,6 +261,14 @@ actor TeacherBrain {
                         continuation.yield(.research(.searching(query: lastQuery)))
                     }
                 } else if let toolUse = toolUses.stop(index: index) {
+                    if toolUse.name == ReferenceImageTool.name {
+                        // 探している間も黙らないよう、前の文（写真を探してみるね）は先に流す
+                        for sentence in splitter.flush() { continuation.yield(.sentence(sentence)) }
+                        let shown = try await showReferenceImage(toolUse, into: continuation)
+                        result.calledTools = true
+                        if shown { result.shownBoard = true } else { result.missedImage = true }
+                        continue
+                    }
                     // 図より前の文は先に流す（話している文と図の順番をそろえる）
                     if BoardTools.isBoardTool(toolUse.name) {
                         for sentence in splitter.flush() { continuation.yield(.sentence(sentence)) }
@@ -271,6 +293,38 @@ actor TeacherBrain {
         // message_stop が来ずに終わった場合も残りを流す
         for sentence in splitter.flush() { continuation.yield(.sentence(sentence)) }
         return result
+    }
+
+    /// 参考の写真を探して流す。見つけて流したら true。
+    ///
+    /// 探している間に割り込まれても履歴の順番が崩れないよう、tool_use と仮の結果（見せていない）を先に入れてから待つ
+    private func showReferenceImage(
+        _ toolUse: ToolUseAccumulator.ToolUse,
+        into continuation: AsyncThrowingStream<TeacherOutput, Error>.Continuation
+    ) async throws -> Bool {
+        history.append(.assistant, .toolUse(id: toolUse.id, name: toolUse.name, input: toolUse.input))
+        history.append(.user, .toolResult(toolUseID: toolUse.id, content: Self.boardNotShownText))
+        guard let imageFinder, let request = ReferenceImageTool.parse(toolUse.input) else {
+            history.setToolResult(toolUseID: toolUse.id, content: ReferenceImageTool.notFoundText)
+            return false
+        }
+        // 答えそのものの写真は探さない（探す言葉が答えと同じなら、子どもには何も見せない）
+        if case .blocked? = imageGuard?.check(request.query) {
+            history.setToolResult(toolUseID: toolUse.id, content: ReferenceImageTool.answerBlockedText)
+            return false
+        }
+        continuation.yield(.research(.searchingImage(query: request.query)))
+        let image = await imageFinder.find(query: request.query, caption: request.caption)
+        try Task.checkCancellation()
+        guard let image else {
+            history.setToolResult(toolUseID: toolUse.id, content: ReferenceImageTool.notFoundText)
+            continuation.yield(.research(.missedImage(query: request.query)))
+            return false
+        }
+        history.setToolResult(toolUseID: toolUse.id, content: Self.boardResultText)
+        continuation.yield(.research(.foundImage(query: request.query)))
+        continuation.yield(.board(.referenceImage(image)))
+        return true
     }
 
     /// ツールの呼び出しを処理し、履歴に tool_use と tool_result を残す（API は対になっていないと受け付けない）。

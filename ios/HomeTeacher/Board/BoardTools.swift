@@ -6,6 +6,8 @@ enum BoardContent: Equatable, Sendable {
     case component(title: String, BoardComponent)
     /// カタログで表せない図（render_svg）。中身は SVGSanitizer を通したもの。
     case svg(SVGBoard)
+    /// 本物の写真（show_reference_image。#116）
+    case referenceImage(ReferenceImage)
     /// 図を出せなかったときの文字での代わり。
     case text(String)
 }

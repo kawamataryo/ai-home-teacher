@@ -76,6 +76,8 @@ struct ResearchStatus: Equatable, Sendable {
     }
 
     private(set) var phase: Phase = .searching
+    /// 写真を探しているか（インターネットで調べているのではなく）
+    private(set) var isImage = false
     private(set) var query: String
     private(set) var sites: [ResearchSite] = []
 
@@ -90,7 +92,16 @@ struct ResearchStatus: Equatable, Sendable {
     var isWorking: Bool { phase == .searching || phase == .slow }
 
     var headline: String {
-        switch phase {
+        if isImage {
+            switch phase {
+            case .searching: return "写真をさがしているよ"
+            case .slow: return "もうちょっとで見つかりそう"
+            case .found: return "いい写真が見つかったよ！"
+            case .answered: return "\(sites.prefix(2).map(\.name).joined(separator: "・"))で見つけたよ"
+            case .failed: return "ぴったりの写真がなかったよ"
+            }
+        }
+        return switch phase {
         case .searching: "インターネットで調べているよ"
         case .slow: "もうちょっとで見つかりそう"
         case .found: "見つけたよ！読んでいるところ"
@@ -101,8 +112,20 @@ struct ResearchStatus: Equatable, Sendable {
 
     mutating func apply(_ update: ResearchUpdate) {
         switch update {
+        case .searchingImage(let query):
+            self.query = query
+            isImage = true
+            sites = [ResearchSite(host: ReferenceImageTool.site)]
+            phase = .searching
+        case .foundImage(let query):
+            self.query = query
+            phase = .found
+        case .missedImage(let query):
+            self.query = query
+            phase = .failed
         case .searching(let query):
             self.query = query
+            isImage = false
             phase = .searching
         case .found(let query, let hosts):
             self.query = query
@@ -124,7 +147,7 @@ struct ResearchStatus: Equatable, Sendable {
 
     /// 答えを話し始めて少し経ったら小さくする。何も見つからなかったら、その言葉のまま残す
     mutating func collapse() {
-        if !sites.isEmpty { phase = .answered }
+        if !sites.isEmpty, phase != .failed { phase = .answered }
     }
 }
 

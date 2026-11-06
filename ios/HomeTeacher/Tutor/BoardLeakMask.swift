@@ -37,6 +37,10 @@ extension AnswerLeakGuard {
             let svg = Self.mapSVGText(board.svg, transform: screen)
             let caption = screen(board.caption)
             return MaskedBoard(content: .svg(SVGBoard(svg: svg, caption: caption)), maskedCount: count)
+        case .referenceImage(var image):
+            // 写真は変えられないので、文字だけ見る
+            image.caption = screen(image.caption)
+            return MaskedBoard(content: .referenceImage(image), maskedCount: count)
         case .text(let text):
             let lines = text.components(separatedBy: "\n").map(screen)
             return MaskedBoard(content: .text(lines.joined(separator: "\n")), maskedCount: count)
