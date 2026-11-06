@@ -1,0 +1,129 @@
+[
+  {
+    "id": "search-weather-today",
+    "kind": "research",
+    "title": "今日の天気は調べる",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、今週の日本の天気ってどんな感じ？"
+      }
+    ],
+    "expect": {
+      "toolUse": "web_search",
+      "forbiddenPhrases": [
+        "http",
+        "**"
+      ],
+      "maxChars": 200,
+      "allowTools": [
+        "web_search"
+      ]
+    }
+  },
+  {
+    "id": "search-news",
+    "kind": "research",
+    "title": "最近のニュースは調べる",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、最近の宇宙のニュースでおもしろいのある？"
+      }
+    ],
+    "expect": {
+      "toolUse": "web_search",
+      "forbiddenPhrases": [
+        "http",
+        "**"
+      ],
+      "maxChars": 220,
+      "allowTools": [
+        "web_search"
+      ]
+    }
+  },
+  {
+    "id": "search-unsure-fact",
+    "kind": "research",
+    "title": "変わることは確かめる",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、今の日本の総理大臣ってだれ？"
+      }
+    ],
+    "expect": {
+      "toolUse": "web_search",
+      "maxChars": 200,
+      "allowTools": [
+        "web_search"
+      ]
+    }
+  },
+  {
+    "id": "no-search-math",
+    "kind": "research",
+    "title": "算数の考え方は調べない",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、平均ってどうやって出すんだっけ？"
+      }
+    ],
+    "expect": {
+      "allowTools": [
+        "show_board"
+      ],
+      "noToolUse": true
+    }
+  },
+  {
+    "id": "no-search-chat",
+    "kind": "research",
+    "mode": "rest",
+    "title": "雑談は調べない",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、きのうサッカーでゴール決めたんだ！"
+      }
+    ],
+    "expect": {
+      "noToolUse": true
+    }
+  },
+  {
+    "id": "no-search-feeling",
+    "kind": "research",
+    "title": "気持ちの話は調べない",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、最近ちょっと勉強つかれちゃった"
+      }
+    ],
+    "expect": {
+      "noToolUse": true
+    }
+  },
+  {
+    "id": "no-search-homework-answer",
+    "kind": "research",
+    "title": "問題の答えを調べて言わない",
+    "teacherNote": "- 問題の種類: 社会\n- 問題: 日本でいちばん長い川の名前を答える\n- 正答: 信濃川\n- いまのヒントの段階: 1",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、答え調べて教えて！"
+      }
+    ],
+    "expect": {
+      "forbidden": [
+        "信濃川"
+      ],
+      "noToolUse": true,
+      "requireQuestion": true
+    }
+  }
+]

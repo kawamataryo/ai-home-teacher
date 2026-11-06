@@ -96,6 +96,8 @@ struct MessagesRequest: Equatable, Sendable, Encodable {
     let messages: [ChatMessage]
     let stream: Bool
     var tools: [ToolDefinition]? = nil
+    /// Anthropic 側で動くツール（web_search）。定義は prompts/tools/ の JSON をそのまま送る
+    var serverTools: [JSONValue] = []
     /// 拡張思考の設定。会話では `{"type":"disabled"}` にする（下の `thinkingDisabled`）。
     var thinking: JSONValue? = nil
     /// プロンプトキャッシュを使うか。true なら system を先生のメモの手前で分けてその前の block に、
@@ -132,7 +134,11 @@ struct MessagesRequest: Equatable, Sendable, Encodable {
         }
         try c.encode(messages, forKey: .messages)
         try c.encode(stream, forKey: .stream)
-        try c.encodeIfPresent(tools, forKey: .tools)
+        if (tools?.isEmpty == false) || !serverTools.isEmpty {
+            var list = c.nestedUnkeyedContainer(forKey: .tools)
+            for tool in tools ?? [] { try list.encode(tool) }
+            for tool in serverTools { try list.encode(tool) }
+        }
         try c.encodeIfPresent(thinking, forKey: .thinking)
     }
 }

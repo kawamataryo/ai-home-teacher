@@ -7,6 +7,10 @@ enum ClaudeStreamEvent: Equatable, Sendable {
     /// tool_use の block が始まった。入力は inputJSONDelta で少しずつ届く。
     case toolUseStart(index: Int, id: String, name: String)
     case inputJSONDelta(index: Int, partialJSON: String)
+    /// Anthropic 側で動くツール（web_search）が始まった。入力（検索の言葉）は inputJSONDelta で届く。
+    case serverToolUseStart(index: Int, id: String, name: String)
+    /// 検索の結果。失敗も 200 で届くので、失敗のときは `errorCode` が入る。
+    case webSearchResult(index: Int, results: [WebSearchTool.Result], errorCode: String?)
     case contentBlockStop(index: Int)
     case messageDelta(stopReason: String?)
     case messageStop
@@ -34,6 +38,13 @@ struct ClaudeStreamParser {
             guard let index = raw.index, let block = raw.contentBlock else { return nil }
             if block.type == "tool_use", let id = block.id, let name = block.name {
                 return .toolUseStart(index: index, id: id, name: name)
+            }
+            if block.type == "server_tool_use", let id = block.id, let name = block.name {
+                return .serverToolUseStart(index: index, id: id, name: name)
+            }
+            if block.type == "web_search_tool_result" {
+                let parsed = WebSearchTool.parseResult(block.content)
+                return .webSearchResult(index: index, results: parsed.results, errorCode: parsed.errorCode)
             }
             // text block の開始時の text は通常空。中身があれば delta として扱う
             if block.type == "text", let text = block.text, !text.isEmpty {
@@ -83,6 +94,7 @@ struct ClaudeStreamParser {
         let id: String?
         let name: String?
         let text: String?
+        let content: JSONValue?
     }
 
     private struct Delta: Decodable {

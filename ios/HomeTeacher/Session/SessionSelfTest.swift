@@ -42,6 +42,13 @@ final class SessionSelfTest {
         "ねえ先生、ゴールも決めたよ",
     ]
     static var usesBoardScript: Bool { ProcessInfo.processInfo.arguments.contains("-boardScript") }
+    /// 調べものの台本（起動引数 `-researchScript`。#114）：最新のことを調べて答える → 調べなくてよい雑談
+    static let researchScript = [
+        "ねえ先生、今週の日本の天気ってどんな感じ？",
+        "ねえ先生、最近の宇宙のニュースでおもしろいのある？",
+        "ねえ先生、きのうサッカーしたんだ",
+    ]
+    static var usesResearchScript: Bool { ProcessInfo.processInfo.arguments.contains("-researchScript") }
     static let endCommand = "終わり"
 
     /// 答えを言う台本（#73）の問題。撮影のかわりに、この分析の結果を入れてから始める
@@ -93,7 +100,7 @@ final class SessionSelfTest {
         }
         results.append(summary("最初のひと言", coordinator))
 
-        for (index, line) in (Self.usesBoardScript ? Self.boardScript : Self.script).enumerated() {
+        for (index, line) in (Self.usesResearchScript ? Self.researchScript : Self.usesBoardScript ? Self.boardScript : Self.script).enumerated() {
             let before = coordinator.completedReplies
             await childSays(line)
             let replied = await waitUntil(seconds: 40) {
@@ -103,7 +110,7 @@ final class SessionSelfTest {
         }
 
         // 答えを言う台本（#73）：違う → 違う（次のヒントへ・励ます）→ 正しい（ほめる・解けた）
-        if !Self.usesBoardScript {
+        if !Self.usesBoardScript, !Self.usesResearchScript {
         record("問題を入れる: \(Self.problem.analysis.problemSummary)（正答 \(Self.problem.analysis.answer)）")
         await coordinator.beginProblem(Self.problem)
         for (index, line) in Self.answerScript.enumerated() {

@@ -69,8 +69,8 @@ struct OpeningPromptBuilderTests {
             try library.load(.teacher), try library.load(.hintLadder), try library.load(.safety),
             try library.load(.smallTalk, variables: ["session_mode": "勉強中"]), try library.load(.boardTalk),
         ])
-        #expect(parts.count == 6)
-        let opening = parts[5]
+        #expect(parts.count == 7)
+        let opening = parts[6]
         #expect(opening.hasPrefix("# 前回のこと"))
         #expect(opening.contains("〈いつ〉の割合の続きやる？"))
         #expect(opening.contains("## 前回の勉強（昨日）"))
@@ -92,18 +92,18 @@ struct OpeningPromptBuilderTests {
         try await store.saveSession(lastSession)
         let prompt = try await builder.conversationSystemPrompt(store: store, mode: .rest, teacherNote: "正答は 40", now: nextDay)
         let parts = prompt.components(separatedBy: PromptLibrary.separator)
-        #expect(parts.count == 7)
+        #expect(parts.count == 8)
         #expect(parts[3].contains("**休憩中**"))
-        #expect(parts[5].hasPrefix("# 前回のこと"))
-        #expect(parts[5].contains("割合の文章題を3問やった"))
-        #expect(parts[6].hasPrefix("# 先生のメモ"))
+        #expect(parts[6].hasPrefix("# 前回のこと"))
+        #expect(parts[6].contains("割合の文章題を3問やった"))
+        #expect(parts[7].hasPrefix("# 先生のメモ"))
     }
 
     @Test func 先生のメモは前回のことより後ろに足す() throws {
         let prompt = try PromptLibrary().conversationSystemPrompt(teacherNote: "正答は 40", previousSession: "## 前回の勉強（昨日）")
         let parts = prompt.components(separatedBy: PromptLibrary.separator)
-        #expect(parts.count == 7)
-        #expect(parts[5].hasPrefix("# 前回のこと"))
-        #expect(parts[6].hasPrefix("# 先生のメモ"))
+        #expect(parts.count == 8)
+        #expect(parts[6].hasPrefix("# 前回のこと"))
+        #expect(parts[7].hasPrefix("# 先生のメモ"))
     }
 }

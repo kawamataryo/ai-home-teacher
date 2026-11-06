@@ -45,7 +45,7 @@ export function buildRequest(testCase) {
 
 // 呼ばれたツールの名前と入力。
 export function extractToolUses(response) {
-  return (response.content ?? []).filter((b) => b.type === "tool_use").map((b) => ({ name: b.name, input: b.input }));
+  return (response.content ?? []).filter((b) => b.type === "tool_use" || b.type === "server_tool_use").map((b) => ({ name: b.name, input: b.input }));
 }
 
 // Messages API の応答から、読み上げる文字（text block）を取り出す。
