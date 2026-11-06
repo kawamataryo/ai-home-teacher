@@ -149,6 +149,8 @@ final class SessionAppModel: AudioEngineLeaseHolder {
             store: services.store,
             sync: services.sync,
             clock: clock,
+            // 選んだ先生の名前と話し方で話す（#118）
+            library: PromptLibrary(character: preferences.selectedCharacter),
             decisions: services.decisions,
             preferences: preferences,
             // 自己テスト・表示確認（台本の発話）のときはカメラを使わない
