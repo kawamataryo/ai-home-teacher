@@ -89,6 +89,14 @@ final class StudySessionCoordinator {
     static let captureFailedLine = "ごめん、うまく撮れなかった。もう一回見せてくれる？"
     /// Worker / Claude につながらないとき（定型句。端末に音声があるのですぐ話せる）。このあとに聞き直す文を続ける
     static let troubleLine = "ちょっと調子が悪いみたい。"
+    /// 調べ始めるときのつなぎ（定型句。先生が何も言わずに調べ始めたとき）
+    static let researchLead = "ちょっと調べてみるね。"
+    /// 調べものが遅いときのつなぎ（定型句。1 回だけ）
+    static let researchSlowLine = "もうちょっとで見つかりそう。"
+    /// 答えを話し始めてから、調べものカードを小さくするまで
+    static let researchCollapseDelay: Duration = .seconds(2)
+    /// 話し終えてから、調べたサイトをしまうまで
+    static let researchDismissDelay: Duration = .seconds(5)
     /// 返事の 1 文目が遅いときのつなぎ（定型句）
     static let replyFiller = "ちょっと考えるね"
     /// 写真を送れなかったとき（通信の失敗）
@@ -98,6 +106,9 @@ final class StudySessionCoordinator {
     static let analysisFailedLine = "ごめん、写真がよく見えなかった。もう一回撮ってみようか？"
 
     // MARK: - 画面に出すもの
+
+    /// 調べものカードの中身（#115）。調べていなければ nil
+    private(set) var research: ResearchStatus?
 
     private(set) var phase: Phase = .idle
     private(set) var conversationState: ConversationState = .idle
@@ -182,6 +193,7 @@ final class StudySessionCoordinator {
     @ObservationIgnored private var sentencesSinceBoard = 0
     /// 黒板をしまうかどうか（#105）
     @ObservationIgnored private var boardStage = BoardStage()
+    @ObservationIgnored private var researchTimer: (any ScheduledAction)?
     /// 休憩のあいだ預かっている、解いている途中の問題の図（#105）
     @ObservationIgnored private var parkedBoard: (content: BoardContent, reveal: BoardReveal?)?
     @ObservationIgnored private let answerJudge: any AnswerJudging
@@ -428,6 +440,7 @@ final class StudySessionCoordinator {
         let boardShown = inFlightBoardShown
         pendingEmotion = .neutral
         avatar.send(.userStartedSpeaking)
+        clearResearch()
         guard let brain else { return true }
         let task = Task { [weak self] in
             await brain.cancel()
@@ -458,8 +471,45 @@ final class StudySessionCoordinator {
         // 割り込みが返事のタスクより先に来ても捨てられるよう、ここで印を付ける
         inFlightReply = generation
         inFlightBoardShown = false
+        clearResearch()
         replyTask = Task { [weak self] in
             await self?.runReply(to: text, fallback: fallback, generation: generation, captureCheck: captureCheck, cue: cue)
+        }
+    }
+
+    /// 調べものカードをしまう
+    private func clearResearch() {
+        researchTimer?.cancel()
+        researchTimer = nil
+        research = nil
+    }
+
+    /// 調べものの様子をカードに出す
+    private func showResearch(_ update: ResearchUpdate) {
+        researchTimer?.cancel()
+        researchTimer = nil
+        var status = research ?? ResearchStatus(query: "")
+        status.apply(update)
+        research = status
+        trace("調べもの: \(status.headline)「\(status.query)」 \(status.sites.map(\.host).joined(separator: ", "))")
+    }
+
+    /// 答えを話し始めたら、少しあとでカードを小さくする（すぐ小さくすると、見つかったサイトが見えない）
+    private func scheduleResearchCollapse() {
+        guard researchTimer == nil, let status = research, !status.isCompact else { return }
+        researchTimer = deps.clock.schedule(after: Self.researchCollapseDelay) { [weak self] in
+            self?.researchTimer = nil
+            self?.research?.collapse()
+        }
+    }
+
+    /// 話し終えたら、少しあとでカードをしまう
+    private func scheduleResearchDismiss() {
+        guard research != nil else { return }
+        research?.collapse()
+        researchTimer?.cancel()
+        researchTimer = deps.clock.schedule(after: Self.researchDismissDelay) { [weak self] in
+            self?.clearResearch()
         }
     }
 
@@ -494,6 +544,7 @@ final class StudySessionCoordinator {
         var leadToSkip = cue?.lead
         /// この返事でインターネットを調べた
         var researched = false
+        var saidResearchSlow = false
         if let lead = cue?.lead {
             pendingEmotion = emotion ?? .neutral
             speakTask = Task { await controller.speak(sentences) }
@@ -523,6 +574,14 @@ final class StudySessionCoordinator {
                     }
                     continuation.yield(Self.replyFiller)
                     continue
+                case .researchSlow:
+                    guard !saidResearchSlow else { continue }
+                    saidResearchSlow = true
+                    research?.markSlow()
+                    trace("調べものが遅いので声をかける")
+                    spoken.append(Self.researchSlowLine)
+                    continuation.yield(Self.researchSlowLine)
+                    continue
                 case .output(let next):
                     output = next
                 }
@@ -537,8 +596,24 @@ final class StudySessionCoordinator {
                     }
                     continue
                 case .research(let update):
-                    trace("調べもの: \(update)")
+                    if speakTask == nil, let captureCheck, await captureCheck.value {
+                        wantsCapture = true
+                        break replyLoop
+                    }
+                    guard generation == replyGeneration else { break replyLoop }
                     researched = true
+                    showResearch(update)
+                    if case .searching = update {
+                        avatar.send(.lookAtNotebook)
+                        // 先生が何も言わずに調べ始めたら、黙らないように先にひと言つなぐ
+                        if speakTask == nil {
+                            pendingEmotion = emotion ?? .neutral
+                            speakTask = Task { await controller.speak(sentences) }
+                            spoken.append(Self.researchLead)
+                            continuation.yield(Self.researchLead)
+                            if lastReplyLatency == nil { lastReplyLatency = deps.clock.now - acceptedAt }
+                        }
+                    }
                     continue
                 case .sentence(let text):
                     raw = text
@@ -557,10 +632,14 @@ final class StudySessionCoordinator {
                 }
                 // 読み上げに向かない記号を除く（調べたあとの返事にマークダウンが混ざりやすい）
                 let cleaned = SpeechText.clean(sentence)
-                // 調べたあとに、もう言った文（ちょっと調べてみるね）をくり返さない
-                if cleaned.isEmpty || (researched && spoken.contains(cleaned)) {
+                // 調べたあとに、もう言った文（ちょっと調べてみるね）や中身のない前置きをくり返さない
+                if cleaned.isEmpty || (researched && (spoken.contains(cleaned) || ResearchPreface.matches(cleaned))) {
                     originals.append(raw)
                     continue
+                }
+                if researched {
+                    avatar.send(.lookAwayFromNotebook)
+                    scheduleResearchCollapse()
                 }
                 // 答えを先に言ってしまう文は、読み上げる前に差し替える（AnswerLeakGuard）
                 var line = cleaned
@@ -659,6 +738,7 @@ final class StudySessionCoordinator {
            boardStage.replyFinished(showedBoard: inFlightBoardShown, pace: board == nil ? nil : boardReveal?.pace) {
             putAwayBoard(reason: "図を使わない返事が\(BoardStage.quietRepliesBeforePutAway)回続いた")
         }
+        if generation == replyGeneration { scheduleResearchDismiss() }
         completedReplies += 1
     }
 
@@ -999,6 +1079,13 @@ final class StudySessionCoordinator {
             boardReveal?.revealAll()
         case .tour:
             caption = ""
+        case .researchSearching, .researchFound, .researchAnswered:
+            caption = "ねえ先生、今週の日本の天気ってどんな感じ？"
+            if ProcessInfo.processInfo.arguments.contains("-previewBoard") {
+                presentBoard(SessionPreviewState.previewBoard(), pace: .sentence)
+                boardReveal?.revealAll()
+            }
+            research = preview.researchStatus
         case .idle, .speaking:
             caption = ""
             board = BoardSamples.content(.stepCards)
@@ -1080,6 +1167,7 @@ final class StudySessionCoordinator {
     }
 
     private func clearBoard() {
+        clearResearch()
         board = nil
         boardReveal = nil
         boardStage.reset()

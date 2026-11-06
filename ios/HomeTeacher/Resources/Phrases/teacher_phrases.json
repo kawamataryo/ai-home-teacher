@@ -13,5 +13,7 @@
   { "key": "chotto_misete", "text": "ちょっと見せて？" },
   { "key": "unun", "text": "うんうん" },
   { "key": "chotto_matte", "text": "ちょっと考えるね" },
-  { "key": "choushi_warui", "text": "ちょっと調子が悪いみたい。" }
+  { "key": "choushi_warui", "text": "ちょっと調子が悪いみたい。" },
+  { "key": "chotto_shiraberu", "text": "ちょっと調べてみるね。" },
+  { "key": "mitsukarisou", "text": "もうちょっとで見つかりそう。" }
 ]

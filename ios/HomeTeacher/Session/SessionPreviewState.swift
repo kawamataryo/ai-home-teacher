@@ -15,6 +15,28 @@ enum SessionPreviewState: String, CaseIterable, Sendable {
     case board
     /// 先生だけ → 黒板 → 図の差し替え → しまう、をくり返す（動画の確認用。#105）
     case tour
+    /// 調べものカード（#115）：調べている／見つかった／答えを話し始めた。`-previewBoard` を付けると黒板に重ねる
+    case researchSearching
+    case researchFound
+    case researchAnswered
+
+    var researchStatus: ResearchStatus? {
+        let query = "今週 天気 日本 11月6日"
+        var status = ResearchStatus(query: query)
+        switch self {
+        case .researchSearching:
+            return status
+        case .researchFound:
+            status.apply(.found(query: query, sites: ["weathernews.jp", "tenki.jp", "news.yahoo.co.jp", "ja.wikipedia.org"]))
+            return status
+        case .researchAnswered:
+            status.apply(.found(query: query, sites: ["weathernews.jp", "tenki.jp", "news.yahoo.co.jp", "ja.wikipedia.org"]))
+            status.collapse()
+            return status
+        default:
+            return nil
+        }
+    }
 
     static func fromLaunchArguments(_ arguments: [String] = ProcessInfo.processInfo.arguments) -> SessionPreviewState? {
         guard let value = argument(after: "-sessionPreview", in: arguments) else { return nil }

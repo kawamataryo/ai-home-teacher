@@ -3,7 +3,7 @@ import Testing
 @testable import HomeTeacher
 
 /// 実際の API のストリーム（2026-11-06 に本番の Worker 経由で確かめた形）に合わせた検索の応答。
-private enum SearchSSE {
+enum SearchSSE {
     static func line(_ json: String) -> String { "data: \(json)\n\n" }
 
     static let start = line(#"{"type":"message_start","message":{"id":"m","role":"assistant","content":[]}}"#)
