@@ -1,0 +1,22 @@
+[
+  {
+    "id": "haru",
+    "name": "ハル",
+    "honorific": "先生",
+    "relation": "teacher",
+    "roleLine": "iPad の向こうから付き添う先生です。",
+    "roleNoun": "家庭教師",
+    "nudgeTone": "やさしく、明るく",
+    "selectable": true
+  },
+  {
+    "id": "rika",
+    "name": "リカ",
+    "honorific": "先生",
+    "relation": "teacher",
+    "roleLine": "iPad の向こうから付き添う先生です。",
+    "roleNoun": "家庭教師",
+    "nudgeTone": "わくわくした感じで、やさしく",
+    "selectable": false
+  }
+]

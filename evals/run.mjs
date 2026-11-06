@@ -6,6 +6,7 @@
 //   ANTHROPIC_API_KEY=sk-ant-... node evals/run.mjs                                # Anthropic API を直接
 //   node evals/run.mjs --dry-run            # 送る内容を表示するだけ（API を呼ばない）
 //   node evals/run.mjs --case reading-library
+//   node evals/run.mjs --character rika    # キャラを替える（既定は今の先生）。ケースに character があればそちらを使う
 //
 // キーも Worker の設定もなければ、何もせずに終了する（exit 0）。
 // 判定のロジックのテスト: node --test evals/*.test.mjs
@@ -13,7 +14,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { checkReply } from "./checker.mjs";
-import { conversationSystemPrompt, conversationTools } from "./prompt.mjs";
+import { DEFAULT_CHARACTER, characterById, conversationSystemPrompt, conversationTools } from "./prompt.mjs";
 
 export const MODEL = "claude-haiku-5-5";
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
@@ -28,13 +29,14 @@ export function loadCases(dir = casesDir) {
 }
 
 // アプリ（TeacherBrain）と同じ形の Messages API の本文。評価では stream しない。
-export function buildRequest(testCase) {
+export function buildRequest(testCase, character = DEFAULT_CHARACTER) {
+  const speaker = testCase.character ? characterById(testCase.character) : character;
   return {
     model: MODEL,
     max_tokens: MAX_TOKENS,
     // アプリと同じく、会話では考える処理を止める（MessagesRequest.thinkingDisabled）
     thinking: { type: "disabled" },
-    system: conversationSystemPrompt({ mode: testCase.mode ?? "study", teacherNote: testCase.teacherNote }),
+    system: conversationSystemPrompt({ mode: testCase.mode ?? "study", teacherNote: testCase.teacherNote, character: speaker }),
     messages: testCase.messages.map((m) => ({
       role: m.role,
       content: [{ type: "text", text: m.content }],
@@ -132,6 +134,7 @@ async function main(argv, env) {
   const only = argv.includes("--case") ? argv[argv.indexOf("--case") + 1] : null;
   // --case はカンマで区切って複数えらべる
   const picked = only ? new Set(only.split(",")) : null;
+  const character = argv.includes("--character") ? characterById(argv[argv.indexOf("--character") + 1]) : DEFAULT_CHARACTER;
   const cases = loadCases().filter((c) => !picked || picked.has(c.id));
   if (cases.length === 0) {
     console.error(`評価のケースが見つかりません${only ? `: ${only}` : ""}`);
@@ -139,7 +142,7 @@ async function main(argv, env) {
   }
 
   if (dryRun) {
-    for (const c of cases) console.log(JSON.stringify({ id: c.id, request: buildRequest(c) }, null, 2));
+    for (const c of cases) console.log(JSON.stringify({ id: c.id, request: buildRequest(c, character) }, null, 2));
     return 0;
   }
 
@@ -154,11 +157,11 @@ async function main(argv, env) {
     return 0;
   }
 
-  console.log(`${endpoint.name} で ${cases.length} 件を評価します（${MODEL}）\n`);
+  console.log(`${endpoint.name} で ${cases.length} 件を評価します（${MODEL} / ${character.name}${character.honorific}）\n`);
   let failed = 0;
   for (const c of cases) {
     try {
-      const { reply, toolUses, stops } = await respond((body) => callClaude(endpoint, body), buildRequest(c));
+      const { reply, toolUses, stops } = await respond((body) => callClaude(endpoint, body), buildRequest(c, character));
       // 黒板の文字にも答えを書かない
       const boardText = toolUses.filter((t) => t.name === "show_board" || t.name === "show_reference_image").map((t) => JSON.stringify(t.input)).join("\n");
       const result = checkReply(reply, c.expect, toolUses.map((t) => t.name), boardText);

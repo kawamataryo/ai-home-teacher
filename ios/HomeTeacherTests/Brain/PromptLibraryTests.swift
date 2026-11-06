@@ -20,7 +20,8 @@ struct PromptLibraryTests {
     }
 
     @Test func キャラクター設定と答えを言わないルールがある() throws {
-        let text = try PromptLibrary().raw(.teacher)
+        // 性格（大学生のお兄さん先生）は prompts/characters/haru.md に分けたので、組み上げてから見る（#119）
+        let text = try PromptLibrary().load(.teacher)
         #expect(text.contains("大学生"))
         #expect(text.contains("答えをそのまま言わない"))
     }

@@ -12,6 +12,7 @@ final class SessionPreferences {
     static let focusMinutesKey = "session.focusMinutes"
     static let breakMinutesKey = "session.breakMinutes"
     static let nudgeVariationKey = "session.nudgeVariation"
+    static let characterKey = "session.characterID"
     /// 集中の分（spec §3④。初期値 25 分）
     nonisolated static let focusChoices = [15, 20, 25, 30, 45]
     static let defaultFocusMinutes = 25
@@ -52,6 +53,16 @@ final class SessionPreferences {
         didSet { defaults.set(allowsNudgeVariation, forKey: Self.nudgeVariationKey) }
     }
 
+    /// 選んだ先生の id（#118）。保存値が知らないキャラなら `selectedCharacter` は既定の先生になる
+    var characterID: String? {
+        didSet { defaults.set(characterID, forKey: Self.characterKey) }
+    }
+
+    /// 選んだ先生。未選択・知らないキャラなら既定の先生
+    var selectedCharacter: TeacherCharacter {
+        catalog.character(id: characterID)
+    }
+
     /// タイマーの設定。分数と言い回しだけを差し替え、ほか（5 分前の励ましなど）は `base` のまま
     func timerSettings(base: FocusTimerSettings = FocusTimerSettings()) -> FocusTimerSettings {
         var settings = base
@@ -67,9 +78,12 @@ final class SessionPreferences {
     }
 
     @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored let catalog: CharacterCatalog
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, catalog: CharacterCatalog = CharacterCatalog()) {
         self.defaults = defaults
+        self.catalog = catalog
+        characterID = defaults.string(forKey: Self.characterKey)
         speakingInputMode = Self.mode(for: defaults.string(forKey: Self.speakingInputModeKey))
         cameraPosition = defaults.string(forKey: Self.cameraPositionKey).flatMap(CameraPosition.init(rawValue:)) ?? .front
         let minutes = defaults.object(forKey: Self.watchOverMinutesKey) as? Int

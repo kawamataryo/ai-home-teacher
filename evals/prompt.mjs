@@ -6,7 +6,20 @@ import { dirname, join } from "node:path";
 const promptsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "prompts");
 
 export const SEPARATOR = "\n\n---\n\n";
-export const DEFAULT_VARIABLES = { teacher_name: "ハル" };
+// キャラの一覧。アプリの CharacterCatalog と同じファイル（既定の先生は先頭の haru）。
+export const CHARACTERS = JSON.parse(readFileSync(join(promptsDir, "characters", "characters.json"), "utf8"));
+export const DEFAULT_CHARACTER = CHARACTERS.find((c) => c.id === "haru");
+
+// アプリの TeacherCharacter.promptVariables と揃える。
+export function characterVariables(character = DEFAULT_CHARACTER) {
+  return {
+    teacher_name: character.name,
+    honorific: character.honorific,
+    role_line: character.roleLine,
+    role_noun: character.roleNoun,
+    nudge_tone: character.nudgeTone,
+  };
+}
 // アプリの SessionMode.label と揃える。
 export const SESSION_MODE_LABELS = { study: "勉強中", rest: "休憩中" };
 export const CONVERSATION_PARTS = ["teacher", "hint_ladder", "safety", "small_talk", "board_talk", "web_search"];
@@ -25,9 +38,21 @@ export function render(template, variables) {
   );
 }
 
-export function loadPrompt(name, variables = {}) {
-  const raw = readFileSync(join(promptsDir, `${name}.md`), "utf8");
-  return render(raw, { ...DEFAULT_VARIABLES, ...variables });
+// キャラごとの性格（prompts/characters/<id>.md）。アプリの PromptLibrary.characterProfile と揃える。
+export function characterProfile(character = DEFAULT_CHARACTER) {
+  return readFileSync(join(promptsDir, "characters", `${character.id}.md`), "utf8").trim();
+}
+
+export function characterById(id) {
+  const character = CHARACTERS.find((c) => c.id === id);
+  if (!character) throw new Error(`知らないキャラ: ${id}`);
+  return character;
+}
+
+export function loadPrompt(name, variables = {}, character = DEFAULT_CHARACTER) {
+  // キャラごとの性格を先に入れる。中の {{key}} も下で差し込む
+  const raw = readFileSync(join(promptsDir, `${name}.md`), "utf8").replaceAll("{{character_profile}}", () => characterProfile(character));
+  return render(raw, { ...characterVariables(character), ...variables });
 }
 
 export function teacherNoteSection(note) {
@@ -36,13 +61,13 @@ export function teacherNoteSection(note) {
 
 // teacher → hint_ladder → safety → small_talk → board_talk → web_search の順。前回のこと（opening.md に差し込む）があれば足し、
 // 先生のメモがあれば最後に足す。
-export function conversationSystemPrompt({ mode = "study", teacherNote, previousSession, variables = {} } = {}) {
+export function conversationSystemPrompt({ mode = "study", teacherNote, previousSession, variables = {}, character = DEFAULT_CHARACTER } = {}) {
   const label = SESSION_MODE_LABELS[mode];
   if (!label) throw new Error(`未知のモード: ${mode}`);
   const vars = { today: todayLabel(), ...variables, session_mode: label };
-  const parts = CONVERSATION_PARTS.map((name) => loadPrompt(name, vars));
+  const parts = CONVERSATION_PARTS.map((name) => loadPrompt(name, vars, character));
   const previous = previousSession?.trim();
-  if (previous) parts.push(loadPrompt("opening", { ...vars, previous_session: previous }));
+  if (previous) parts.push(loadPrompt("opening", { ...vars, previous_session: previous }, character));
   const note = teacherNote?.trim();
   if (note) parts.push(teacherNoteSection(note));
   return parts.join(SEPARATOR);
