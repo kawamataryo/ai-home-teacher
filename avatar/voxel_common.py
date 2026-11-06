@@ -418,6 +418,7 @@ def export_usdz(path):
 def save_blend(path):
     """元データを保存する。テクスチャも中に入れるので、この 1 つで開ける"""
     bpy.ops.file.pack_all()
+    bpy.ops.file.pack_all()  # 画像も .blend に入れる（textures はコミットしないので、clone 直後でも質感が欠けないように）
     bpy.ops.wm.save_as_mainfile(filepath=path, compress=True)
     print("保存:", path)
 
