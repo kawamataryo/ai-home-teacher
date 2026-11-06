@@ -4,6 +4,8 @@ import Foundation
 enum TeacherOutput: Equatable, Sendable {
     case sentence(String)
     case board(BoardContent)
+    /// インターネットで調べている様子（#114）
+    case research(ResearchUpdate)
 }
 
 enum TeacherBrainError: Error, Equatable {
@@ -48,6 +50,10 @@ actor TeacherBrain {
     let model: ClaudeModel
     let maxTokens: Int
     let tools: [ToolDefinition]
+    /// Anthropic 側で動くツール（web_search）
+    let serverTools: [JSONValue]
+    /// 検索を受け付けてもらえなかったので、このセッションでは検索なしで話す
+    private(set) var isSearchUnavailable = false
     private(set) var history = ConversationHistory()
     /// このセッションで記録した「要確認」など（spec §3④）。保存は #25 / #28。
     private(set) var sessionFlags = SessionFlags()
@@ -58,13 +64,15 @@ actor TeacherBrain {
         systemPrompt: String,
         model: ClaudeModel = .haiku,
         maxTokens: Int = 1024,
-        tools: [ToolDefinition] = []
+        tools: [ToolDefinition] = [],
+        serverTools: [JSONValue] = []
     ) {
         self.client = client
         self.systemPrompt = systemPrompt
         self.model = model
         self.maxTokens = maxTokens
         self.tools = tools
+        self.serverTools = serverTools
     }
 
     /// システムプロンプトを差し替える（先生のメモ・モードの切り替えなど）。次の呼び出しから効く。
@@ -161,7 +169,7 @@ actor TeacherBrain {
         }
         return MessagesRequest(
             model: model, maxTokens: maxTokens, system: systemPrompt, messages: messages, stream: true,
-            tools: tools.isEmpty ? nil : tools, thinking: MessagesRequest.thinkingDisabled, cachesPrompt: true
+            tools: tools.isEmpty ? nil : tools, serverTools: isSearchUnavailable ? [] : serverTools, thinking: MessagesRequest.thinkingDisabled, cachesPrompt: true
         )
     }
 
@@ -170,11 +178,28 @@ actor TeacherBrain {
         var continuations = 0
         while true {
             try Task.checkCancellation()
-            let turn = try await streamOnce(makeRequest(), into: continuation)
+            let turn: TurnResult
+            do {
+                turn = try await streamOnce(makeRequest(), into: continuation)
+            } catch where shouldRetryWithoutSearch(error) {
+                // 検索の設定を断られても、会話は止めない（許可リストのサイトがクロールを断ったときなど、リクエスト全体が 400 になる）
+                isSearchUnavailable = true
+                continue
+            }
             // 図を出したら、話していても続きを1回もらう（図を見ながらの問いかけで締める）。
             // 続きのリクエストは、それまでの文を読み上げている間に走るので、待ち時間は増えない
             guard turn.calledTools, !turn.spokeText || turn.shownBoard, continuations < Self.maxToolContinuations else { return }
             continuations += 1
+        }
+    }
+
+    /// 検索つきのリクエストそのものを断られたときだけ true（話し始める前に届く 400）
+    private func shouldRetryWithoutSearch(_ error: any Error) -> Bool {
+        guard !serverTools.isEmpty, !isSearchUnavailable else { return false }
+        switch error {
+        case WorkerError.http(let status, _): return status == 400
+        case TeacherBrainError.api(let type, _): return type == "invalid_request_error"
+        default: return false
         }
     }
 
@@ -191,6 +216,8 @@ actor TeacherBrain {
         let parser = ClaudeStreamParser()
         var splitter = SentenceSplitter()
         var toolUses = ToolUseAccumulator()
+        var serverToolIndexes = Set<Int>()
+        var lastQuery = ""
         var result = TurnResult()
         let lines = try await client.streamLines(path: Self.claudePath, body: request)
         for try await line in lines {
@@ -203,10 +230,23 @@ actor TeacherBrain {
                 for sentence in splitter.append(text) { continuation.yield(.sentence(sentence)) }
             case .toolUseStart(let index, let id, let name):
                 toolUses.start(index: index, id: id, name: name)
+            case .serverToolUseStart(let index, let id, let name):
+                // 調べている間も黙らないよう、前の文（ちょっと調べてみるね）は結果を待たずに流す
+                for sentence in splitter.flush() { continuation.yield(.sentence(sentence)) }
+                toolUses.start(index: index, id: id, name: name)
+                serverToolIndexes.insert(index)
+            case .webSearchResult(_, let results, let errorCode):
+                // 暗号化された本文は大きいので履歴に残さない。話した言葉だけが残る
+                continuation.yield(.research(ResearchUpdate(results: results, errorCode: errorCode, query: lastQuery)))
             case .inputJSONDelta(let index, let partialJSON):
                 toolUses.append(index: index, partialJSON: partialJSON)
             case .contentBlockStop(let index):
-                if let toolUse = toolUses.stop(index: index) {
+                if serverToolIndexes.remove(index) != nil {
+                    if let toolUse = toolUses.stop(index: index), toolUse.name == WebSearchTool.name {
+                        lastQuery = WebSearchTool.query(from: toolUse.input)
+                        continuation.yield(.research(.searching(query: lastQuery)))
+                    }
+                } else if let toolUse = toolUses.stop(index: index) {
                     // 図より前の文は先に流す（話している文と図の順番をそろえる）
                     if BoardTools.isBoardTool(toolUse.name) {
                         for sentence in splitter.flush() { continuation.yield(.sentence(sentence)) }

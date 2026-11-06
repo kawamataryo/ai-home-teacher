@@ -259,7 +259,8 @@ final class StudySessionCoordinator {
             systemPrompt = (try? deps.library.conversationSystemPrompt(mode: .study)) ?? ""
         }
         let brain = TeacherBrain(
-            client: deps.client, systemPrompt: systemPrompt, tools: (try? deps.library.conversationTools()) ?? []
+            client: deps.client, systemPrompt: systemPrompt, tools: (try? deps.library.conversationTools()) ?? [],
+            serverTools: (try? deps.library.conversationServerTools()) ?? []
         )
         self.brain = brain
 
@@ -491,6 +492,8 @@ final class StudySessionCoordinator {
         var emotion = cue?.emotion
         /// 先に流した定型句。Haiku の1文目が同じ言葉で始まったら、その部分は言わない（「すごいじゃん！すごいじゃん！」を防ぐ）
         var leadToSkip = cue?.lead
+        /// この返事でインターネットを調べた
+        var researched = false
         if let lead = cue?.lead {
             pendingEmotion = emotion ?? .neutral
             speakTask = Task { await controller.speak(sentences) }
@@ -533,6 +536,10 @@ final class StudySessionCoordinator {
                         inFlightBoardShown = true
                     }
                     continue
+                case .research(let update):
+                    trace("調べもの: \(update)")
+                    researched = true
+                    continue
                 case .sentence(let text):
                     raw = text
                 }
@@ -548,8 +555,15 @@ final class StudySessionCoordinator {
                     originals.append(raw)
                     continue
                 }
+                // 読み上げに向かない記号を除く（調べたあとの返事にマークダウンが混ざりやすい）
+                let cleaned = SpeechText.clean(sentence)
+                // 調べたあとに、もう言った文（ちょっと調べてみるね）をくり返さない
+                if cleaned.isEmpty || (researched && spoken.contains(cleaned)) {
+                    originals.append(raw)
+                    continue
+                }
                 // 答えを先に言ってしまう文は、読み上げる前に差し替える（AnswerLeakGuard）
-                var line = sentence
+                var line = cleaned
                 if let lead = leadToSkip {
                     leadToSkip = nil
                     line = Self.droppingLeadEcho(line, lead: lead)

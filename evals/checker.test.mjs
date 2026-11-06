@@ -89,11 +89,13 @@ test("リクエストはアプリと同じ組み立てのシステムプロン�
   assert.equal(parts[2], loadPrompt("safety"));
   assert.equal(parts[3], loadPrompt("small_talk", { session_mode: "勉強中" }));
   assert.equal(parts[4], loadPrompt("board_talk"));
-  assert.match(parts[5], /^# 先生のメモ/);
-  assert.ok(parts[5].includes(c.teacherNote));
+  assert.match(parts[5], /^# 調べる/);
+  assert.match(parts[5], /今日は \*\*\d+年\d+月\d+日/);
+  assert.match(parts[6], /^# 先生のメモ/);
+  assert.ok(parts[6].includes(c.teacherNote));
   assert.ok(!body.system.includes("{{"));
-  assert.equal(conversationSystemPrompt().split(SEPARATOR).length, 5);
-  assert.deepEqual(body.tools.map((t) => t.name), ["flag_for_parent", "show_board"]);
+  assert.equal(conversationSystemPrompt().split(SEPARATOR).length, 6);
+  assert.deepEqual(body.tools.map((t) => t.name), ["flag_for_parent", "show_board", "web_search"]);
   // アプリと同じく show_board は strict にしない（strict だと API が 400）
   assert.equal(body.tools[1].strict, false);
   assert.equal(body.max_tokens, 1024);

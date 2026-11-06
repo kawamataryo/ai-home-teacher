@@ -14,6 +14,8 @@ enum PromptName: String, CaseIterable, Sendable {
     case smallTalk = "small_talk"
     /// 会話の途中で黒板に図を出すときのルール（#70）
     case boardTalk = "board_talk"
+    /// インターネットで調べるときのルールと今日の日付（#114）
+    case webSearch = "web_search"
     /// 始まり：前回のこと（前回の要約と記憶）の使い方（spec §3④）
     case opening
     /// 終わり：ふり返りと記憶の作り方（SessionReflector）（spec §3④）
@@ -71,7 +73,7 @@ struct PromptLibrary: Sendable {
     /// プロンプトの区切り。evals/prompt.mjs と揃える。
     static let separator = "\n\n---\n\n"
 
-    /// 会話（Haiku）用のシステムプロンプト。teacher → hint_ladder → safety → small_talk → board_talk の順につなぎ、
+    /// 会話（Haiku）用のシステムプロンプト。teacher → hint_ladder → safety → small_talk → board_talk → web_search の順につなぎ、
     /// 前回のこと（OpeningPromptBuilder が作る。opening.md に差し込む）があれば足し、
     /// 先生のメモ（Sonnet の分析結果。正答を含む）があれば最後に足す。
     /// 組み立て方を変えたら evals/prompt.mjs も合わせる。
@@ -79,9 +81,11 @@ struct PromptLibrary: Sendable {
         mode: SessionMode = .study,
         teacherNote: String? = nil,
         previousSession: String? = nil,
-        variables: [String: String] = [:]
+        variables: [String: String] = [:],
+        today: Date = Date()
     ) throws -> String {
-        let vars = variables.merging(["session_mode": mode.label]) { _, new in new }
+        let vars = ["today": Self.todayLabel(today)].merging(variables) { _, new in new }
+            .merging(["session_mode": mode.label]) { _, new in new }
         var parts = try Self.conversationParts.map { try load($0, variables: vars) }
         if let previous = previousSession?.trimmingCharacters(in: .whitespacesAndNewlines), !previous.isEmpty {
             parts.append(try load(.opening, variables: vars.merging(["previous_session": previous]) { _, new in new }))
@@ -92,7 +96,24 @@ struct PromptLibrary: Sendable {
         return parts.joined(separator: Self.separator)
     }
 
-    static let conversationParts: [PromptName] = [.teacher, .hintLadder, .safety, .smallTalk, .boardTalk]
+    static let conversationParts: [PromptName] = [.teacher, .hintLadder, .safety, .smallTalk, .boardTalk, .webSearch]
+
+    /// 日本時間の今日（「2026年11月6日（金）」）。evals/prompt.mjs の todayLabel と揃える
+    static func todayLabel(_ date: Date) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo") ?? .current
+        let parts = calendar.dateComponents([.year, .month, .day, .weekday], from: date)
+        let weekdays = ["日", "月", "火", "水", "木", "金", "土"]
+        return "\(parts.year ?? 0)年\(parts.month ?? 0)月\(parts.day ?? 0)日（\(weekdays[(parts.weekday ?? 1) - 1])）"
+    }
+
+    /// 会話（Haiku）に渡す、Anthropic 側で動くツール（prompts/tools/web_search.json）。
+    func conversationServerTools() throws -> [JSONValue] {
+        guard let url = bundle.url(forResource: WebSearchTool.name, withExtension: "json", subdirectory: "\(subdirectory)/tools") else {
+            throw PromptError.notFound("\(subdirectory)/tools/\(WebSearchTool.name).json")
+        }
+        return [try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))]
+    }
 
     /// 同梱したツールの定義（prompts/tools/<name>.json）を読む。
     func tool(named name: String) throws -> ToolDefinition {

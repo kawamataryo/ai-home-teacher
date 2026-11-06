@@ -25,7 +25,7 @@ struct PromptLibraryTests {
         #expect(text.contains("答えをそのまま言わない"))
     }
 
-    @Test func 会話用はteacherとhint_ladderとsafetyとsmall_talkとboard_talkをこの順につなぐ() throws {
+    @Test func 会話用はteacherとhint_ladderとsafetyとsmall_talkとboard_talkとweb_searchをこの順につなぐ() throws {
         let library = PromptLibrary()
         let prompt = try library.conversationSystemPrompt()
         let parts = prompt.components(separatedBy: PromptLibrary.separator)
@@ -33,6 +33,7 @@ struct PromptLibraryTests {
         #expect(parts == [
             try library.load(.teacher), try library.load(.hintLadder), try library.load(.safety),
             try library.load(.smallTalk, variables: mode), try library.load(.boardTalk),
+            try library.load(.webSearch, variables: ["today": PromptLibrary.todayLabel(Date())]),
         ])
         #expect(!prompt.contains("先生のメモ（子どもには"))
         #expect(!prompt.contains("{{"))
