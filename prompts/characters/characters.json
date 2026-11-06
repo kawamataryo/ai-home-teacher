@@ -269,5 +269,40 @@
     "tagline": "同い年でいっしょにがんばる切り絵の仲間",
     "intro": "ソラだよ、ぼくも割合でつまずいたんだ。いっしょにやろ、ときどき紙がずれるけどね。",
     "greeting": "やった、いっしょにがんばろうね！"
+  },
+  {
+    "id": "kona",
+    "name": "コナ",
+    "honorific": "先生",
+    "relation": "teacher",
+    "roleLine": "黒板の中から付き添う先生です。",
+    "roleNoun": "家庭教師",
+    "nudgeTone": "のんびり、やさしく",
+    "selectable": true,
+    "voice": {
+      "azure": "ja-JP-KeitaNeural",
+      "elevenlabs": "iP95p4xoKVk53GoZ742B"
+    },
+    "phrases": {
+      "o_doredore": "どれどれ、書いてみようか",
+      "iine": "いいねえ！",
+      "sugoi_jan": "すごいねえ！"
+    },
+    "look": {
+      "kind": "chalk"
+    },
+    "mannerisms": {
+      "idle": [
+        "chalkFret",
+        "lookAround",
+        "slowBlink"
+      ],
+      "touch": "chalkDodge",
+      "praise": "chalkCheer",
+      "encourage": "nodPump"
+    },
+    "tagline": "黒板に住むチョークの先生",
+    "intro": "コナだよ、黒板に住んでるんだ。口ぐせは消して書き直せばいいんだよ、で、チョークが短くなるのが心配なんだ。",
+    "greeting": "よろしくね。いっしょにいっぱい書こう。"
   }
 ]

@@ -164,6 +164,8 @@ struct SessionContent: View {
 
     // MARK: - 舞台（先生と黒板。#105）
 
+    private var currentLook: CharacterLook { Self.previewLook ?? coordinator.character.look }
+
     /// 確認用に見た目だけ替える（起動引数 `-avatarLook`）
     private static let previewLook = CharacterLook.fromLaunchArguments()
 
@@ -175,7 +177,7 @@ struct SessionContent: View {
     /// 先生と黒板は、それぞれ 1 か所に置いたまま枠だけを動かす（先生の RealityView を作り直さない）
     private var stage: some View {
         GeometryReader { geometry in
-            let layout = SessionStageLayout(size: geometry.size, mode: stageMode)
+            let layout = SessionStageLayout(size: geometry.size, mode: stageMode, livesOnBoard: currentLook.livesOnBoard)
             ZStack(alignment: .topLeading) {
                 // 先生だけのときの背景。黒板を書くときは黒板が主役なので消す
                 RoundedRectangle(cornerRadius: 28)
@@ -187,8 +189,8 @@ struct SessionContent: View {
                 boardPanel(layout)
                     .frame(width: layout.board.width, height: layout.board.height)
                     .offset(x: layout.board.minX, y: layout.board.minY)
-                AvatarView(state: coordinator.avatar.state, lipSync: lipSync, turn: teacherTurn, look: Self.previewLook ?? coordinator.character.look,
-                           mannerisms: coordinator.character.mannerisms, touchable: true)
+                AvatarView(state: coordinator.avatar.state, lipSync: lipSync, turn: teacherTurn, look: currentLook,
+                           mannerisms: coordinator.character.mannerisms, touchable: true, isOnBoard: layout.mode == .board)
                     .frame(width: layout.teacher.width, height: layout.teacher.height)
                     .offset(x: layout.teacher.minX, y: layout.teacher.minY)
                 hud(layout)
