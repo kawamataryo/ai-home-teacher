@@ -7,8 +7,8 @@ import SwiftUI
 struct AvatarGalleryView: View {
     @State private var state: AvatarState =
         AvatarState(rawValue: UserDefaults.standard.string(forKey: "avatarState") ?? "") ?? .idle
-    /// nil なら口パクに任せる
-    @State private var mouth: MouthShape?
+    /// nil なら口パクに任せる。起動引数 `-avatarMouth a` で固定できる（スクリーンショット用）
+    @State private var mouth: MouthShape? = MouthShape(rawValue: UserDefaults.standard.string(forKey: "avatarMouth") ?? "")
     @State private var lipSync = LipSyncPlayer()
     @State private var demoText = LipSyncDemo.sentences[0]
 

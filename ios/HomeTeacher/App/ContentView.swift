@@ -9,6 +9,9 @@ struct ContentView: View {
         if AppServices.isTestHost {
             // ユニットテストのホストとして起動したときは、マイクを開かない
             Color.clear
+        } else if ProcessInfo.processInfo.arguments.contains("-avatarGallery") {
+            // 確認用：先生ギャラリーをそのまま開く（スクリーンショット用）
+            NavigationStack { AvatarGalleryView() }
         } else if SpeechSpikeModel.isAutoRun {
             NavigationStack { SpeechSpikeView() }
         } else if WatchOverSelfTest.isEnabled {

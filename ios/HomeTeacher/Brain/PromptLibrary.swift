@@ -44,17 +44,16 @@ enum PromptError: Error, Equatable {
 
 /// 同梱したプロンプトを読み、`{{key}}` を差し込む。
 struct PromptLibrary: Sendable {
-    /// 先生の名前（仮）。後で子どもと相談して決める。
-    static let defaultVariables: [String: String] = [
-        "teacher_name": "ハル",
-    ]
+    /// 話す先生。名前などをプロンプトに差し込む（#118）
+    let character: TeacherCharacter
 
     private let bundle: Bundle
     private let subdirectory: String
 
-    init(bundle: Bundle = .main, subdirectory: String = "prompts") {
+    init(bundle: Bundle = .main, subdirectory: String = "prompts", character: TeacherCharacter = .haru) {
         self.bundle = bundle
         self.subdirectory = subdirectory
+        self.character = character
     }
 
     /// プロンプトをそのまま読む（差し込みなし）。
@@ -67,7 +66,7 @@ struct PromptLibrary: Sendable {
 
     /// プロンプトを読み、`{{key}}` を差し込む。
     func load(_ name: PromptName, variables: [String: String] = [:]) throws -> String {
-        Self.render(try raw(name), variables: Self.defaultVariables.merging(variables) { _, new in new })
+        Self.render(try raw(name), variables: character.promptVariables.merging(variables) { _, new in new })
     }
 
     /// プロンプトの区切り。evals/prompt.mjs と揃える。
