@@ -16,5 +16,6 @@
   { "key": "choushi_warui", "text": "ちょっと調子が悪いみたい。" },
   { "key": "chotto_shiraberu", "text": "ちょっと調べてみるね。" },
   { "key": "mitsukarisou", "text": "もうちょっとで見つかりそう。" },
-  { "key": "shashin_sagasu", "text": "写真を探してみるね。" }
+  { "key": "shashin_sagasu", "text": "写真を探してみるね。" },
+  { "key": "motto_kikitai", "text": "もっと聞きたい？" }
 ]

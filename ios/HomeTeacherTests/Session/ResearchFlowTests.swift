@@ -69,6 +69,8 @@ struct ResearchStatusTests {
         let texts = phrases.map(\.text)
         #expect(texts.contains(StudySessionCoordinator.researchLead))
         #expect(texts.contains(StudySessionCoordinator.researchSlowLine))
+        #expect(texts.contains(StudySessionCoordinator.imageLead))
+        #expect(texts.contains(StudySessionCoordinator.researchFollowUp))
     }
 
     @Test func プレビューは各段階の様子を出す() {
@@ -121,6 +123,24 @@ struct ResearchFlowTests {
         await h.say("ねえ先生、今週の天気は？")
         #expect(await eventually { h.coordinator.completedReplies > before && h.coordinator.conversationState == .idle })
         #expect(h.voice.spoken.suffix(2) == ["ちょっと調べてみるね。", "東京は晴れだって。"])
+    }
+
+    @Test func 調べたあとの答えは3文で止めて続きを聞き履歴もそろえる() async throws {
+        let h = try SessionHarness()
+        await startSession(h)
+        let before = h.coordinator.completedReplies
+        await h.transport.enqueue(.lines, "/v1/claude", body: reply(
+            SearchSSE.text(0, "ちょっと調べてみるね。"), SearchSSE.search(1, query: "天気"), SearchSSE.results(2),
+            SearchSSE.text(3, "一つ目だよ。二つ目だよ。三つ目だよ。四つ目だよ。五つ目だよ。")
+        ))
+        await h.say("ねえ先生、今週の天気は？")
+        #expect(await eventually { h.coordinator.completedReplies > before && h.coordinator.conversationState == .idle })
+        #expect(h.voice.spoken.suffix(5) == [
+            "ちょっと調べてみるね。", "一つ目だよ。", "二つ目だよ。", "三つ目だよ。", StudySessionCoordinator.researchFollowUp,
+        ])
+        let said = await h.coordinator.brain?.history.lastAssistantText ?? ""
+        #expect(!said.contains("四つ目"))
+        #expect(said.hasSuffix(StudySessionCoordinator.researchFollowUp))
     }
 
     @Test func 調べものが遅いと一回だけ声をかけて考える定型句とは重ねない() async throws {
