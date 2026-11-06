@@ -40,11 +40,13 @@ struct PaperPose: Equatable, Sendable {
             pose.armL = -14 - 12 * sin(g * 3)
             pose.armR = 14 + 10 * sin(g * 2.4 + 1)
         case .praise:
+            // うれしいときの動きを大きくする：大きく跳ねて、紙がしなるように傾く
             let hop = abs(sin(t * .pi * 1.6))
-            pose.lift = 26 * hop
-            pose.armL = -150 + 15 * sin(t * 9)
-            pose.armR = 150 - 15 * sin(t * 9)
-            pose.headTilt = 6 * sin(t * 5)
+            pose.lift = 42 * hop
+            pose.bodyTilt = 9 * sin(t * .pi * 1.6)
+            pose.armL = -155 + 22 * sin(t * 9)
+            pose.armR = 155 - 22 * sin(t * 9)
+            pose.headTilt = 10 * sin(t * 5)
             pose.eyes = .happy
         case .encourage:
             let pump = sin(t * 7)
@@ -63,7 +65,7 @@ struct PaperPose: Equatable, Sendable {
     }
 }
 
-/// 2D のキャラの表示（試作）。SwiftUI のパーツの回転と差し替えで動かす（#121）。本番の絵は #126 / #127
+/// 切り絵の 2D のキャラの表示（#121, #126）。SwiftUI のパーツの回転と差し替えで動かす
 struct PaperAvatarView: View {
     var state: AvatarState
     var lipSync: LipSyncPlayer?
@@ -85,7 +87,7 @@ struct PaperAvatarView: View {
             )
             let shape = mouth ?? idleMouth ?? lipSync?.update() ?? .closed
             GeometryReader { geometry in
-                let scale = min(geometry.size.width / 320, geometry.size.height / 400)
+                let scale = min(geometry.size.width / 320, geometry.size.height / 400) * 0.9
                 PaperDoll(pose: pose, mouth: shape)
                     .frame(width: 320, height: 400)
                     .scaleEffect(scale)
@@ -126,55 +128,185 @@ final class PaperMotion {
     }
 }
 
-/// 試作の紙人形
+/// 切り絵の勉強仲間「ソラ」。色紙を切って割りピンで留めた人形（#126）。
+/// ふちは手で切ったように少しがたがたさせ、パーツごとに紙の影を落とす。
 private struct PaperDoll: View {
     let pose: PaperPose
     let mouth: MouthShape
 
-    private let paper = Color(red: 0.98, green: 0.82, blue: 0.68)
-    private let cloth = Color(red: 0.30, green: 0.55, blue: 0.75)
+    private static let skin = Color(red: 0.98, green: 0.80, blue: 0.64)
+    private static let hair = Color(red: 0.16, green: 0.20, blue: 0.36)
+    private static let hoodie = Color(red: 0.98, green: 0.74, blue: 0.20)
+    private static let hoodieDark = Color(red: 0.93, green: 0.60, blue: 0.14)
+    private static let pants = Color(red: 0.25, green: 0.56, blue: 0.62)
+    private static let shoe = Color(red: 0.90, green: 0.33, blue: 0.30)
+    private static let cheek = Color(red: 0.98, green: 0.58, blue: 0.56)
 
     var body: some View {
         ZStack {
-            arm(angle: pose.armL, x: 112)
-            arm(angle: pose.armR, x: 208)
-            RoundedRectangle(cornerRadius: 24)
-                .fill(cloth)
-                .frame(width: 110, height: 140)
-                .position(x: 160, y: 270)
-                .shadow(color: .black.opacity(0.25), radius: 1, x: 2, y: 3)
+            // 足（立っているだけ。少しだけ前後にずらす）
+            cut(CutRect(seed: 11), color: Self.pants, x: 132, y: 335, w: 36, h: 62)
+            cut(CutRect(seed: 12), color: Self.pants, x: 188, y: 335, w: 36, h: 62)
+            cut(CutRect(seed: 13, corner: 12), color: Self.shoe, x: 126, y: 372, w: 52, h: 24)
+            cut(CutRect(seed: 14, corner: 12), color: Self.shoe, x: 194, y: 372, w: 52, h: 24)
+            // キャラの右腕（画面の左）はうしろ
+            arm(angle: pose.armR, x: 108, seed: 21)
+            // 体（パーカー）
+            cut(CutRect(seed: 31, corner: 22), color: Self.hoodie, x: 160, y: 262, w: 118, h: 128)
+            cut(CutRect(seed: 32, corner: 8), color: Self.hoodieDark, x: 160, y: 298, w: 68, h: 30)
+            // キャラの左腕（画面の右）は前。腕は画面の外へ開く向きが、ふだんの向き
+            arm(angle: pose.armL, x: 212, seed: 22)
             ZStack {
-                Circle().fill(paper).frame(width: 150, height: 150)
-                    .shadow(color: .black.opacity(0.25), radius: 1, x: 2, y: 3)
-                eye(x: -32)
-                eye(x: 32)
-                PaperMouth(shape: mouth).offset(y: 34)
+                head
             }
-            .rotationEffect(.degrees(pose.headTilt), anchor: UnitPoint(x: 0.5, y: 0.9))
-            .position(x: 160, y: 130)
+            .rotationEffect(.degrees(pose.headTilt), anchor: UnitPoint(x: 0.5, y: 0.5 + 95 / 400))
+            pin(x: 160, y: 205)
         }
+        .frame(width: 320, height: 400)
         .rotationEffect(.degrees(pose.bodyTilt), anchor: .bottom)
         .offset(y: -pose.lift)
     }
 
-    private func arm(angle: Double, x: CGFloat) -> some View {
-        Capsule().fill(cloth)
-            .frame(width: 34, height: 96)
-            .shadow(color: .black.opacity(0.25), radius: 1, x: 2, y: 3)
-            .rotationEffect(.degrees(angle), anchor: .top)
-            .position(x: x, y: 262)
+    private var head: some View {
+        ZStack {
+            // うしろ髪
+            cut(CutBlob(seed: 41), color: Self.hair, x: 160, y: 118, w: 192, h: 178)
+            // 顔
+            cut(CutBlob(seed: 42, wobble: 1.5), color: Self.skin, x: 160, y: 130, w: 158, h: 146)
+            // 前髪（ぎざぎざのはさみのあと。チャームポイント）
+            cut(CutBangs(), color: Self.hair, x: 160, y: 84, w: 176, h: 72)
+            // 頭の上のはねた紙
+            cut(CutRect(seed: 44, corner: 3), color: Self.hair, x: 188, y: 34, w: 18, h: 44).rotationEffect(.degrees(18), anchor: UnitPoint(x: 188 / 320, y: 40 / 400))
+            // ほっぺ
+            Circle().fill(Self.cheek.opacity(0.8)).frame(width: 30, height: 30).position(x: 104, y: 150)
+            Circle().fill(Self.cheek.opacity(0.8)).frame(width: 30, height: 30).position(x: 216, y: 150)
+            eye(x: 124)
+            eye(x: 196)
+            PaperMouth(shape: mouth).position(x: 160, y: 168)
+        }
+    }
+
+    /// 紙を切ったパーツ：影を落とす
+    private func cut<S: Shape>(_ shape: S, color: Color, x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat) -> some View {
+        shape.fill(color)
+            .overlay(shape.stroke(.white.opacity(0.18), lineWidth: 1))
+            .frame(width: w, height: h)
+            .shadow(color: .black.opacity(0.28), radius: 0.8, x: 1.5, y: 2.5)
+            .position(x: x, y: y)
+    }
+
+    /// 腕：肩の割りピンで回る
+    private func arm(angle: Double, x: CGFloat, seed: UInt64) -> some View {
+        ZStack {
+            cut(CutRect(seed: seed, corner: 14), color: Self.hoodieDark, x: 26, y: 56, w: 40, h: 94)
+            cut(CutBlob(seed: seed + 10, wobble: 1.2), color: Self.skin, x: 26, y: 112, w: 34, h: 32)
+            pin(x: 26, y: 20)
+        }
+        .frame(width: 52, height: 132)
+        // 画面の右の腕は負で、左の腕は正で外へ開いて上がる
+        .rotationEffect(.degrees(angle), anchor: UnitPoint(x: 0.5, y: 20 / 132))
+        .position(x: x, y: 278)
+    }
+
+    /// 割りピン（紙人形の関節）
+    private func pin(x: CGFloat, y: CGFloat) -> some View {
+        Circle()
+            .fill(RadialGradient(colors: [Color(red: 0.98, green: 0.88, blue: 0.55), Color(red: 0.72, green: 0.54, blue: 0.20)], center: .topLeading, startRadius: 0, endRadius: 8))
+            .frame(width: 10, height: 10)
+            .shadow(color: .black.opacity(0.35), radius: 0.5, x: 0.5, y: 1)
+            .position(x: x, y: y)
     }
 
     @ViewBuilder
     private func eye(x: CGFloat) -> some View {
         switch pose.eyes {
         case .open:
-            Ellipse().fill(.black).frame(width: 18, height: 24).offset(x: x, y: -8)
+            ZStack {
+                Ellipse().fill(Color(red: 0.08, green: 0.08, blue: 0.14)).frame(width: 30, height: 40)
+                Circle().fill(.white).frame(width: 11, height: 11).offset(x: 5, y: -8)
+            }
+            .position(x: x, y: 124)
         case .closed:
-            Capsule().fill(.black).frame(width: 22, height: 5).offset(x: x, y: -6)
+            ArcLine(up: false).stroke(Color(red: 0.08, green: 0.08, blue: 0.14), style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .frame(width: 34, height: 12).position(x: x, y: 128)
         case .happy:
-            Text("︶").font(.system(size: 26, weight: .black)).rotationEffect(.degrees(180)).offset(x: x, y: -8)
+            ArcLine(up: true).stroke(Color(red: 0.08, green: 0.08, blue: 0.14), style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                .frame(width: 36, height: 16).position(x: x, y: 124)
         }
+    }
+}
+
+/// 弧の線
+private struct ArcLine: Shape {
+    var up: Bool
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: up ? rect.maxY : rect.minY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: up ? rect.maxY : rect.minY),
+            control: CGPoint(x: rect.midX, y: up ? rect.minY - rect.height : rect.maxY + rect.height)
+        )
+        return path
+    }
+}
+
+/// 手で切ったような、少しがたがたの四角
+struct CutRect: Shape {
+    var seed: UInt64
+    var corner: CGFloat = 6
+
+    func path(in rect: CGRect) -> Path {
+        var random = SplitMixGenerator(state: seed)
+        var points: [CGPoint] = []
+        let c = min(corner, min(rect.width, rect.height) / 2)
+        let raw = [
+            CGPoint(x: rect.minX + c, y: rect.minY), CGPoint(x: rect.maxX - c, y: rect.minY),
+            CGPoint(x: rect.maxX, y: rect.minY + c), CGPoint(x: rect.maxX, y: rect.maxY - c),
+            CGPoint(x: rect.maxX - c, y: rect.maxY), CGPoint(x: rect.minX + c, y: rect.maxY),
+            CGPoint(x: rect.minX, y: rect.maxY - c), CGPoint(x: rect.minX, y: rect.minY + c),
+        ]
+        for p in raw {
+            points.append(CGPoint(x: p.x + .random(in: -1.5...1.5, using: &random), y: p.y + .random(in: -1.5...1.5, using: &random)))
+        }
+        var path = Path()
+        path.addLines(points)
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// 手で切ったような丸
+struct CutBlob: Shape {
+    var seed: UInt64
+    var wobble: CGFloat = 2.5
+    var sides = 18
+
+    func path(in rect: CGRect) -> Path {
+        var random = SplitMixGenerator(state: seed)
+        var path = Path()
+        for i in 0..<sides {
+            let a = Double(i) / Double(sides) * 2 * .pi
+            let r = CGFloat.random(in: -wobble...wobble, using: &random)
+            let p = CGPoint(x: rect.midX + (rect.width / 2 + r) * CGFloat(cos(a)), y: rect.midY + (rect.height / 2 + r) * CGFloat(sin(a)))
+            if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// はさみで切ったぎざぎざの前髪
+struct CutBangs: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY + h * 0.62))
+        path.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.minY + h * 0.62), control: CGPoint(x: rect.midX, y: rect.minY - h * 0.5))
+        let zig: [(CGFloat, CGFloat)] = [(0.94, 0.95), (0.84, 0.6), (0.72, 0.98), (0.6, 0.62), (0.47, 1.0), (0.36, 0.64), (0.24, 0.95), (0.13, 0.6), (0.05, 0.92)]
+        for (x, y) in zig { path.addLine(to: CGPoint(x: rect.minX + w * x, y: rect.minY + h * y)) }
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -184,13 +316,13 @@ struct PaperMouth: View {
 
     private var size: CGSize {
         switch shape {
-        case .a: CGSize(width: 34, height: 30)
-        case .i: CGSize(width: 40, height: 10)
-        case .u: CGSize(width: 16, height: 14)
-        case .e: CGSize(width: 34, height: 18)
-        case .o: CGSize(width: 24, height: 26)
-        case .n: CGSize(width: 24, height: 5)
-        case .closed: CGSize(width: 28, height: 4)
+        case .a: CGSize(width: 38, height: 34)
+        case .i: CGSize(width: 44, height: 12)
+        case .u: CGSize(width: 18, height: 16)
+        case .e: CGSize(width: 38, height: 20)
+        case .o: CGSize(width: 26, height: 30)
+        case .n: CGSize(width: 26, height: 6)
+        case .closed: CGSize(width: 30, height: 5)
         }
     }
 

@@ -248,7 +248,7 @@ struct SessionContent: View {
                 let design = SessionStageLayout.designSize(for: geometry.size, base: layout.designBase)
                 let scale = geometry.size.width / design.width
                 BoardContentView(
-                    content: coordinator.board ?? .text(Self.boardHint(phase: coordinator.phase)),
+                    content: coordinator.board ?? .text(Self.boardHint(phase: coordinator.phase, callExample: coordinator.character.callExample)),
                     insets: Self.occludedInsets(layout.occlusion, board: geometry.size, scale: scale),
                     isSign: coordinator.board == nil
                 )
@@ -319,11 +319,11 @@ struct SessionContent: View {
             .offset(x: x, y: layout.teacher.maxY - 80)
     }
 
-    static func boardHint(phase: StudySessionCoordinator.Phase) -> String {
+    static func boardHint(phase: StudySessionCoordinator.Phase, callExample: String = "ねえ先生") -> String {
         switch phase {
         case .idle: "「勉強スタート」で始めよう！"
         case .starting: "準備中…"
-        case .active: "わからないところは「ねえ先生」と話しかけてね。\n「これ見て」と言うと、ノートを見てヒントを書くよ。"
+        case .active: "わからないところは「\(callExample)」と話しかけてね。\n「これ見て」と言うと、ノートを見てヒントを書くよ。"
         case .ending: "今日のふり返り"
         }
     }

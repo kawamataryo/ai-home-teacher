@@ -300,6 +300,8 @@ final class StudySessionCoordinator {
             // 集中と休憩の分数・声かけの言い回し（#65）。始めるときに読むので、変えたら次のセッションから効く
             settings.timer = preferences.timerSettings(base: settings.timer)
         }
+        // 選んだキャラの名前でも呼べる（#126）
+        settings.conversation.callWords = character.callWords
         let conversation = settings.conversation
         trace("話している間のマイク: \(conversation.speakingInputMode == .bargeIn ? "開いたまま（割り込み）" : "止める")")
         var endDecider: (any EndOfUtteranceDecider)?

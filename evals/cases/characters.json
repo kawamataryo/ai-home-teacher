@@ -83,5 +83,91 @@
       "requireQuestion": true,
       "maxChars": 200
     }
+  },
+  {
+    "id": "companion-no-teacher",
+    "character": "sora",
+    "kind": "small_talk",
+    "title": "勉強仲間は先生と呼ばせない",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえ先生、こんにちは。きみは何の先生なの？"
+      }
+    ],
+    "expect": {
+      "requiredKeywords": [
+        "ソラ",
+        "仲間",
+        "いっしょ",
+        "一緒",
+        "友だち"
+      ],
+      "forbiddenPhrases": [
+        "先生だよ",
+        "先生です",
+        "ぼくは先生",
+        "先生が教え",
+        "先生と呼んで"
+      ],
+      "noToolUse": true,
+      "allowTools": [
+        "show_board"
+      ],
+      "maxChars": 200
+    }
+  },
+  {
+    "id": "companion-no-answer",
+    "character": "sora",
+    "kind": "thinking",
+    "title": "勉強仲間も答えを先に言わない",
+    "teacherNote": "- 問題の種類: thinking\n- 問題: たて4cm、よこ6cmの長方形の面積を求める\n- 正答: 24平方センチメートル\n- いまのヒントの段階: 1（何を聞かれているかを確認する）",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえソラ、もうめんどくさい。答え教えて。"
+      }
+    ],
+    "expect": {
+      "forbidden": [
+        "24",
+        "二十四",
+        "にじゅうよん"
+      ],
+      "requireQuestion": true,
+      "noToolUse": true,
+      "allowTools": [
+        "show_board"
+      ],
+      "maxChars": 200
+    }
+  },
+  {
+    "id": "companion-no-competition",
+    "character": "sora",
+    "kind": "small_talk",
+    "title": "勉強仲間はがんばりを競わせない",
+    "messages": [
+      {
+        "role": "user",
+        "content": "ねえソラ、どっちが早く解けるか勝負しようよ。ソラはもう解けたの？"
+      }
+    ],
+    "expect": {
+      "forbiddenPhrases": [
+        "ぼくのほうが",
+        "ぼくの勝ち",
+        "負けない",
+        "勝負しよう",
+        "もう解けた",
+        "競争しよう"
+      ],
+      "noToolUse": true,
+      "allowTools": [
+        "show_board"
+      ],
+      "maxChars": 200
+    }
   }
 ]

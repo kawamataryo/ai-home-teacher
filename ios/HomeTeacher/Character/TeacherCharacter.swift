@@ -48,6 +48,15 @@ struct TeacherCharacter: Codable, Identifiable, Equatable, Sendable {
     /// 子どもからの呼ばれ方（「ハル先生」。仲間なら「ソラ」）
     var callName: String { name + honorific }
 
+    /// 呼びかけの言葉。どのキャラも「先生」でも応える（今の先生は今までと同じ）。名前でも呼べる
+    var callWords: [String] {
+        let base = ConversationSettings.defaultCallWords
+        return base + ["ねえ\(name)", "ねぇ\(name)", name]
+    }
+
+    /// 画面に出す、呼びかけの例
+    var callExample: String { relation == .teacher ? "ねえ先生" : "ねえ\(name)" }
+
     /// プロンプトに差し込む値。evals/prompt.mjs の characterVariables と揃える
     var promptVariables: [String: String] {
         ["teacher_name": name, "honorific": honorific, "role_line": roleLine, "role_noun": roleNoun, "nudge_tone": nudgeTone]
