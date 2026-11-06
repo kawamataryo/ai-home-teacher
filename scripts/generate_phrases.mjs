@@ -20,7 +20,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { azureAlignment, bundledPhraseName, phrasesFor } from "./phrases_lib.mjs";
+import { azureAlignment, bundledPhraseName, ownPhrases, phrasesFor } from "./phrases_lib.mjs";
 import { parseTTSStream } from "./tts_stream.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -78,7 +78,7 @@ async function main() {
   if (!character) throw new Error(`知らないキャラ: ${args.character}`);
   if (!["elevenlabs", "azure"].includes(args.provider)) throw new Error(`知らない TTS: ${args.provider}`);
   const base = JSON.parse(readFileSync(join(phrasesDir, "teacher_phrases.json"), "utf8"));
-  const phrases = phrasesFor(character, base).filter((p) => !args.key || p.key === args.key);
+  const phrases = [...phrasesFor(character, base), ...ownPhrases(character)].filter((p) => !args.key || p.key === args.key);
 
   let failed = 0;
   for (const phrase of phrases) {

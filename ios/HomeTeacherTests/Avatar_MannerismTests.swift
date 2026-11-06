@@ -226,3 +226,47 @@ struct CharacterMannerismTests {
         #expect(catalog.character(id: "haru").mannerisms.praise != catalog.character(id: "rika").mannerisms.praise)
     }
 }
+
+/// ボクセルのキャラの素材（#124）。読み込めないと黙って既定の先生に戻るので、ここで確かめる
+@MainActor
+struct VoxelCharacterAssetTests {
+    @Test func 同梱のボクセルのキャラは全パーツと顔が読み込める() async throws {
+        let voxels = CharacterCatalog().characters.filter { $0.look.kind == .voxel }
+        #expect(voxels.count >= 3)
+        for character in voxels {
+            let model = try await TeacherModel.load(
+                name: character.look.modelName, faceTextures: character.look.faceTexturePrefix, glowingFace: character.look.glowingFace ?? false
+            )
+            #expect(model.missingParts.isEmpty, "\(character.id): \(model.missingParts)")
+            try await model.preloadFaceTextures()
+            model.setEyes(.happy)
+            model.setMouth(.a)
+        }
+    }
+
+    @Test func 素材の名前はキャラごとに違う() {
+        let looks = CharacterCatalog().characters.filter { $0.look.kind == .voxel }.map(\.look)
+        #expect(Set(looks.map(\.modelName)).count == looks.count)
+        #expect(Set(looks.map(\.faceTexturePrefix)).count == looks.count)
+    }
+
+    @Test func 見た目がそろって選べるキャラは今の先生を含めて3人() {
+        let selectable = CharacterCatalog().selectableCharacters.map(\.id)
+        #expect(selectable == ["haru", "rika", "boru"])
+    }
+
+    @Test func 今の先生の見た目は光らない() {
+        #expect(CharacterCatalog().character(id: "haru").look == .haru)
+        #expect(CharacterLook.haru.glowingFace == nil)
+    }
+
+    @Test func ゴーグルは下りて戻る() {
+        var pose = AvatarPose()
+        let d = MannerismKind.goggles.duration
+        MannerismKind.goggles.apply(elapsed: d * 0.5, to: &pose)
+        #expect(pose.joint(.glasses).offset.z < -0.15)
+        var end = AvatarPose()
+        MannerismKind.goggles.apply(elapsed: d, to: &end)
+        #expect(abs(end.joint(.glasses).offset.z) < 0.001)
+    }
+}

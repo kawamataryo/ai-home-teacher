@@ -9,10 +9,37 @@ cd ios && xcodegen generate
 
 | 形式 | スクリプト | 動かし方 |
 |---|---|---|
-| ボクセル（パーツ） | `build_teacher.py` | パーツの transform（`AvatarPose`）、顔はテクスチャの差し替え |
+| ボクセル（パーツ） | `voxel_common.py` と `build_teacher.py`（ハル）、`build_rika.py`（リカ）、`build_boru.py`（ボル） | パーツの transform（`AvatarPose`）、顔はテクスチャの差し替え |
 | 骨とシェイプキー | `rig_common.py` と `build_<キャラ>.py` | `SkeletalPosesComponent` と `BlendShapeWeightsComponent`（`RigPose`、`RiggedModel`） |
 
 `build_rig_proto.py` は表示の確認用の試作で、選ぶ画面には出さない。
+
+## ボクセルのキャラの書き出し（#124）
+
+```sh
+BL=/Applications/Blender.app/Contents/MacOS/Blender
+$BL -b --factory-startup --python avatar/build_rika.py    # rika.usdz と rika_*.png と avatar/rika.blend
+$BL -b --factory-startup --python avatar/build_boru.py    # boru.usdz と boru_*.png と avatar/boru.blend
+cd ios && xcodegen generate
+```
+
+`.blend` にはテクスチャも入っているので、そのまま開ける。確認は `$BL -b --factory-startup --python avatar/render_voxels.py -- <出力先>.png` で 3 人を並べて Cycles で写す（アルファからシルエットが作れる）。
+
+`build_teacher.py` を流しても `teacher.usdz` の中身は同じ。ただし Blender はプリムの順番を毎回そろえないので、ファイルのバイト列は変わる。比べるときはパス順に並べて比べ、変えていないならコミットしない。
+
+新しいキャラの作り方：
+
+- パーツの名前と原点は `voxel_common.py` の先頭のとおり。リソースは平らに同梱されるので、usdz と顔のテクスチャの名前は `<id>.usdz`、`<id>_eyes_open.png` のように一意にする
+- 質感は `Surfaces.add(名前, 色, 種類, roughness, metallic)`。`Part(name, surface_uv=True)` のパーツに `grain_png` のむらのあるテクスチャが貼られる
+- `characters.json` の `look.faceTextures` に頭文字を書く。`glowingFace: true` なら顔を `UnlitMaterial` で見せる（LED の画面）
+
+落とし穴：
+
+- **Blender の Alpha に値を入れただけでは USD に出ない**（`opacity = 1` になる）。アルファのある画像をつなぐ（`Surfaces.add` の `alpha`）
+- **重なった箱の面を同じ位置にしない**。Cycles で黒い点になる。少しずらす
+- **読み込めないと黙って今の先生が出る**。`VoxelCharacterAssetTests` で全キャラの全パーツと顔を確かめる
+- **まわりの光**：`VoxelAvatarView` は、今の先生には太陽の光だけで、ほかのキャラには `StudioLighting` を当てる。RealityView が 1 枚のときの今の先生は既定のまわりの光でも明るいが、何枚も並ぶと起動ごとに暗くなることがある（Simulator で確認。原因は未解明）。選ぶ画面では全員に `StudioLighting` を当ててそろえる
+- 腕は短くて頭に届かない。頭の横まで上げて、画面で見て決める
 
 ## 骨とシェイプキーのきまり（#121 の試作で確かめた）
 
@@ -37,4 +64,4 @@ cd ios && xcodegen generate
 
 iPad の実機では未確認（#129）。Simulator で、骨 4 本・シェイプキー 3 個・PBR 3 枚のとき、26 万三角形でも更新は 1 秒に約 60 回で崩れなかった。これは Mac の GPU での参考値。
 
-キャラは 3 万三角形以下、テクスチャは 1024〜2048 を目安にする。
+キャラは 3 万三角形以下、テクスチャは 1024〜2048 を目安にする。ボクセルのキャラは 5 千三角形以下で、質感のテクスチャは 256 四方。

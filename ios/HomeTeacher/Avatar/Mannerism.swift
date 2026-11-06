@@ -5,7 +5,7 @@ import simd
 /// 声は出さない。動きは短く、小さくする（問題より先生に目が行く動きを続けない）。
 enum MannerismKind: String, Codable, CaseIterable, Sendable {
     // 待機中の癖
-    case glasses, yawn, lookAround, scratchHead, peerAtHand, calibrate, smileTry
+    case glasses, goggles, yawn, lookAround, scratchHead, peerAtHand, calibrate, smileTry
     case poyo, earTwitch, tailWag, tailChase, pawLick, slowBlink, paperSlip, chalkFret
     // 触ったときの反応
     case startle, shyLean, giggle, squish, paperFlutter, chalkDodge, beep
@@ -16,6 +16,7 @@ enum MannerismKind: String, Codable, CaseIterable, Sendable {
     var duration: Double {
         switch self {
         case .glasses: 1.6
+        case .goggles: 3.0
         case .yawn: 2.6
         case .lookAround: 2.6
         case .scratchHead: 1.8
@@ -117,6 +118,16 @@ extension MannerismKind {
             let slip = p < 0.45 ? smooth(p / 0.45) : (p < 0.6 ? 1 - smooth((p - 0.45) / 0.15) : 0)
             target.nudgeAccessory(-0.038 * Float(slip))
             target.bend(.head, pitch: 0.1 * e - 0.14 * Float(p > 0.45 && p < 0.7 ? sin((p - 0.45) / 0.25 * .pi) : 0))
+        case .goggles:
+            // おでこのゴーグルを目まで下ろして手をのぞき、また上げる（リカ）
+            let down = p < 0.22 ? smooth(p / 0.22) : (p < 0.78 ? 1 : 1 - smooth((p - 0.78) / 0.22))
+            target.nudgeAccessory(-0.19 * Float(down))
+            // 下ろすときと上げるときだけ、右手を頭の横へ
+            let reach = Float(max(sin(min(p / 0.28, 1) * .pi), sin(min(max(p - 0.72, 0) / 0.28, 1) * .pi)))
+            target.bend(.armR, pitch: -0.25 * reach, roll: 2.7 * reach)
+            let peer = Self.envelope((p - 0.2) / 0.6, edge: 0.25)
+            target.bend(.armL, pitch: -1.4 * peer, roll: -0.3 * peer)
+            target.bend(.head, pitch: 0.24 * peer, roll: 0.08 * peer, yaw: 0.18 * peer)
         case .yawn:
             // あくびをこらえる：口に手を当てて、上を向いて目をつむる
             target.bend(.armL, pitch: -2.55 * e, yaw: -0.5 * e)
@@ -143,6 +154,7 @@ extension MannerismKind {
             // うまく笑えるか試す（ロボ）
             if p > 0.2 && p < 0.8 { target.setEyes(.happy) }
             target.bend(.head, roll: 0.1 * e)
+            target.nudgeAccessory(0.012 * e)
         case .poyo:
             // むにっとつぶれて、ぽよんと戻る
             let bounce = Float(sin(elapsed * 2 * .pi / 0.55) * exp(-elapsed * 3.0))
@@ -207,6 +219,7 @@ extension MannerismKind {
         case .beep:
             target.bend(.head, yaw: (p * 6).rounded(.down).truncatingRemainder(dividingBy: 2) == 0 ? 0.14 * e : -0.14 * e)
             target.bend(.armL, roll: -0.35 * e)
+            target.nudgeAccessory(0.02 * e * abs(s(elapsed * 20)))
         case .clap:
             // 胸の前で手をたたく
             let beat = Float(0.5 + 0.5 * sin(elapsed * 2 * .pi / d))
@@ -214,7 +227,8 @@ extension MannerismKind {
             target.bend(.armR, pitch: -1.2, roll: -1.9 - 0.3 * beat)
         case .salute:
             // カクッと敬礼する（ロボ）
-            target.bend(.armR, pitch: -1.0, roll: -1.4)
+            target.bend(.armR, pitch: -0.75, roll: -0.55)
+            target.nudgeAccessory(0.012 * abs(wave))
             target.bend(.head, roll: (p * 4).rounded(.down).truncatingRemainder(dividingBy: 2) == 0 ? 0.08 : -0.08)
         case .wiggle:
             // 全身でよろこぶ（子犬）

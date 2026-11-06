@@ -96,7 +96,8 @@ private struct CharacterPickerContent: View {
                 state: isSpeaking ? .talking : .idle,
                 lipSync: isSpeaking ? lipSync : nil,
                 look: character.look,
-                mannerisms: character.mannerisms
+                mannerisms: character.mannerisms,
+                studioLight: true
             )
             .frame(maxWidth: .infinity)
             .frame(height: height - 58)

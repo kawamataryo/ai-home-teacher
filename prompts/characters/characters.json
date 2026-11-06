@@ -35,7 +35,7 @@
     "roleLine": "iPad の向こうから付き添う先生です。",
     "roleNoun": "家庭教師",
     "nudgeTone": "わくわくした感じで、やさしく",
-    "selectable": false,
+    "selectable": true,
     "voice": {
       "azure": "ja-JP-ShioriNeural",
       "elevenlabs": "XrExE9yKIg1WjnnlVkGX"
@@ -50,12 +50,12 @@
     },
     "look": {
       "kind": "voxel",
-      "model": "teacher",
-      "faceTextures": "face"
+      "model": "rika",
+      "faceTextures": "rika"
     },
     "mannerisms": {
       "idle": [
-        "glasses",
+        "goggles",
         "peerAtHand",
         "lookAround"
       ],
@@ -66,5 +66,49 @@
     "tagline": "ふしぎが大好きなお姉さん先生",
     "intro": "リカだよ。口ぐせはおもしろくなってきたね！で、実験に夢中でお茶をよく冷ましちゃうんだ。",
     "greeting": "よろしくね！どんなふしぎが見つかるかな。"
+  },
+  {
+    "id": "boru",
+    "name": "ボル",
+    "honorific": "先生",
+    "relation": "teacher",
+    "roleLine": "iPad の中から付き添うロボットの先生です。",
+    "roleNoun": "家庭教師",
+    "nudgeTone": "まじめに、少しうれしそうに",
+    "selectable": true,
+    "voice": {
+      "azure": "ja-JP-DaichiNeural",
+      "elevenlabs": "bIHbv24MWmeRgasZH58o"
+    },
+    "phrases": {
+      "iine": "いいね、いいね！",
+      "o_doredore": "お、どれどれ。見てみるね",
+      "ii_kanji": "ピピッと来たよ！",
+      "sugoi_jan": "それ、すごいやつだ！",
+      "sousou": "そうそう、合ってるよ！",
+      "break_time": "そろそろ休憩モードにしよっか",
+      "break_over": "休憩モードおわり！続きやろう",
+      "chotto_matte": "ちょっと計算中だよ",
+      "choushi_warui": "ちょっと調子が悪いみたい。つなぎ直してみるね。"
+    },
+    "look": {
+      "kind": "voxel",
+      "model": "boru",
+      "faceTextures": "boru",
+      "glowingFace": true
+    },
+    "mannerisms": {
+      "idle": [
+        "calibrate",
+        "smileTry",
+        "lookAround"
+      ],
+      "touch": "beep",
+      "praise": "salute",
+      "encourage": "beep"
+    },
+    "tagline": "気持ちを勉強中のロボ先生",
+    "intro": "ボルだよ。口ぐせはピピッと来たよ！で、ほめ言葉を練習中だから、言ったあとに合ってるか聞いちゃうんだ。",
+    "greeting": "よろしくね！今日のうれしいを、いっしょに見つけよう。"
   }
 ]

@@ -10,6 +10,14 @@ export function phrasesFor(character, base) {
   return base.map((phrase) => ({ key: phrase.key, text: character.phrases?.[phrase.key] ?? phrase.text }));
 }
 
+// 自己紹介とあいさつ。選ぶ画面で最初から待たないように同梱する（アプリの PhraseCache の convenience init と同じ）
+export function ownPhrases(character) {
+  return [
+    { key: "intro", text: character.intro },
+    { key: "greeting", text: character.greeting },
+  ].filter((phrase) => phrase.text);
+}
+
 // Azure の音声（worker の AZURE_OUTPUT_FORMAT：48kbps の固定ビットレート）の長さ
 export const AZURE_BITS_PER_SECOND = 48_000;
 export function azureDuration(byteLength) {
