@@ -362,6 +362,96 @@ describe("ダッシュボードの表示", () => {
     expect(html).not.toMatch(/<script/i);
   });
 
+  describe("親の伝言", () => {
+    const send = (fields: Record<string, string>, cookieValue: string, headers: Record<string, string> = {}) =>
+      req("/dashboard/messages", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", origin: "http://localhost", cookie: cookieValue, ...headers },
+        body: new URLSearchParams(fields).toString(),
+      });
+    const rows = async () =>
+      (await d1.db().prepare("SELECT * FROM parent_messages ORDER BY created_at").all<any>()).results;
+
+    it("書いた伝言を保存し、まだ伝えていないと出す。アプリに渡り、伝えたら表示が変わる", async () => {
+      const c = await loggedInCookie();
+      const res = await send({ body: "割合がんばったね\n応援してるよ", sender: "お母さん" }, c);
+      expect(res.status).toBe(303);
+      const [row] = await rows();
+      expect(row).toMatchObject({ child_id: "default", sender_label: "お母さん", body: "割合がんばったね 応援してるよ", delivered_at: null });
+
+      const before = await (await req("/dashboard", { headers: { cookie: c } })).text();
+      expect(before).toContain("割合がんばったね 応援してるよ");
+      expect(before).toContain("まだ伝えていません");
+
+      const auth = { Authorization: "Bearer bootstrap-secret", "content-type": "application/json" };
+      const { messages } = (await (await req("/v1/messages", { headers: auth })).json()) as any;
+      expect(messages.map((m: any) => m.id)).toEqual([row.id]);
+      await req(`/v1/messages/${row.id}/delivered`, { method: "POST", headers: auth, body: "{}" });
+
+      const after = await (await req("/dashboard", { headers: { cookie: c } })).text();
+      expect(after).not.toContain("まだ伝えていません");
+      expect(after).toContain("に伝えました");
+    });
+
+    it("呼び方が空なら「おうちの人」にする（先生に推測させない）", async () => {
+      const c = await loggedInCookie();
+      await send({ body: "がんばってね", sender: "  " }, c);
+      expect((await rows())[0].sender_label).toBe("おうちの人");
+    });
+
+    it("空や長すぎる伝言は保存せず、書いた内容を残して理由を出す", async () => {
+      const c = await loggedInCookie();
+      const empty = await send({ body: "   ", sender: "パパ" }, c);
+      expect(empty.status).toBe(400);
+      expect(await empty.text()).toContain("伝言を書いてください");
+
+      const long = await send({ body: "あ".repeat(201), sender: "パパ" }, c);
+      expect(long.status).toBe(400);
+      const html = await long.text();
+      expect(html).toContain("200 文字まで");
+      expect(html).toContain("あ".repeat(201));
+
+      const longSender = await send({ body: "がんばって", sender: "あ".repeat(13) }, c);
+      expect(longSender.status).toBe(400);
+      expect(await rows()).toEqual([]);
+    });
+
+    it("たまりすぎたら新しい伝言は受け付けない", async () => {
+      const c = await loggedInCookie();
+      for (let i = 0; i < 10; i++) expect((await send({ body: `伝言${i}`, sender: "" }, c)).status).toBe(303);
+      expect((await send({ body: "もう1つ", sender: "" }, c)).status).toBe(400);
+      expect(await rows()).toHaveLength(10);
+    });
+
+    it("ログインしていなければ保存しない。別のサイトからの POST も拒否する（CSRF）", async () => {
+      const anon = await send({ body: "がんばって", sender: "" }, "");
+      expect(anon.status).toBe(303);
+      const c = await loggedInCookie();
+      const cross = await send({ body: "がんばって", sender: "" }, c, { origin: "https://evil.example.com" });
+      expect(cross.status).toBe(403);
+      expect(await rows()).toEqual([]);
+    });
+
+    it("伝言はエスケープして出す", async () => {
+      const c = await loggedInCookie();
+      await send({ body: "<script>alert(1)</script>", sender: "" }, c);
+      const html = await (await req("/dashboard", { headers: { cookie: c } })).text();
+      expect(html).not.toContain("<script>alert(1)</script>");
+      expect(html).toContain("&lt;script&gt;");
+    });
+
+    it("別の家族の伝言は見えない", async () => {
+      const db = d1.db();
+      await db.batch([
+        db.prepare("INSERT INTO families (id, name) VALUES ('other', 'よその家')"),
+        db.prepare("INSERT INTO children (id, family_id, nickname) VALUES ('other-child', 'other', 'よそ')"),
+        db.prepare("INSERT INTO parent_messages (id, child_id, sender_label, body, created_at) VALUES ('x', 'other-child', 'よそ', 'よその伝言', '2026-11-03T00:00:00.000Z')"),
+      ]);
+      const c = await loggedInCookie();
+      expect(await (await req("/dashboard", { headers: { cookie: c } })).text()).not.toContain("よその伝言");
+    });
+  });
+
   describe("今夜の声かけ", () => {
     const post = (body: unknown) =>
       req("/v1/sessions", {

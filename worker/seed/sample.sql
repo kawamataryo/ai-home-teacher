@@ -6,6 +6,7 @@
 DELETE FROM problems WHERE session_id LIKE 'sample-%';
 DELETE FROM sessions WHERE id LIKE 'sample-%';
 DELETE FROM memories WHERE id LIKE 'sample-%';
+DELETE FROM parent_messages WHERE id LIKE 'sample-%';
 UPDATE children SET nickname = 'たろう', grade = 5 WHERE id = 'default';
 
 INSERT INTO sessions (id, child_id, started_at, ended_at, focus_minutes, summary, teacher_note, flags, updated_at) VALUES
@@ -50,3 +51,8 @@ INSERT INTO memories (id, child_id, category, content, updated_at) VALUES
 UPDATE sessions SET parent_prompt = '「もとにする量をどうやって見つけたの？」と聞いてみてください' WHERE id = 'sample-0';
 -- 「今夜の声かけ」と出るように、いちばん新しいセッションをさっき終わったことにする
 UPDATE sessions SET started_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-45 minutes'), ended_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-3 minutes') WHERE id = 'sample-0';
+
+-- 親の伝言（#159）
+INSERT INTO parent_messages (id, child_id, sender_label, body, created_at, delivered_at) VALUES
+('sample-m1', 'default', 'お母さん', '割合がんばったね。今日のごはんはカレーだよ', strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-30 minutes'), NULL),
+('sample-m2', 'default', 'お母さん', '運動会の練習おつかれさま', strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-20 hours'));

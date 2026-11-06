@@ -53,6 +53,7 @@ struct MemorySyncStoreTests {
             SyncFixture.memories([(.likes, "サッカー")]),
             SyncFixture.memories([(.likes, "サッカー"), (.weakPoints, "割合")]),
             SyncFixture.sessionsPage([], serverTime: "2026-11-03T09:00:00.000Z"),
+            SyncFixture.noMessages,
         ])
         let report = await service(transport, store).syncNow(reason: .sessionEnded)
 
@@ -85,5 +86,45 @@ struct MemorySyncStoreTests {
         #expect(all.first { $0.id == "local" }?.summary == "端末の要約")
         #expect(all.first { $0.id == "other" }?.syncedAt == SyncFixture.date("2026-11-02T00:00:00.000Z"))
         #expect(try await store.pendingSessions().map(\.id) == ["local"])
+    }
+
+    // MARK: - 親の伝言（#159）
+
+    private func message(_ id: String, at seconds: Double) -> ParentMessage {
+        ParentMessage(id: id, senderLabel: "お母さん", body: "がんばってね", createdAt: start.addingTimeInterval(seconds))
+    }
+
+    @Test func 伝言は古い順に出し再起動しても残る() async throws {
+        let base = try SwiftDataMemoryStore.inMemory()
+        let storage = InMemorySyncStateStorage()
+        let store = MemorySyncStore(base: base, stateStorage: storage)
+        await store.replaceParentMessages([message("new", at: 60), message("old", at: 0)])
+        #expect(await store.nextParentMessage()?.id == "old")
+
+        let reopened = MemorySyncStore(base: base, stateStorage: storage)
+        #expect(await reopened.nextParentMessage()?.id == "old")
+    }
+
+    @Test func 伝えた伝言はサーバーに伝わる前に取ってきても戻らない() async throws {
+        let store = MemorySyncStore(base: try SwiftDataMemoryStore.inMemory(), stateStorage: InMemorySyncStateStorage())
+        await store.replaceParentMessages([message("m1", at: 0), message("m2", at: 60)])
+        await store.markParentMessageTold(id: "m1", at: start)
+        #expect(await store.nextParentMessage()?.id == "m2")
+
+        await store.replaceParentMessages([message("m1", at: 0), message("m2", at: 60)])
+        #expect(await store.nextParentMessage()?.id == "m2")
+        #expect(await store.toldParentMessages() == ["m1": start])
+
+        await store.forgetParentMessage(id: "m1")
+        #expect(await store.toldParentMessages().isEmpty)
+    }
+
+    @Test func 古い版が保存した同期の状態も読める() throws {
+        let json = #"{"lastPullAt":800000000,"dirtyMemoryCategories":["likes"]}"#
+        let state = try JSONDecoder().decode(SyncState.self, from: Data(json.utf8))
+        #expect(state.dirtyMemoryCategories == [.likes])
+        #expect(state.lastPullAt != nil)
+        #expect(state.parentMessages.isEmpty)
+        #expect(state.toldParentMessages.isEmpty)
     }
 }

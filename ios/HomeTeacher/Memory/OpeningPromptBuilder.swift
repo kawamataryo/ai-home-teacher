@@ -70,6 +70,7 @@ struct OpeningPromptBuilder: Sendable {
         store: some MemoryStore,
         mode: SessionMode = .study,
         teacherNote: String? = nil,
+        parentMessage: ParentMessage? = nil,
         now: Date = Date()
     ) async throws -> String {
         let text = previousSessionText(
@@ -77,6 +78,6 @@ struct OpeningPromptBuilder: Sendable {
             memories: try await store.memories(),
             now: now
         )
-        return try library.conversationSystemPrompt(mode: mode, teacherNote: teacherNote, previousSession: text)
+        return try library.conversationSystemPrompt(mode: mode, teacherNote: teacherNote, previousSession: text, parentMessage: parentMessage)
     }
 }

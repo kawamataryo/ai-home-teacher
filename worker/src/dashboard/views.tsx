@@ -2,7 +2,7 @@
 // スマホ幅を基本にして、広い画面では中央寄せにする。
 
 import type { Child, FC } from "hono/jsx";
-import type { SessionJson } from "../sync";
+import type { ParentMessageRow, SessionJson } from "../sync";
 
 export type DayTotal = { day: string; minutes: number }; // day は JST の YYYY-MM-DD
 
@@ -47,6 +47,15 @@ h2 { font-size: 16px; margin: 0 0 12px; }
 .prompt { background: var(--accent-soft); border-color: var(--accent); }
 .prompt h2 { color: var(--accent); margin-bottom: 4px; }
 .prompt .line { font-size: 18px; font-weight: 600; margin: 0; }
+label.field { display: block; font-size: 13px; color: var(--muted); margin: 0 0 10px; }
+.input { display: block; width: 100%; margin-top: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); color: var(--ink); font: inherit; }
+textarea.input { min-height: 84px; resize: vertical; }
+.error { color: var(--warn); font-weight: 700; margin: 0 0 10px; }
+.message { border-top: 1px solid var(--line); padding: 10px 0 0; margin-top: 10px; overflow-wrap: anywhere; }
+.message p { margin: 0 0 2px; }
+.status { font-size: 12px; font-weight: 700; color: var(--muted); }
+.status.told { color: var(--accent); }
 .flags { margin: 8px 0; padding: 0; list-style: none; }
 .flags li { color: var(--warn); font-weight: 600; }
 .flags li::before { content: "⚠ 要確認："; }
@@ -100,8 +109,11 @@ export const DashboardPage: FC<{
   today: string;
   sessions: SessionJson[];
   tokenIssuedAt: string | null;
+  messages: ParentMessageRow[];
   newToken?: string;
-}> = ({ email, days, today, sessions, tokenIssuedAt, newToken }) => {
+  messageError?: string;
+  messageDraft?: { sender: string; body: string };
+}> = ({ email, days, today, sessions, tokenIssuedAt, messages, newToken, messageError, messageDraft }) => {
   const flagged = sessions.filter((s) => s.flags.length > 0);
   const week = days.slice(-7).reduce((sum, d) => sum + d.minutes, 0);
   const todayMinutes = days.find((d) => d.day === today)?.minutes ?? 0;
@@ -144,6 +156,8 @@ export const DashboardPage: FC<{
           </ul>
         </section>
       )}
+
+      <MessageCard messages={messages} error={messageError} draft={messageDraft} />
 
       <section class="card">
         <h2>日ごとの学習時間</h2>
@@ -195,6 +209,52 @@ const ParentPromptCard: FC<{ session?: SessionJson; today: string }> = ({ sessio
     <section class="card prompt">
       <h2>{jstDay(session.started_at) === today ? "今夜の声かけ" : `${formatDate(session.started_at)}の勉強から、声かけ`}</h2>
       <p class="line">{prompt}</p>
+    </section>
+  );
+};
+
+// 親の伝言（#159）。書く欄と、送った伝言が伝わったかどうか
+const MessageCard: FC<{
+  messages: ParentMessageRow[];
+  error?: string;
+  draft?: { sender: string; body: string };
+}> = ({ messages, error, draft }) => {
+  const lastSender = messages[0]?.sender_label ?? "";
+  return (
+    <section class="card" id="message">
+      <h2>先生にことづける</h2>
+      <p class="small">次の勉強の始まりに、先生が子どもに伝えます。1 回の勉強で 1 つずつ、書いた順に伝えます。</p>
+      {error && <p class="error">{error}</p>}
+      <form method="post" action="/dashboard/messages">
+        <label class="field">
+          伝言（200 文字まで）
+          <textarea class="input" name="body" maxlength={200} required>
+            {draft?.body ?? ""}
+          </textarea>
+        </label>
+        <label class="field">
+          先生が言う呼び方（お母さん、パパなど。空なら「おうちの人」）
+          <input class="input" name="sender" maxlength={12} value={draft?.sender ?? lastSender} autocomplete="off" />
+        </label>
+        <button class="btn" type="submit">
+          伝言を送る
+        </button>
+      </form>
+      {messages.map((m) => (
+        <div class="message">
+          <p>{m.body}</p>
+          <div class="meta">
+            {m.sender_label}から・{formatDate(m.created_at)} {formatTime(m.created_at)}
+          </div>
+          {m.delivered_at ? (
+            <div class="status told">
+              {formatDate(m.delivered_at)} {formatTime(m.delivered_at)} に伝えました
+            </div>
+          ) : (
+            <div class="status">まだ伝えていません</div>
+          )}
+        </div>
+      ))}
     </section>
   );
 };

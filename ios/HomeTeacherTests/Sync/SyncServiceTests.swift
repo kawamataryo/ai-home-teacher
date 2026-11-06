@@ -71,7 +71,13 @@ enum SyncFixture {
         ]))
     }
 
-    static let emptyPull: [MockTransport.Response] = [memories([]), sessionsPage([])]
+    static let noMessages = MockTransport.Response(body: #"{"messages":[]}"#)
+    static let emptyPull: [MockTransport.Response] = [memories([]), sessionsPage([]), noMessages]
+
+    static func messages(_ ids: [String]) -> MockTransport.Response {
+        let items = ids.map { #"{"id":"\#($0)","child_id":"default","sender_label":"お母さん","body":"がんばってね","created_at":"2026-11-03T01:00:00.000Z","delivered_at":null}"# }
+        return .init(body: #"{"messages":["# + items.joined(separator: ",") + "]}")
+    }
 }
 
 struct SyncServiceTests {
@@ -114,7 +120,7 @@ struct SyncServiceTests {
         #expect(report.outcome == .completed)
         #expect(report.pushedSessionIDs == [session.id])
         #expect(await store.pendingSessions().isEmpty)
-        #expect(await paths(transport) == ["POST /v1/sessions", "GET /v1/memory", "GET /v1/sessions"])
+        #expect(await paths(transport) == ["POST /v1/sessions", "GET /v1/memory", "GET /v1/sessions", "GET /v1/messages"])
 
         // 本文はサーバーの入力の形（updated_at と problems[].id は入れない）
         let request = try #require(await transport.requests.first)
@@ -191,7 +197,7 @@ struct SyncServiceTests {
         #expect(report.rejectedSessionIDs == ["bad"])
         #expect(report.pushedSessionIDs == ["good"])
         #expect(await store.pendingSessions().map(\.id) == ["bad"])
-        #expect(await paths(transport) == ["POST /v1/sessions", "POST /v1/sessions", "GET /v1/memory", "GET /v1/sessions"])
+        #expect(await paths(transport) == ["POST /v1/sessions", "POST /v1/sessions", "GET /v1/memory", "GET /v1/sessions", "GET /v1/messages"])
         #expect(await sleeps.delays.isEmpty)
     }
 
@@ -254,7 +260,7 @@ struct SyncServiceTests {
         connectivity.restore()
         #expect(await eventually { await store.pendingSessions().isEmpty })
         #expect(await eventually { await sync.lastReport?.outcome == .completed })
-        #expect(await paths(transport).suffix(3) == ["POST /v1/sessions", "GET /v1/memory", "GET /v1/sessions"])
+        #expect(await paths(transport).suffix(4) == ["POST /v1/sessions", "GET /v1/memory", "GET /v1/sessions", "GET /v1/messages"])
         await sync.stopMonitoring()
     }
 
@@ -267,6 +273,7 @@ struct SyncServiceTests {
         let transport = MockTransport(responses: [
             SyncFixture.memories([(.likes, "サッカー"), (.likes, "猫のミケ"), (.events, "運動会")]),
             SyncFixture.sessionsPage([]),
+            SyncFixture.noMessages,
         ])
 
         let report = await service(transport, store).syncNow(reason: .appLaunch)
@@ -285,12 +292,13 @@ struct SyncServiceTests {
             SyncFixture.memories([(.weakPoints, "割合"), (.weakPoints, "分数")]),
             SyncFixture.memories([(.likes, "サッカー"), (.weakPoints, "割合"), (.weakPoints, "分数")]),
             SyncFixture.sessionsPage([]),
+            SyncFixture.noMessages,
         ])
 
         let report = await service(transport, store).syncNow(reason: .sessionEnded)
 
         #expect(report.pushedMemoryCategories == [.weakPoints])
-        #expect(await paths(transport) == ["PUT /v1/memory", "GET /v1/memory", "GET /v1/sessions"])
+        #expect(await paths(transport) == ["PUT /v1/memory", "GET /v1/memory", "GET /v1/sessions", "GET /v1/messages"])
         let put = try #require(await transport.requests.first?.httpBody)
         #expect(String(decoding: put, as: UTF8.self) == #"{"category":"weak_points","items":[{"content":"割合"},{"content":"分数"}]}"#)
         #expect(await store.pendingMemoryCategories().isEmpty)
@@ -305,6 +313,7 @@ struct SyncServiceTests {
             .init(status: 400, body: #"{"error":"invalid request"}"#),
             SyncFixture.memories([(.likes, "サッカー"), (.events, "運動会")]),
             SyncFixture.sessionsPage([]),
+            SyncFixture.noMessages,
         ])
 
         let report = await service(transport, store).syncNow(reason: .sessionEnded)
@@ -342,6 +351,7 @@ struct SyncServiceTests {
             SyncFixture.memories([]),
             SyncFixture.sessionsPage(page1, serverTime: "2026-11-03T09:00:00.000Z"),
             SyncFixture.sessionsPage(page2, serverTime: "2026-11-03T09:00:01.000Z"),
+            SyncFixture.noMessages,
         ])
 
         let report = await service(transport, store).syncNow(reason: .appLaunch)
@@ -361,6 +371,7 @@ struct SyncServiceTests {
         let transport = MockTransport(responses: [
             SyncFixture.memories([]),
             SyncFixture.sessionsPage([(remote, SyncFixture.date("2026-11-03T08:00:00.000Z"))]),
+            SyncFixture.noMessages,
         ])
 
         let report = await service(transport, store).syncNow(reason: .appLaunch)
@@ -380,5 +391,67 @@ struct SyncServiceTests {
         await store.upsertRemoteSessions([remote])
         #expect(await store.sessions["s1"]?.summary == local.summary)
         #expect(await store.pendingSessions().map(\.id) == ["s1"])
+    }
+
+    // MARK: - 親の伝言（#159）
+
+    @Test func 伝言を取ってきて端末に置く() async throws {
+        let store = InMemorySyncStore()
+        let transport = MockTransport(responses: [SyncFixture.memories([]), SyncFixture.sessionsPage([]), SyncFixture.messages(["m1", "m2"])])
+        let report = await service(transport, store).syncNow(reason: .sessionStarting)
+        #expect(report.outcome == .completed)
+        #expect(report.pulledMessageCount == 2)
+        #expect(await store.parentMessages.map(\.id) == ["m1", "m2"])
+        #expect(await store.parentMessages.first?.senderLabel == "お母さん")
+    }
+
+    @Test func 伝えた伝言をサーバーに知らせてから取ってくる() async throws {
+        let store = InMemorySyncStore()
+        await store.replaceParentMessages([ParentMessage(id: "m1", senderLabel: "お母さん", body: "x", createdAt: SyncFixture.date("2026-11-03T01:00:00.000Z"))])
+        await store.markTold(id: "m1", at: SyncFixture.date("2026-11-03T07:00:00.000Z"))
+        let transport = MockTransport(responses: [
+            SyncFixture.memories([]), SyncFixture.sessionsPage([]), .init(body: #"{"ok":true}"#), SyncFixture.noMessages,
+        ])
+        let report = await service(transport, store).syncNow(reason: .sessionEnded)
+        #expect(report.acknowledgedMessageIDs == ["m1"])
+        #expect(await paths(transport).suffix(2) == ["POST /v1/messages/m1/delivered", "GET /v1/messages"])
+        let body = try #require(await transport.requests.dropLast().last?.httpBody)
+        #expect(String(decoding: body, as: UTF8.self) == #"{"delivered_at":"2026-11-03T07:00:00.000Z"}"#)
+        #expect(await store.toldParentMessages().isEmpty)
+    }
+
+    @Test func オフラインなら伝えた印も伝言も残して次の同期で送る() async throws {
+        let store = InMemorySyncStore()
+        await store.replaceParentMessages([ParentMessage(id: "m1", senderLabel: "お母さん", body: "x", createdAt: SyncFixture.date("2026-11-03T01:00:00.000Z"))])
+        await store.markTold(id: "m1", at: SyncFixture.date("2026-11-03T07:00:00.000Z"))
+        await store.replaceParentMessages([
+            ParentMessage(id: "m1", senderLabel: "お母さん", body: "x", createdAt: SyncFixture.date("2026-11-03T01:00:00.000Z")),
+            ParentMessage(id: "m2", senderLabel: "お母さん", body: "y", createdAt: SyncFixture.date("2026-11-03T02:00:00.000Z")),
+        ])
+        let transport = MockTransport(responses: Array(repeating: .failure(.notConnectedToInternet), count: 8))
+        let report = await service(transport, store).syncNow(reason: .sessionEnded)
+        #expect(report.outcome == .offline)
+        #expect(await store.toldParentMessages().keys.sorted() == ["m1"])
+        #expect(await store.parentMessages.map(\.id) == ["m2"])
+    }
+
+    @Test func サーバーにもうない伝言は印を消して止まらない() async throws {
+        let store = InMemorySyncStore()
+        await store.markTold(id: "gone", at: SyncFixture.date("2026-11-03T07:00:00.000Z"))
+        let transport = MockTransport(responses: [
+            SyncFixture.memories([]), SyncFixture.sessionsPage([]), .init(status: 404, body: "{}"), SyncFixture.noMessages,
+        ])
+        let report = await service(transport, store).syncNow(reason: .sessionEnded)
+        #expect(report.outcome == .completed)
+        #expect(await store.toldParentMessages().isEmpty)
+    }
+
+    @Test func 伝言のAPIが受け付けなくてもほかの同期は成功のまま() async throws {
+        let store = InMemorySyncStore()
+        await store.replaceParentMessages([ParentMessage(id: "keep", senderLabel: "お母さん", body: "x", createdAt: SyncFixture.date("2026-11-03T01:00:00.000Z"))])
+        let transport = MockTransport(responses: [SyncFixture.memories([]), SyncFixture.sessionsPage([]), .init(status: 404, body: "{}")])
+        let report = await service(transport, store).syncNow(reason: .sessionEnded)
+        #expect(report.outcome == .completed)
+        #expect(await store.parentMessages.map(\.id) == ["keep"])
     }
 }

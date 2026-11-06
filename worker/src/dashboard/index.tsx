@@ -6,7 +6,7 @@ import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import { csrf } from "hono/csrf";
 import { BOOTSTRAP_FAMILY_ID } from "../auth";
 import type { Env } from "../env";
-import { listSessions } from "../sync";
+import { listParentMessages, listSessions, resolveChild } from "../sync";
 import { currentTokenIssuedAt, issueFamilyToken } from "../tokens";
 import { authorizationUrl, exchangeCodeForEmail, isAllowedEmail, pkceChallenge, randomString } from "./google";
 import { DashboardPage, jstDay, LoginPage, type DayTotal } from "./views";
@@ -18,6 +18,13 @@ export const SESSION_COOKIE = "ht_session";
 export const OAUTH_COOKIE = "ht_oauth";
 const SESSION_DAYS = 7;
 const CHART_DAYS = 14;
+const MESSAGE_LIST = 5;
+// 伝えるのは 1 回の勉強で 1 つなので、たまりすぎないようにする
+const MAX_UNDELIVERED_MESSAGES = 10;
+export const MESSAGE_BODY_MAX = 200;
+export const SENDER_LABEL_MAX = 12;
+// 呼び方が空のときの言い方。先生に推測させない
+export const DEFAULT_SENDER_LABEL = "おうちの人";
 
 export const dashboard = new Hono<DashEnv>();
 
@@ -40,7 +47,33 @@ dashboard.post("/token", async (c) => {
   const parent = await currentParent(c);
   if (!parent) return c.redirect("/dashboard", 303);
   const token = await issueFamilyToken(c.env.DB, parent.familyId);
-  return c.html(await renderDashboard(c, parent, token));
+  return c.html(await renderDashboard(c, parent, { newToken: token }));
+});
+
+// 親の伝言（#159）。次の勉強の始まりに先生が伝える
+dashboard.post("/messages", async (c) => {
+  const parent = await currentParent(c);
+  if (!parent) return c.redirect("/dashboard", 303);
+  const form = await c.req.parseBody();
+  // 読み上げるので、改行は空白にする
+  const body = (typeof form.body === "string" ? form.body : "").replace(/\s+/g, " ").trim();
+  const sender = (typeof form.sender === "string" ? form.sender : "").replace(/\s+/g, " ").trim();
+  const draft = { sender, body };
+  const fail = async (error: string) => c.html(await renderDashboard(c, parent, { messageError: error, messageDraft: draft }), 400);
+  if ([...body].length === 0) return fail("伝言を書いてください。");
+  if ([...body].length > MESSAGE_BODY_MAX) return fail(`伝言は ${MESSAGE_BODY_MAX} 文字までです。`);
+  if ([...sender].length > SENDER_LABEL_MAX) return fail(`呼び方は ${SENDER_LABEL_MAX} 文字までです。`);
+
+  const db = c.env.DB;
+  const childId = await resolveChild(db, parent.familyId);
+  if (!childId) return fail("お子さんの登録が見つかりませんでした。");
+  const pending = await listParentMessages(db, parent.familyId, { undeliveredOnly: true, limit: MAX_UNDELIVERED_MESSAGES });
+  if (pending.length >= MAX_UNDELIVERED_MESSAGES) return fail("まだ伝えていない伝言がたまっています。先生が伝えてから、また書いてください。");
+  await db
+    .prepare("INSERT INTO parent_messages (id, child_id, sender_label, body, created_at) VALUES (?, ?, ?, ?, ?)")
+    .bind(crypto.randomUUID(), childId, sender || DEFAULT_SENDER_LABEL, body, new Date().toISOString())
+    .run();
+  return c.redirect("/dashboard", 303);
 });
 
 dashboard.post("/logout", (c) => {
@@ -149,7 +182,9 @@ async function familyForParent(db: D1Database, email: string): Promise<string> {
 
 // ---- 表示 ----
 
-async function renderDashboard(c: Context<DashEnv>, parent: Parent, newToken?: string) {
+type RenderOptions = { newToken?: string; messageError?: string; messageDraft?: { sender: string; body: string } };
+
+async function renderDashboard(c: Context<DashEnv>, parent: Parent, options: RenderOptions = {}) {
   const db = c.env.DB;
   const now = Date.now();
   const today = jstDay(now);
@@ -158,7 +193,7 @@ async function renderDashboard(c: Context<DashEnv>, parent: Parent, newToken?: s
   // JST の 0 時を UTC にして絞り込む
   const fromUtc = new Date(Date.parse(`${days[0].day}T00:00:00Z`) - 9 * 3_600_000).toISOString();
 
-  const [chartRows, sessions, tokenIssuedAt] = await Promise.all([
+  const [chartRows, sessions, tokenIssuedAt, messages] = await Promise.all([
     db
       .prepare(
         `SELECT s.started_at, s.focus_minutes FROM sessions s JOIN children c ON c.id = s.child_id
@@ -168,6 +203,7 @@ async function renderDashboard(c: Context<DashEnv>, parent: Parent, newToken?: s
       .all<{ started_at: string; focus_minutes: number }>(),
     listSessions(db, parent.familyId, { limit: 30 }),
     currentTokenIssuedAt(db, parent.familyId),
+    listParentMessages(db, parent.familyId, { limit: MESSAGE_LIST }),
   ]);
   for (const r of chartRows.results) {
     const d = days.find((x) => x.day === jstDay(r.started_at));
@@ -181,7 +217,10 @@ async function renderDashboard(c: Context<DashEnv>, parent: Parent, newToken?: s
       today={today}
       sessions={sessions}
       tokenIssuedAt={tokenIssuedAt}
-      newToken={newToken}
+      messages={messages}
+      newToken={options.newToken}
+      messageError={options.messageError}
+      messageDraft={options.messageDraft}
     />
   );
 }

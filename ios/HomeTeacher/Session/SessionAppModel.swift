@@ -150,6 +150,7 @@ final class SessionAppModel: AudioEngineLeaseHolder {
             voice: voice,
             store: services.store,
             sync: services.sync,
+            parentMessages: services.store,
             clock: clock,
             // 選んだ先生の名前と話し方で話す（#118）
             library: PromptLibrary(character: preferences.selectedCharacter),

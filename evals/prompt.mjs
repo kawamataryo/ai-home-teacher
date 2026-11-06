@@ -59,15 +59,22 @@ export function teacherNoteSection(note) {
   return `# 先生のメモ（子どもには見せない・読み上げない）\n\n${note}`;
 }
 
-// teacher → hint_ladder → safety → small_talk → board_talk → web_search の順。前回のこと（opening.md に差し込む）があれば足し、
+// 親の伝言の差し込み。アプリの PromptLibrary.parentMessageVariables と揃える（区切りや差し込みの印を作らせない）
+export function parentMessageVariables({ sender, body }) {
+  const neutralize = (text) => text.replaceAll("<", "＜").replaceAll(">", "＞").replaceAll("{", "｛").replaceAll("}", "｝").replaceAll('"', "”");
+  return { parent_message_sender: neutralize(sender), parent_message_body: neutralize(body) };
+}
+
+// teacher → hint_ladder → safety → small_talk → board_talk → web_search の順。前回のこと（opening.md に差し込む）があれば足し、親の伝言（parent_message.md）があれば足し、
 // 先生のメモがあれば最後に足す。
-export function conversationSystemPrompt({ mode = "study", teacherNote, previousSession, variables = {}, character = DEFAULT_CHARACTER } = {}) {
+export function conversationSystemPrompt({ mode = "study", teacherNote, previousSession, parentMessage, variables = {}, character = DEFAULT_CHARACTER } = {}) {
   const label = SESSION_MODE_LABELS[mode];
   if (!label) throw new Error(`未知のモード: ${mode}`);
   const vars = { today: todayLabel(), ...variables, session_mode: label };
   const parts = CONVERSATION_PARTS.map((name) => loadPrompt(name, vars, character));
   const previous = previousSession?.trim();
   if (previous) parts.push(loadPrompt("opening", { ...vars, previous_session: previous }, character));
+  if (parentMessage) parts.push(loadPrompt("parent_message", { ...vars, ...parentMessageVariables(parentMessage) }, character));
   const note = teacherNote?.trim();
   if (note) parts.push(teacherNoteSection(note));
   return parts.join(SEPARATOR);

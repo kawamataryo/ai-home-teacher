@@ -1,4 +1,4 @@
-// アプリとの同期 API（/v1/sessions, /v1/memory）。
+// アプリとの同期 API（/v1/sessions, /v1/memory, /v1/messages）。
 // どのクエリも、認証で解決した家族（c.var.familyId）の子どものデータだけを読み書きする。
 // 保存するのは文字の情報だけ。スキーマは .strict() なので、画像や音声のフィールドが来たら 400 にする。
 
@@ -64,6 +64,10 @@ const memoryPut = z
   })
   .strict();
 
+const messageDelivered = z
+  .object({ delivered_at: isoDateTime.optional() })
+  .strict();
+
 // ---- DB の行と返す JSON ----
 
 type SessionRow = {
@@ -87,6 +91,15 @@ type ProblemRow = {
   solved_by_self: number;
   hint_level_reached: number;
   created_at: string;
+};
+
+export type ParentMessageRow = {
+  id: string;
+  child_id: string;
+  sender_label: string;
+  body: string;
+  created_at: string;
+  delivered_at: string | null;
 };
 
 type MemoryRow = { id: string; child_id: string; category: string; content: string; updated_at: string };
@@ -217,10 +230,34 @@ sync.put("/memory", async (c) => {
   return c.json({ memories });
 });
 
+// 親の伝言（#159）。まだ伝えていないものを古い順に返す
+sync.get("/messages", async (c) => {
+  const messages = await listParentMessages(c.env.DB, c.var.familyId, { undeliveredOnly: true, limit: 50 });
+  return c.json({ messages });
+});
+
+// 先生が話し終えたあとにアプリが呼ぶ。何度呼んでも、最初に伝えた時刻のまま
+sync.post("/messages/:id/delivered", async (c) => {
+  const input = await parseBody(c, messageDelivered);
+  if (input instanceof Response) return input;
+  const db = c.env.DB;
+  const familyId = c.var.familyId;
+  const deliveredAt = input.delivered_at ?? new Date().toISOString();
+  const { meta } = await db
+    .prepare(
+      `UPDATE parent_messages SET delivered_at = COALESCE(delivered_at, ?)
+       WHERE id = ? AND child_id IN (SELECT id FROM children WHERE family_id = ?)`,
+    )
+    .bind(deliveredAt, c.req.param("id"), familyId)
+    .run();
+  if (meta.changes === 0) return c.json({ error: "message not found" }, 404);
+  return c.json({ ok: true });
+});
+
 // ---- クエリ ----
 
 // child_id の指定がなければ家族の最初の子ども。指定があれば、その家族の子どもかを確かめる
-async function resolveChild(db: D1Database, familyId: string, childId?: string): Promise<string | null> {
+export async function resolveChild(db: D1Database, familyId: string, childId?: string): Promise<string | null> {
   const row = childId
     ? await db.prepare("SELECT id FROM children WHERE id = ? AND family_id = ?").bind(childId, familyId).first<{ id: string }>()
     : await db
@@ -267,6 +304,25 @@ export async function listSessions(
       problems.filter((p) => p.session_id === s.id),
     ),
   );
+}
+
+// 新しい順で limit 件を取り、古い順に並べて返す（undeliveredOnly のときはすべて伝える順）
+export async function listParentMessages(
+  db: D1Database,
+  familyId: string,
+  opts: { undeliveredOnly?: boolean; limit: number },
+): Promise<ParentMessageRow[]> {
+  const undelivered = opts.undeliveredOnly ? "AND m.delivered_at IS NULL" : "";
+  const order = opts.undeliveredOnly ? "m.created_at ASC, m.rowid ASC" : "m.created_at DESC, m.rowid DESC";
+  const { results } = await db
+    .prepare(
+      `SELECT m.id, m.child_id, m.sender_label, m.body, m.created_at, m.delivered_at
+       FROM parent_messages m JOIN children c ON c.id = m.child_id
+       WHERE c.family_id = ? ${undelivered} ORDER BY ${order} LIMIT ?`,
+    )
+    .bind(familyId, opts.limit)
+    .all<ParentMessageRow>();
+  return results;
 }
 
 async function listMemories(
