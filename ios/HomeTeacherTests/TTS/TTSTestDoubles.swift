@@ -70,6 +70,10 @@ final class MockTTSProvider: TTSProvider {
 final class MockAudioPlayer: SpeechAudioPlayer {
     private(set) var played: [SynthesizedSpeech] = []
     private(set) var stopCount = 0
+    /// いま同時に再生している数（重なりの確認用）
+    private(set) var activeCount = 0
+    /// いちばん多く重なった数
+    private(set) var maxActiveCount = 0
     var time: TimeInterval = 0
     var clipDuration: TimeInterval = 1
     var failsToPlay = false
@@ -88,7 +92,10 @@ final class MockAudioPlayer: SpeechAudioPlayer {
         let waiters = startWaiters
         startWaiters = []
         waiters.forEach { $0.resume() }
+        activeCount += 1
+        maxActiveCount = max(maxActiveCount, activeCount)
         await withCheckedContinuation { playing = $0 }
+        activeCount -= 1
     }
 
     /// `count` 個目の再生が始まるまで待つ

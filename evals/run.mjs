@@ -85,7 +85,7 @@ export function resolveEndpoint(env) {
 }
 
 // アプリの TeacherBrain.toolResultText / boardResultText と揃える。
-export const TOOL_RESULT_TEXT = "記録しました。子どもには伝えずに、会話を続けてください。";
+export const TOOL_RESULT_TEXT = "記録しました。子どもには伝えずに、会話を続けてください。もう話したことはくり返さない。まだ親に話すよう勧めていなければ、「お父さんかお母さんに話してみよう」と短くやさしく伝えてください。もう伝えていれば、何も言わなくてかまいません。";
 export const BOARD_RESULT_TEXT = "黒板に図を出しました（子どもに見えています）。もう話したことはくり返さずに、図を見ながら答えられる短い問いかけを1つだけ言ってください。もう問いかけで終えていれば、何も言わなくてかまいません。";
 
 export function toolResultText(name) {
@@ -101,9 +101,10 @@ export async function respond(call, body) {
   const toolBlocks = (first.content ?? []).filter((b) => b.type === "tool_use");
   // 返事の長さの上限（max_tokens）で切れていないか。図が長いと、ツールの入力が途中で切れる
   const stops = [{ stop: first.stop_reason, outputTokens: first.usage?.output_tokens }];
-  // アプリ（TeacherBrain）と同じく、言葉がないとき・黒板に図を出したときは続きを1回もらう
+  // アプリ（TeacherBrain）と同じく、言葉がないとき・黒板に図を出したとき・親への要確認を残したときは続きを1回もらう
   const shownBoard = toolBlocks.some((b) => b.name === "show_board" || b.name === "show_reference_image");
-  if (first.stop_reason === "tool_use" && toolBlocks.length > 0 && (!reply.trim() || shownBoard)) {
+  const flaggedParent = toolBlocks.some((b) => b.name === "flag_for_parent");
+  if (first.stop_reason === "tool_use" && toolBlocks.length > 0 && (!reply.trim() || shownBoard || flaggedParent)) {
     const next = await call({
       ...body,
       messages: [

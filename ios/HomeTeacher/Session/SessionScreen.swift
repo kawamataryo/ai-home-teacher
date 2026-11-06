@@ -17,6 +17,8 @@ struct SessionScreen: View {
     @State private var showsDebugMenu = false
     /// 起動引数 `-showSettings` なら設定を開いた状態で始める（設定画面の表示確認用）
     @State private var showsSettings = ProcessInfo.processInfo.arguments.contains("-showSettings")
+    /// 先生を選ぶ画面（#123）。起動引数 `-characterPicker` で開いた状態で始める
+    @State private var showsPicker = ProcessInfo.processInfo.arguments.contains("-characterPicker")
 
     var body: some View {
         NavigationStack {
@@ -42,6 +44,15 @@ struct SessionScreen: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        showsPicker = true
+                    } label: {
+                        Image(systemName: "person.2.fill")
+                    }
+                    .accessibilityLabel("先生をえらぶ")
+                    .disabled(model.coordinator?.phase != .idle)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         showsSettings = true
                     } label: {
                         Image(systemName: "gearshape")
@@ -64,7 +75,10 @@ struct SessionScreen: View {
         }
         .modifier(DebugCanvasSize())
         .sheet(isPresented: $showsSettings) {
-            SessionSettingsView(preferences: model.preferences)
+            SessionSettingsView(preferences: model.preferences, onChooseCharacter: { showsPicker = true })
+        }
+        .fullScreenCover(isPresented: $showsPicker, onDismiss: { model.applySelectedCharacter() }) {
+            CharacterPickerView(model: model)
         }
         // 音声の検証画面はマイクを借りるので、閉じたらセッションのエンジンを作り直す（#75）
         .sheet(isPresented: $showsDebugMenu, onDismiss: { model.reclaimAudio() }) {
@@ -82,6 +96,8 @@ struct SessionScreen: View {
                 if preview == .tour { await model.coordinator?.runBoardTour() }
             } else {
                 await model.prepare()
+                // 初めてなら、勉強の前に先生に会ってもらう（選ばなければ今までと同じ先生）
+                if model.needsCharacterChoice { showsPicker = true }
             }
         }
         // 机に立てて 25 分使うので、自動ロックで止まらないようにする
@@ -148,6 +164,11 @@ struct SessionContent: View {
 
     // MARK: - 舞台（先生と黒板。#105）
 
+    private var currentLook: CharacterLook { Self.previewLook ?? coordinator.character.look }
+
+    /// 確認用に見た目だけ替える（起動引数 `-avatarLook`）
+    private static let previewLook = CharacterLook.fromLaunchArguments()
+
     /// 黒板に何か書いているときは黒板を大きくし、先生は右下に重ねる。書いていないときは先生だけを大きく見せる
     private var stageMode: SessionStageLayout.Mode {
         coordinator.board == nil ? .teacher : .board
@@ -156,7 +177,7 @@ struct SessionContent: View {
     /// 先生と黒板は、それぞれ 1 か所に置いたまま枠だけを動かす（先生の RealityView を作り直さない）
     private var stage: some View {
         GeometryReader { geometry in
-            let layout = SessionStageLayout(size: geometry.size, mode: stageMode)
+            let layout = SessionStageLayout(size: geometry.size, mode: stageMode, livesOnBoard: currentLook.livesOnBoard)
             ZStack(alignment: .topLeading) {
                 // 先生だけのときの背景。黒板を書くときは黒板が主役なので消す
                 RoundedRectangle(cornerRadius: 28)
@@ -168,10 +189,10 @@ struct SessionContent: View {
                 boardPanel(layout)
                     .frame(width: layout.board.width, height: layout.board.height)
                     .offset(x: layout.board.minX, y: layout.board.minY)
-                AvatarView(state: coordinator.avatar.state, lipSync: lipSync, turn: teacherTurn)
+                AvatarView(state: coordinator.avatar.state, lipSync: lipSync, turn: teacherTurn, look: currentLook,
+                           mannerisms: coordinator.character.mannerisms, touchable: true, isOnBoard: layout.mode == .board)
                     .frame(width: layout.teacher.width, height: layout.teacher.height)
                     .offset(x: layout.teacher.minX, y: layout.teacher.minY)
-                    .allowsHitTesting(false)
                 hud(layout)
                 caption(layout, stageWidth: geometry.size.width)
                 captureOverlay
@@ -229,7 +250,7 @@ struct SessionContent: View {
                 let design = SessionStageLayout.designSize(for: geometry.size, base: layout.designBase)
                 let scale = geometry.size.width / design.width
                 BoardContentView(
-                    content: coordinator.board ?? .text(Self.boardHint(phase: coordinator.phase)),
+                    content: coordinator.board ?? .text(Self.boardHint(phase: coordinator.phase, callExample: coordinator.character.callExample)),
                     insets: Self.occludedInsets(layout.occlusion, board: geometry.size, scale: scale),
                     isSign: coordinator.board == nil
                 )
@@ -300,11 +321,11 @@ struct SessionContent: View {
             .offset(x: x, y: layout.teacher.maxY - 80)
     }
 
-    static func boardHint(phase: StudySessionCoordinator.Phase) -> String {
+    static func boardHint(phase: StudySessionCoordinator.Phase, callExample: String = "ねえ先生") -> String {
         switch phase {
         case .idle: "「勉強スタート」で始めよう！"
         case .starting: "準備中…"
-        case .active: "わからないところは「ねえ先生」と話しかけてね。\n「これ見て」と言うと、ノートを見てヒントを書くよ。"
+        case .active: "わからないところは「\(callExample)」と話しかけてね。\n「これ見て」と言うと、ノートを見てヒントを書くよ。"
         case .ending: "今日のふり返り"
         }
     }

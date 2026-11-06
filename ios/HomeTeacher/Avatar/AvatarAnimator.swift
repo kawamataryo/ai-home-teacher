@@ -26,9 +26,15 @@ final class AvatarAnimator {
     private var stateStartedAt: Double = 0
     private var poseAtChange = AvatarPose()
     private var currentPose = AvatarPose()
+    /// 待機中の癖で口を変えるとき（あくび）
+    private var idleMouth: MouthShape?
 
-    init(model: TeacherModel) {
+    private var scheduler: MannerismScheduler
+    private var seenTouches = 0
+
+    init(model: TeacherModel, mannerisms: MannerismSet = .haru) {
         self.model = model
+        scheduler = MannerismScheduler(set: mannerisms)
         rig.addChild(model.entity)
         for part in TeacherPart.allCases where part != .root {
             if let entity = model.part(part) {
@@ -36,6 +42,16 @@ final class AvatarAnimator {
             }
         }
     }
+
+    /// 触った回数が増えていたら、短く反応する。姿勢に重ねるだけで、状態と口には触らない
+    func receiveTouches(_ count: Int) {
+        guard count != seenTouches else { return }
+        seenTouches = count
+        scheduler.touch(time: time)
+    }
+
+    /// 反応している動き（テスト用）
+    var activeMannerism: MannerismKind? { scheduler.active?.kind }
 
     func setState(_ newState: AvatarState) {
         guard newState != state else { return }
@@ -51,6 +67,15 @@ final class AvatarAnimator {
         let k = min(1, timeInState / Self.blendDuration)
         let eased = Float(k * k * (3 - 2 * k))
         currentPose = k >= 1 ? target : AvatarPose.blend(poseAtChange, target, eased)
+        idleMouth = nil
+        if let overlay = scheduler.stateOverlay(for: state) {
+            overlay.apply(elapsed: timeInState.truncatingRemainder(dividingBy: overlay.duration), to: &currentPose)
+        }
+        if let forced = MannerismDemo.forcedKind {
+            idleMouth = forced.apply(elapsed: time.truncatingRemainder(dividingBy: forced.duration + 1), to: &currentPose)
+        } else if let active = scheduler.update(state: state, time: time) {
+            idleMouth = active.kind.apply(elapsed: time - active.startedAt, to: &currentPose)
+        }
         // 体の向きは 0.3 秒くらいで追いつく
         yaw += (targetYaw - yaw) * Float(min(1, deltaTime * 5))
         rig.orientation = simd_quatf(angle: yaw, axis: [0, 1, 0])
@@ -70,8 +95,11 @@ final class AvatarAnimator {
         model.setEyes(pose.eyes)
         if let mouthOverride {
             model.setMouth(mouthOverride)
+        } else if let idleMouth {
+            model.setMouth(idleMouth)
         } else if let lipSync {
-            lipSync.update()
+            // 選ぶ画面と学習の画面で同じ口パクを使うので、つなぎ先に頼らず自分のモデルに入れる
+            model.setMouth(lipSync.update())
         } else {
             model.setMouth(.closed)
         }

@@ -20,38 +20,22 @@
           Mouth        口のテクスチャを貼る板
           Glasses      メガネ
 左右はキャラクターから見た向き（L = キャラの左手側 = Blender の +X）。キャラは Blender の -Y 方向を向く。
+
+共通の部品は voxel_common.py。ほかのボクセルのキャラは build_rika.py と build_boru.py。
 """
 
 import os
-import struct
 import sys
-import zlib
 
-import bpy
+sys.path.insert(0, os.path.dirname(__file__))
 
-# 1 ボクセルの大きさ（メートル）。全体で身長およそ 1.2m
-VOXEL = 0.05
+import voxel_common as vc
+from voxel_common import OUT_DIR, PNG_SCALE, Part, blank, hex_rgb, make_color_material, make_texture_material, put
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-OUT_DIR = os.path.join(ROOT, "ios", "HomeTeacher", "Resources", "Teacher")
 USDZ_PATH = os.path.join(OUT_DIR, "teacher.usdz")
-
-# テクスチャ 1 ボクセルあたりのピクセル数と、書き出し時の拡大率（ぼやけ防止に最近傍で拡大）
-PX_PER_VOXEL = 4
-PNG_SCALE = 16
 
 
 # ---------------------------------------------------------------- 色
-
-def hex_rgb(h):
-    h = h.lstrip("#")
-    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
-
-
-def srgb_to_linear(c):
-    c = c / 255.0
-    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-
 
 COLORS = {
     "skin": "#F5CDA7",
@@ -83,15 +67,6 @@ FACE_PALETTE = {
 EYES_W, EYES_H = 32, 12    # 目の板: 8 x 3 ボクセル
 MOUTH_W, MOUTH_H = 16, 9   # 口の板: 4 x 2.25 ボクセル
 EYE_CENTERS = (8, 24)      # 目の中心の列（メガネのレンズの中心に合わせる）
-
-
-def blank(w, h):
-    return [["."] * w for _ in range(h)]
-
-
-def put(grid, x, y, c):
-    if 0 <= y < len(grid) and 0 <= x < len(grid[0]):
-        grid[y][x] = c
 
 
 def add_blush(grid):
@@ -187,117 +162,10 @@ FACES = {
 }
 
 
-def write_png(path, grid, scale):
-    """標準ライブラリだけで RGB の PNG を書く（最近傍で拡大）。"""
-    rows = []
-    for row in grid:
-        line = bytearray()
-        for c in row:
-            line += bytes(FACE_PALETTE[c]) * scale
-        for _ in range(scale):
-            rows.append(b"\x00" + bytes(line))
-    raw = b"".join(rows)
-    w, h = len(grid[0]) * scale, len(grid) * scale
-
-    def chunk(tag, data):
-        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
-
-    png = b"\x89PNG\r\n\x1a\n"
-    png += chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
-    png += chunk(b"IDAT", zlib.compress(raw, 9))
-    png += chunk(b"IEND", b"")
-    with open(path, "wb") as f:
-        f.write(png)
-
-
-# ---------------------------------------------------------------- メッシュ
-
-class Part:
-    """箱（ボクセルの直方体）を集めて 1 つのメッシュにする。座標はボクセル単位で、原点が関節。"""
-
-    def __init__(self, name):
-        self.name = name
-        self.verts = []
-        self.faces = []
-        self.face_mats = []
-        self.face_uvs = []
-        self.materials = []
-
-    def box(self, x0, x1, y0, y1, z0, z1, mat, front_uv=False):
-        if mat not in self.materials:
-            self.materials.append(mat)
-        mi = self.materials.index(mat)
-        b = len(self.verts)
-        for z in (z0, z1):
-            for y in (y0, y1):
-                for x in (x0, x1):
-                    self.verts.append((x * VOXEL, y * VOXEL, z * VOXEL))
-        # 頂点番号: x + 2y + 4z
-        quads = [
-            ((0, 1, 5, 4), True),    # -Y（正面）
-            ((3, 2, 6, 7), False),   # +Y
-            ((2, 0, 4, 6), False),   # -X
-            ((1, 3, 7, 5), False),   # +X
-            ((2, 3, 1, 0), False),   # 下
-            ((4, 5, 7, 6), False),   # 上
-        ]
-        for q, is_front in quads:
-            self.faces.append(tuple(b + i for i in q))
-            self.face_mats.append(mi)
-            if front_uv and is_front:
-                self.face_uvs.append([(0, 0), (1, 0), (1, 1), (0, 1)])
-            else:
-                # 正面以外は左下の肌色のピクセルを使う
-                self.face_uvs.append([(0.01, 0.01)] * 4)
-
-    def build(self, mats, location, parent=None):
-        mesh = bpy.data.meshes.new(self.name + "Mesh")
-        mesh.from_pydata(self.verts, [], self.faces)
-        uv = mesh.uv_layers.new(name="st")
-        for poly, uvs in zip(mesh.polygons, self.face_uvs):
-            poly.material_index = self.face_mats[poly.index]
-            poly.use_smooth = False
-            for li, loop_index in enumerate(poly.loop_indices):
-                uv.data[loop_index].uv = uvs[li]
-        for m in self.materials:
-            mesh.materials.append(mats[m])
-        mesh.update()
-        obj = bpy.data.objects.new(self.name, mesh)
-        bpy.context.scene.collection.objects.link(obj)
-        obj.location = tuple(v * VOXEL for v in location)
-        if parent is not None:
-            obj.parent = parent
-        return obj
-
-
-def make_color_material(name, hex_color):
-    mat = bpy.data.materials.new(name)
-    mat.use_nodes = True
-    bsdf = mat.node_tree.nodes.get("Principled BSDF")
-    r, g, b = (srgb_to_linear(c) for c in hex_rgb(hex_color))
-    bsdf.inputs["Base Color"].default_value = (r, g, b, 1.0)
-    bsdf.inputs["Roughness"].default_value = 0.85
-    return mat
-
-
-def make_texture_material(name, png_path):
-    mat = bpy.data.materials.new(name)
-    mat.use_nodes = True
-    nodes = mat.node_tree.nodes
-    bsdf = nodes.get("Principled BSDF")
-    bsdf.inputs["Roughness"].default_value = 0.9
-    tex = nodes.new("ShaderNodeTexImage")
-    tex.image = bpy.data.images.load(png_path)
-    tex.interpolation = "Closest"
-    mat.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
-    return mat
-
-
 # ---------------------------------------------------------------- 組み立て
 
 def build_character(mats):
-    root = bpy.data.objects.new("Teacher", None)
-    bpy.context.scene.collection.objects.link(root)
+    root = vc.add_root()
 
     # 脚（原点は股関節。足元から 5 ボクセル）
     for name, sx in (("LegL", 1), ("LegR", -1)):
@@ -380,14 +248,12 @@ def build_character(mats):
 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
-
-    # 既定シーンを空にする
-    bpy.ops.wm.read_factory_settings(use_empty=True)
+    vc.reset_scene()
 
     png_paths = {}
     for name, draw in FACES.items():
         path = os.path.join(OUT_DIR, name + ".png")
-        write_png(path, draw(), PNG_SCALE)
+        vc.write_png(path, draw(), PNG_SCALE, FACE_PALETTE)
         png_paths[name] = path
 
     mats = {name: make_color_material(name, color) for name, color in COLORS.items()}
@@ -396,22 +262,7 @@ def main():
 
     build_character(mats)
 
-    bpy.ops.wm.usd_export(
-        filepath=USDZ_PATH,
-        export_animation=False,
-        export_materials=True,
-        export_uvmaps=True,
-        generate_preview_surface=True,
-        export_textures_mode="NEW",
-        overwrite_textures=True,
-        convert_orientation=True,
-        export_global_forward_selection="NEGATIVE_Z",
-        export_global_up_selection="Y",
-        export_lights=False,
-        export_cameras=False,
-        root_prim_path="",
-    )
-    print("書き出し:", USDZ_PATH)
+    vc.export_usdz(USDZ_PATH)
 
 
 if __name__ == "__main__":

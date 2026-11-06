@@ -34,9 +34,28 @@ struct TeacherCharacter: Codable, Identifiable, Equatable, Sendable {
     var voice = Voice()
     /// 定型句の言い替え（定型句の key → 文）。書いていない定型句は共通の文のまま話す
     var phrases: [String: String] = [:]
+    /// 見た目（#121）
+    var look = CharacterLook.haru
+    /// 動きの癖（#122）
+    var mannerisms = MannerismSet.haru
+    /// 選ぶ画面のひとこと（#123）
+    var tagline = ""
+    /// 選ぶ画面で触ったときの自己紹介（1〜2 文。口ぐせと少し抜けたところが伝わるように）
+    var intro = ""
+    /// 選んだときのあいさつ
+    var greeting = ""
 
     /// 子どもからの呼ばれ方（「ハル先生」。仲間なら「ソラ」）
     var callName: String { name + honorific }
+
+    /// 呼びかけの言葉。どのキャラも「先生」でも応える（今の先生は今までと同じ）。名前でも呼べる
+    var callWords: [String] {
+        let base = ConversationSettings.defaultCallWords
+        return base + ["ねえ\(name)", "ねぇ\(name)", name]
+    }
+
+    /// 画面に出す、呼びかけの例
+    var callExample: String { relation == .teacher ? "ねえ先生" : "ねえ\(name)" }
 
     /// プロンプトに差し込む値。evals/prompt.mjs の characterVariables と揃える
     var promptVariables: [String: String] {
@@ -47,7 +66,10 @@ struct TeacherCharacter: Codable, Identifiable, Equatable, Sendable {
     static let haru = TeacherCharacter(
         id: "haru", name: "ハル", honorific: "先生", relation: .teacher,
         roleLine: "iPad の向こうから付き添う先生です。", roleNoun: "家庭教師", nudgeTone: "やさしく、明るく", selectable: true,
-        voice: Voice(), phrases: [:]
+        voice: Voice(), phrases: [:], look: .haru, mannerisms: .haru,
+        tagline: "メガネのお兄さん先生",
+        intro: "ハルだよ。口ぐせはお、いいね！で、かけてるメガネをよくさがしちゃうんだ。",
+        greeting: "よろしくね！いっしょにがんばろう。"
     )
 }
 

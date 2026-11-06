@@ -22,17 +22,21 @@ struct SessionStageLayout: Equatable {
 
     let mode: Mode
     let board: CGRect
-    let teacher: CGRect
+    var teacher: CGRect
     /// タイマーと状態のしるしを置く場所（左上を合わせる）
     let hud: CGRect
     /// 黒板の中身を描く大きさの基準
     let designBase: CGSize
     /// 先生の体が黒板に重なっている幅（右から）と高さ（下から）。pt
-    let occlusion: CGSize
+    var occlusion: CGSize
     /// いまの様子（聞いてる・話してる）のしるしの真ん中。黒板に書いているときは黒板の外に出す
     let badgeCenter: CGPoint
 
-    init(size: CGSize, mode: Mode) {
+    /// 黒板の中に住むキャラ（チョーク）の、黒板の高さに対する大きさ
+    static let onBoardHeight: CGFloat = 0.4
+
+    /// `livesOnBoard`：黒板を大きくしたとき、キャラを黒板の右下の中に置く（#127）。図はその分だけよけて書く
+    init(size: CGSize, mode: Mode, livesOnBoard: Bool = false) {
         self.mode = mode
         let w = max(size.width, 1)
         let h = max(size.height, 1)
@@ -85,6 +89,15 @@ struct SessionStageLayout: Equatable {
         case (.board, false):
             // 黒板の下（タイマーの右）
             badgeCenter = CGPoint(x: min(hud.midX + 150, teacher.minX - 20), y: hud.minY + 44)
+        }
+        if livesOnBoard, mode == .board {
+            // 黒板の枠の内側の右下。枠ごと図をよけるので重ならない
+            let th = board.height * Self.onBoardHeight
+            let tw = th * Self.teacherAspect
+            let frame: CGFloat = 26
+            teacher = CGRect(x: board.maxX - tw - frame, y: board.maxY - th - frame, width: tw, height: th)
+            occlusion = CGSize(width: tw + frame, height: th + frame)
+            return
         }
         let bodyLeft = teacher.midX - teacher.width * Self.teacherBodyWidth / 2
         // 先生の頭の上には少し余白がある（枠の上 1 割）

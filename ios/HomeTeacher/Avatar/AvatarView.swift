@@ -1,11 +1,16 @@
 import RealityKit
 import SwiftUI
 
-/// 先生のアバターを RealityKit で表示するビュー。`state` に合わせて動く
+/// 先生のアバター。状態（`AvatarState`）と口の形（`MouthShape`）を受け取り、キャラの形式に合わせて表示する（#121）
+///
+/// - `voxel`：パーツごとに動かす 3D（今の先生）
+/// - `rigged`：骨とシェイプキーで動かす 3D
+/// - `paper` / `chalk`：SwiftUI で描く 2D
 ///
 /// 会話とつなぐときは `AvatarController` にできごと（`AvatarEvent`）を送り、
-/// `AvatarView(state: controller.state, lipSync: player)` で表示する。
+/// `AvatarView(state: controller.state, lipSync: player, look: character.look)` で表示する。
 /// 口パクは `LipSyncPlayer` に TTS の再生時刻（または音量）を渡すと動く。
+/// 読み込みに失敗したら既定の先生を出して、会話を止めない。
 struct AvatarView: View {
     var state: AvatarState = .idle
     var lipSync: LipSyncPlayer? = nil
@@ -13,6 +18,69 @@ struct AvatarView: View {
     var mouth: MouthShape? = nil
     /// 体の向き（度。正で画面の左を向く）。黒板に書いて話すときに黒板の方へ体を向ける（#105）
     var turn: Double = 0
+    var look: CharacterLook = .haru
+    /// 動きの癖（待機中の癖・触ったときの反応。#122）
+    var mannerisms: MannerismSet = .haru
+    /// 指で触ると短く反応する（声は出さない。会話の状態にも音声にも触らない）
+    var touchable = false
+    /// 今の先生にも、ほかのキャラと同じまわりの光を当てる（選ぶ画面）。
+    /// RealityView が何枚も並ぶと、まわりの光のない今の先生は起動ごとに明るさが変わるので、並べるときだけ光をそろえる
+    var studioLight = false
+    /// 黒板の中に重ねている（チョークのキャラは背景を描かない。#127）
+    var isOnBoard = false
+
+    /// 触った回数。増えたら表示の中で反応を始める
+    @State private var touches = 0
+    /// 読み込めなかった見た目。これを選んでいる間は既定の先生を出す
+    @State private var failedLook: CharacterLook?
+
+    var body: some View {
+        let shown = failedLook == look ? CharacterLook.haru : look
+        Group {
+            switch shown.kind {
+            case .voxel:
+                VoxelAvatarView(
+                    state: state, lipSync: lipSync, mouth: mouth, turn: turn, look: shown, mannerisms: mannerisms, touches: touches,
+                    studioLight: studioLight || shown != .haru,
+                    onLoadFailed: { failedLook = shown }
+                )
+            case .rigged:
+                RiggedAvatarView(
+                    state: state, lipSync: lipSync, mouth: mouth, turn: turn, look: shown, mannerisms: mannerisms, touches: touches,
+                    onLoadFailed: { failedLook = shown }
+                )
+            case .paper:
+                PaperAvatarView(state: state, lipSync: lipSync, mouth: mouth, turn: turn, mannerisms: mannerisms, touches: touches)
+            case .chalk:
+                ChalkAvatarView(
+                    state: state, lipSync: lipSync, mouth: mouth, turn: turn, mannerisms: mannerisms, touches: touches, isOnBoard: isOnBoard
+                )
+            }
+        }
+        // キャラが替わったら作り直す。同じキャラなら作り直さない（#105）
+        .id(shown)
+        .contentShape(Rectangle())
+        .allowsHitTesting(touchable)
+        .onTapGesture { touches += 1 }
+        .accessibilityElement()
+        .accessibilityIdentifier("avatar")
+        .accessibilityLabel("先生")
+        .accessibilityValue("\(touches)")
+    }
+}
+
+/// パーツごとに動かす 3D（ボクセルのキャラ）。`TeacherModel` と `AvatarPose` の 10 パーツの前提はこの中に閉じる
+struct VoxelAvatarView: View {
+    var state: AvatarState
+    var lipSync: LipSyncPlayer?
+    var mouth: MouthShape?
+    var turn: Double
+    var look: CharacterLook
+    var mannerisms: MannerismSet
+    var touches: Int
+    /// まわりの光を当てる。金属が黒くならないように。今の先生は太陽の光だけのまま（見え方を変えない）
+    var studioLight: Bool
+    var onLoadFailed: () -> Void
 
     @State private var animator: AvatarAnimator?
     @State private var updateSubscription: EventSubscription?
@@ -32,14 +100,18 @@ struct AvatarView: View {
             content.add(sun)
 
             do {
-                let loaded = try await TeacherModel.load()
+                let loaded = try await TeacherModel.load(name: look.modelName, faceTextures: look.faceTexturePrefix, glowingFace: look.glowingFace ?? false)
                 try await loaded.preloadFaceTextures()
-                let animator = AvatarAnimator(model: loaded)
+                let animator = AvatarAnimator(model: loaded, mannerisms: mannerisms)
                 animator.setState(state)
                 animator.lipSync = lipSync
                 animator.mouthOverride = mouth
-                animator.targetYaw = Self.yaw(turn)
+                animator.targetYaw = AvatarView.yaw(turn)
                 content.add(animator.rig)
+                // 光の用意に時間がかかるので、先に体を出してから当てる
+                if studioLight {
+                    Task { await StudioLighting.light(animator.rig) }
+                }
                 updateSubscription = content.subscribe(to: SceneEvents.Update.self) { event in
                     MainActor.assumeIsolated {
                         animator.update(deltaTime: event.deltaTime)
@@ -48,15 +120,17 @@ struct AvatarView: View {
                 self.animator = animator
             } catch {
                 loadError = "\(error)"
+                if look != .haru { onLoadFailed() }
             }
         } update: { _ in
             animator?.setState(state)
             if animator?.lipSync !== lipSync { animator?.lipSync = lipSync }
             animator?.mouthOverride = mouth
-            animator?.targetYaw = Self.yaw(turn)
+            animator?.targetYaw = AvatarView.yaw(turn)
+            animator?.receiveTouches(touches)
         }
         .overlay {
-            if let loadError {
+            if let loadError, look == .haru {
                 Text("先生を読み込めませんでした: \(loadError)")
                     .foregroundStyle(.red)
                     .padding()

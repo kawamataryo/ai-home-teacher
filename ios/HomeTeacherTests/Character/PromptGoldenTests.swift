@@ -13,18 +13,26 @@ struct PromptGoldenTests {
         try String(contentsOf: Self.directory.appending(path: "\(name).txt"), encoding: .utf8)
     }
 
+    /// 「そのキャラらしさ」（#122 で今の先生に足した口ぐせと抜けたところ）を除く。evals/prompt.test.mjs と揃える
+    private static func withoutCharm(_ prompt: String) -> String {
+        guard let start = prompt.range(of: "\n\n## そのキャラらしさ"),
+              let end = prompt.range(of: "\n\n## 話し方", range: start.upperBound..<prompt.endIndex)
+        else { return prompt }
+        return String(prompt[..<start.lowerBound]) + String(prompt[end.lowerBound...])
+    }
+
     // 比べるのはキャラに関わる部分だけ（teacher と声かけ）。hint_ladder など共通の部分は別の変更で変わってよい。
     @Test func 先生のプロンプトと声かけ() throws {
         let library = PromptLibrary()
-        #expect(try library.load(.teacher) == golden("teacher"))
+        #expect(Self.withoutCharm(try library.load(.teacher)) == (try golden("teacher")))
         #expect(try library.load(.nudgeVariation) == golden("nudge_variation"))
     }
 
     @Test func 会話とふり返りは分ける前の先生のプロンプトから始まる() throws {
         let library = PromptLibrary()
         let start = try golden("teacher") + PromptLibrary.separator
-        #expect(try library.conversationSystemPrompt(mode: .study).hasPrefix(start))
-        #expect(try SessionReflector(client: .unconfigured, library: library).systemPrompt().hasPrefix(start))
+        #expect(Self.withoutCharm(try library.conversationSystemPrompt(mode: .study)).hasPrefix(start))
+        #expect(Self.withoutCharm(try SessionReflector(client: .unconfigured, library: library).systemPrompt()).hasPrefix(start))
     }
 }
 
