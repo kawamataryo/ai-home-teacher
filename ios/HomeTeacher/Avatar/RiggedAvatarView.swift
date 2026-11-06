@@ -21,7 +21,7 @@ struct RiggedAvatarView: View {
             content.camera = .virtual
             do {
                 let model = try await RiggedModel.load(name: look.modelName)
-                let animator = RiggedAnimator(model: model, mannerisms: mannerisms)
+                let animator = RiggedAnimator(model: model, mannerisms: mannerisms, armScale: look.armScale ?? 1, headScale: look.headScale ?? 1)
                 animator.setState(state)
                 animator.lipSync = lipSync
                 animator.mouthOverride = mouth
@@ -80,8 +80,9 @@ struct RiggedFraming: Equatable {
     init(center: SIMD3<Float>, extents: SIMD3<Float>) {
         scale = max(max(extents.x, extents.y), 0.01)
         // 上に余白（はずむ・手を上げる）。枠の縦いっぱいに 1.45 倍の高さが入る距離
-        let frameHeightForWidth = extents.x / Float(SessionStageLayout.teacherBodyWidth) / Float(SessionStageLayout.teacherAspect)
-        let height = max(extents.y * 1.45, frameHeightForWidth)
+        // 横に広いキャラも小さくなりすぎないように、枠の幅の 65% まで使う（小さく重ねたときに黒板を隠しすぎない）
+        let frameHeightForWidth = extents.x / 0.65 / Float(SessionStageLayout.teacherAspect)
+        let height = max(extents.y * 1.5, frameHeightForWidth)
         let distance = height / 2 / tan(Self.fieldOfView / 2 * .pi / 180)
         lookAt = center + [0, extents.y * 0.14, 0]
         eye = lookAt + normalize(SIMD3<Float>(0.14, 0.08, 1)) * distance

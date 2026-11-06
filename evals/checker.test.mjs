@@ -188,9 +188,18 @@ test("ツールだけで言葉がなければ tool_result を付けて続きを�
   ]);
 });
 
-test("言葉があれば続きを呼ばない", async () => {
-  let calls = 0;
+test("言葉があっても親への要確認を残したら続きを呼ぶ（親に話すよう勧める言葉が抜けないように）", async () => {
   const withText = { ...toolOnly, content: [{ type: "text", text: "ありがとう。" }, ...toolOnly.content] };
+  const responses = [withText, { stop_reason: "end_turn", content: [{ type: "text", text: "お父さんに話してみよう。" }] }];
+  let calls = 0;
+  const result = await respond(async () => (calls++, responses.shift()), { messages: [] });
+  assert.equal(calls, 2);
+  assert.equal(result.reply, "ありがとう。お父さんに話してみよう。");
+});
+
+test("言葉があってほかのツールなら続きを呼ばない", async () => {
+  let calls = 0;
+  const withText = { stop_reason: "tool_use", content: [{ type: "text", text: "ありがとう。" }, { type: "tool_use", id: "toolu_2", name: "other", input: {} }] };
   const result = await respond(async () => (calls++, withText), { messages: [] });
   assert.equal(calls, 1);
   assert.equal(result.reply, "ありがとう。");

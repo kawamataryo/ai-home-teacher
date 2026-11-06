@@ -5,9 +5,12 @@ export function bundledPhraseName(characterId, key) {
   return characterId === "haru" ? `phrase_${key}` : `phrase_${characterId}_${key}`;
 }
 
-// キャラの言い替えを当てた一覧（アプリの PhraseCache.init と同じ）
+// キャラの言い替えを当てた一覧。自己紹介とあいさつも足す（アプリの PhraseCache.init と同じ）
 export function phrasesFor(character, base) {
-  return base.map((phrase) => ({ key: phrase.key, text: character.phrases?.[phrase.key] ?? phrase.text }));
+  const own = [["intro", character.intro], ["greeting", character.greeting]]
+    .filter(([, text]) => text)
+    .map(([key, text]) => ({ key, text }));
+  return [...base.map((phrase) => ({ key: phrase.key, text: character.phrases?.[phrase.key] ?? phrase.text })), ...own];
 }
 
 // 自己紹介とあいさつ。選ぶ画面で最初から待たないように同梱する（アプリの PhraseCache の convenience init と同じ）

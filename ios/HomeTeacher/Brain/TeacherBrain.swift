@@ -37,7 +37,7 @@ actor TeacherBrain {
     /// ツールを呼んだあとに返事を続けてもらう回数の上限。
     static let maxToolContinuations = 1
     /// tool_result に入れる文。子どもには聞こえない。
-    static let toolResultText = "記録しました。子どもには伝えずに、会話を続けてください。"
+    static let toolResultText = "記録しました。子どもには伝えずに、会話を続けてください。もう話したことはくり返さない。まだ親に話すよう勧めていなければ、「お父さんかお母さんに話してみよう」と短くやさしく伝えてください。もう伝えていれば、何も言わなくてかまいません。"
     /// 黒板に図を出したときの tool_result。
     static let boardResultText = "黒板に図を出しました（子どもに見えています）。もう話したことはくり返さずに、図を見ながら答えられる短い問いかけを1つだけ言ってください。もう問いかけで終えていれば、何も言わなくてかまいません。"
     /// 図を見せる前に子どもが話し始めて、返事を止めたときの tool_result（割り込みのあとで書き換える）。
@@ -200,7 +200,7 @@ actor TeacherBrain {
             }
             // 図を出したら、話していても続きを1回もらう（図を見ながらの問いかけで締める）。
             // 続きのリクエストは、それまでの文を読み上げている間に走るので、待ち時間は増えない
-            guard turn.calledTools, !turn.spokeText || turn.shownBoard || turn.missedImage, continuations < Self.maxToolContinuations else { return }
+            guard turn.calledTools, !turn.spokeText || turn.shownBoard || turn.missedImage || turn.flaggedParent, continuations < Self.maxToolContinuations else { return }
             continuations += 1
         }
     }
@@ -221,6 +221,8 @@ actor TeacherBrain {
         var shownBoard = false
         /// 写真が見つからなかった（話していても、言葉や図でのつなぎをもらう）
         var missedImage = false
+        /// 親への「要確認」を残した（話していても続きをもらう。親に話すよう勧める言葉が抜けることがあるため）
+        var flaggedParent = false
     }
 
     private func streamOnce(
@@ -277,6 +279,7 @@ actor TeacherBrain {
                         continuation.yield(.board(board))
                         result.shownBoard = true
                     }
+                    if toolUse.name == ParentFlagTool.name { result.flaggedParent = true }
                     result.calledTools = true
                 }
             case .error(let type, let message):

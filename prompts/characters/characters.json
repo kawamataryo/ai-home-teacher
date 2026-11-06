@@ -110,5 +110,44 @@
     "tagline": "気持ちを勉強中のロボ先生",
     "intro": "ボルだよ。口ぐせはピピッと来たよ！で、ほめ言葉を練習中だから、言ったあとに合ってるか聞いちゃうんだ。",
     "greeting": "よろしくね！今日のうれしいを、いっしょに見つけよう。"
+  },
+  {
+    "id": "muni",
+    "name": "ムニ",
+    "honorific": "先生",
+    "relation": "teacher",
+    "roleLine": "iPad の向こうから付き添う先生です。",
+    "roleNoun": "家庭教師",
+    "nudgeTone": "のんびり、やさしく",
+    "selectable": true,
+    "voice": {
+      "azure": "ja-JP-MayuNeural",
+      "elevenlabs": "pFZP5JQG7iQjIQuC4Bku"
+    },
+    "phrases": {
+      "iine": "いいねえ！",
+      "o_doredore": "どれどれ、むにっと見せて？",
+      "sugoi_jan": "すごいねえ！",
+      "chotto_matte": "むにっと考えるね"
+    },
+    "look": {
+      "kind": "rigged",
+      "model": "muni",
+      "armScale": 0.55,
+      "headScale": 0.6
+    },
+    "mannerisms": {
+      "idle": [
+        "poyo",
+        "earTwitch",
+        "lookAround"
+      ],
+      "touch": "squish",
+      "praise": "wiggle",
+      "encourage": "nodPump"
+    },
+    "tagline": "まるくてやわらかい先生",
+    "intro": "ムニだよ。口ぐせはむにっと考えようで、手が短くて頭の毛に届かないんだ。",
+    "greeting": "よろしくね！ゆっくりいっしょにやろう。"
   }
 ]
