@@ -4,7 +4,8 @@ import Foundation
 enum MouthShape: String, CaseIterable, Sendable {
     case a, i, u, e, o, n, closed
 
-    var textureName: String { "face_mouth_\(rawValue)" }
+    var textureName: String { textureName(prefix: "face") }
+    func textureName(prefix: String) -> String { "\(prefix)_mouth_\(rawValue)" }
 }
 
 /// TTS の文字タイミング（ElevenLabs の `alignment` / `normalized_alignment` と同じ形）
@@ -227,7 +228,13 @@ struct AmplitudeLipSync: Sendable {
     }
 }
 
-/// 再生中の時刻（または音量）に合わせて、先生の口のテクスチャを差し替える
+/// 口の形を受け取るもの（3D のモデル）。2D の表示は `currentShape` を読む
+@MainActor
+protocol MouthTarget: AnyObject {
+    func setMouth(_ shape: MouthShape)
+}
+
+/// 再生中の時刻（または音量）に合わせて、先生の口を動かす
 ///
 /// 使い方: `play(timeline, clock: { audioPlayer.isPlaying ? audioPlayer.currentTime : nil })`。
 /// `update()` は AvatarView が毎フレーム呼ぶ。
@@ -240,7 +247,7 @@ final class LipSyncPlayer {
     }
 
     /// 口を差し替える先。AvatarView が読み込んだモデルをつなぐ
-    weak var model: TeacherModel?
+    weak var model: (any MouthTarget)?
     private(set) var currentShape: MouthShape = .closed
     private var source: Source = .none
     private var amplitude = AmplitudeLipSync()

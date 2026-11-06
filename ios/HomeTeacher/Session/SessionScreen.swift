@@ -148,6 +148,9 @@ struct SessionContent: View {
 
     // MARK: - 舞台（先生と黒板。#105）
 
+    /// 確認用に見た目だけ替える（起動引数 `-avatarLook`）
+    private static let previewLook = CharacterLook.fromLaunchArguments()
+
     /// 黒板に何か書いているときは黒板を大きくし、先生は右下に重ねる。書いていないときは先生だけを大きく見せる
     private var stageMode: SessionStageLayout.Mode {
         coordinator.board == nil ? .teacher : .board
@@ -168,7 +171,7 @@ struct SessionContent: View {
                 boardPanel(layout)
                     .frame(width: layout.board.width, height: layout.board.height)
                     .offset(x: layout.board.minX, y: layout.board.minY)
-                AvatarView(state: coordinator.avatar.state, lipSync: lipSync, turn: teacherTurn)
+                AvatarView(state: coordinator.avatar.state, lipSync: lipSync, turn: teacherTurn, look: Self.previewLook ?? coordinator.character.look)
                     .frame(width: layout.teacher.width, height: layout.teacher.height)
                     .offset(x: layout.teacher.minX, y: layout.teacher.minY)
                     .allowsHitTesting(false)

@@ -24,30 +24,34 @@ enum EyeShape: String, CaseIterable, Sendable {
     case closed
     case happy
 
-    var textureName: String { "face_eyes_\(rawValue)" }
+    var textureName: String { textureName(prefix: "face") }
+    func textureName(prefix: String) -> String { "\(prefix)_eyes_\(rawValue)" }
 }
 
 /// 読み込んだ先生のモデル。パーツの取り出しと顔テクスチャの差し替えを受け持つ。
 @MainActor
-final class TeacherModel {
+final class TeacherModel: MouthTarget {
     /// usdz を読み込んだときのいちばん上のエンティティ
     let entity: Entity
     private var parts: [TeacherPart: Entity] = [:]
     private var textures: [String: TextureResource] = [:]
+    /// 顔のテクスチャの名前の頭（`face` なら face_eyes_open.png）
+    private let faceTextures: String
     /// いま貼っているテクスチャ（毎フレーム呼ばれても同じなら差し替えない）
     private var currentTextures: [TeacherPart: String] = [:]
 
-    init(entity: Entity) {
+    init(entity: Entity, faceTextures: String = "face") {
         self.entity = entity
+        self.faceTextures = faceTextures
         for part in TeacherPart.allCases {
             parts[part] = entity.name == part.rawValue ? entity : entity.findEntity(named: part.rawValue)
         }
     }
 
-    /// アプリに同梱した teacher.usdz を読み込む
-    static func load(bundle: Bundle = .main) async throws -> TeacherModel {
-        let entity = try await Entity(named: "teacher", in: bundle)
-        return TeacherModel(entity: entity)
+    /// アプリに同梱した usdz を読み込む（既定は今の先生の teacher.usdz）
+    static func load(name: String = "teacher", faceTextures: String = "face", bundle: Bundle = .main) async throws -> TeacherModel {
+        let entity = try await Entity(named: name, in: bundle)
+        return TeacherModel(entity: entity, faceTextures: faceTextures)
     }
 
     func part(_ part: TeacherPart) -> Entity? {
@@ -61,18 +65,18 @@ final class TeacherModel {
 
     /// 顔テクスチャを先に読み込んでおく（差し替えのたびに読み込まないように）
     func preloadFaceTextures(bundle: Bundle = .main) async throws {
-        let names = EyeShape.allCases.map(\.textureName) + MouthShape.allCases.map(\.textureName)
+        let names = EyeShape.allCases.map { $0.textureName(prefix: faceTextures) } + MouthShape.allCases.map { $0.textureName(prefix: faceTextures) }
         for name in names where textures[name] == nil {
             textures[name] = try await TextureResource(named: name, in: bundle)
         }
     }
 
     func setEyes(_ shape: EyeShape) {
-        setFaceTexture(shape.textureName, on: .eyes)
+        setFaceTexture(shape.textureName(prefix: faceTextures), on: .eyes)
     }
 
     func setMouth(_ shape: MouthShape) {
-        setFaceTexture(shape.textureName, on: .mouth)
+        setFaceTexture(shape.textureName(prefix: faceTextures), on: .mouth)
     }
 
     private func setFaceTexture(_ name: String, on target: TeacherPart) {

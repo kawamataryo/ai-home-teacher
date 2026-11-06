@@ -34,6 +34,8 @@ struct TeacherCharacter: Codable, Identifiable, Equatable, Sendable {
     var voice = Voice()
     /// 定型句の言い替え（定型句の key → 文）。書いていない定型句は共通の文のまま話す
     var phrases: [String: String] = [:]
+    /// 見た目（#121）
+    var look = CharacterLook.haru
 
     /// 子どもからの呼ばれ方（「ハル先生」。仲間なら「ソラ」）
     var callName: String { name + honorific }
