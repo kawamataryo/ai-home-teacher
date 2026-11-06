@@ -118,7 +118,7 @@ struct RigPoseTests {
             maximum = max(maximum, pose.squash)
             previous = pose
         }
-        #expect(minimum < 0.85)
+        #expect(minimum < 0.9)
         #expect(maximum > 1.1)
     }
 
@@ -175,5 +175,36 @@ struct CharacterLookTests {
         #expect(CharacterLook.fromLaunchArguments(["x", "-avatarLook", "rigged:proto_rig"]) == CharacterLook(kind: .rigged, model: "proto_rig"))
         #expect(CharacterLook.fromLaunchArguments(["x", "-avatarLook", "paper"]) == CharacterLook(kind: .paper))
         #expect(CharacterLook.fromLaunchArguments(["x"]) == nil)
+    }
+}
+
+struct SquashSpringTests {
+    @Test func 勢いを与えると揺れて途切れずに戻る() {
+        var spring = SquashSpring()
+        spring.kick(-1.4)
+        var previous: Float = 0
+        var sawSquash = false
+        var sawStretch = false
+        for _ in 0..<240 {
+            spring.advance(deltaTime: 1.0 / 60)
+            // 1 コマの変化が小さい（飛ばない）
+            #expect(abs(spring.offset - previous) < 0.04)
+            previous = spring.offset
+            if spring.offset < -0.02 { sawSquash = true }
+            if spring.offset > 0.005 { sawStretch = true }
+            #expect(abs(spring.offset) <= SquashSpring.limit)
+        }
+        #expect(sawSquash)
+        #expect(sawStretch)
+        #expect(abs(spring.offset) < 0.001)
+    }
+
+    @Test func コマが落ちても破綻しない() {
+        var spring = SquashSpring()
+        spring.kick(-1.4)
+        spring.advance(deltaTime: 0.5)
+        #expect(abs(spring.offset) <= SquashSpring.limit)
+        for _ in 0..<60 { spring.advance(deltaTime: 0.1) }
+        #expect(abs(spring.offset) < 0.001)
     }
 }

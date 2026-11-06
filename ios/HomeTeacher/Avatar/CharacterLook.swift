@@ -20,6 +20,12 @@ struct CharacterLook: Codable, Equatable, Hashable, Sendable {
     var faceTextures: String?
     /// 顔のテクスチャが自分で光る（ロボの LED の画面。voxel のとき）
     var glowingFace: Bool?
+    /// 骨のキャラの動きの大きさ（手足が短い・首がないキャラは小さくする）
+    var armScale: Float?
+    var headScale: Float?
+
+    /// 黒板を大きくしたとき、右下に重ねず黒板の中に住む（#127）
+    var livesOnBoard: Bool { kind == .chalk }
 
     var modelName: String { model ?? "teacher" }
     var faceTexturePrefix: String { faceTextures ?? "face" }

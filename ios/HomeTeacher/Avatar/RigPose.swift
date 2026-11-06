@@ -45,8 +45,18 @@ struct RigPose: Sendable, Equatable {
     /// つぶれと伸び。1 がふつう、小さいとつぶれ、大きいと伸びる（体積を保つように横に広がる）
     var squash: Float = 1
     var shapes: [RigShape: Float] = [:]
+    /// 腕と頭の動きの大きさ
+    private(set) var armScale: Float = 1
+    private(set) var headScale: Float = 1
 
-    mutating func set(_ bone: RigBone, pitch: Float = 0, roll: Float = 0, yaw: Float = 0) {
+    mutating func set(_ bone: RigBone, pitch rawPitch: Float = 0, roll rawRoll: Float = 0, yaw: Float = 0) {
+        let k: Float = switch bone {
+        case .armL, .armR: armScale
+        case .head: headScale
+        default: 1
+        }
+        let pitch = rawPitch * k
+        let roll = rawRoll * k
         rotations[bone] = simd_quatf(angle: yaw, axis: [0, 0, 1])
             * simd_quatf(angle: roll, axis: [0, 1, 0])
             * simd_quatf(angle: pitch, axis: [1, 0, 0])
@@ -59,6 +69,8 @@ struct RigPose: Sendable, Equatable {
     /// 2 つの姿勢を混ぜる（状態が変わったときになめらかにつなぐ）
     static func blend(_ a: RigPose, _ b: RigPose, _ t: Float) -> RigPose {
         var result = RigPose()
+        result.armScale = b.armScale
+        result.headScale = b.headScale
         for bone in Set(a.rotations.keys).union(b.rotations.keys) {
             result.rotations[bone] = simd_slerp(a.rotation(bone), b.rotation(bone), t)
         }
@@ -79,10 +91,41 @@ struct RigPose: Sendable, Equatable {
     }
 }
 
+/// つぶれと伸びのばね。勢いを与えると揺れて、途切れずに 0 へ戻る
+struct SquashSpring: Sendable, Equatable {
+    /// 1 秒あたりの固さ（大きいほど速く揺れる）
+    static let stiffness: Float = 180
+    /// 減衰（大きいほど早く止まる）
+    static let damping: Float = 11
+    /// つぶれすぎ・伸びすぎないように、ここまでで止める
+    static let limit: Float = 0.2
+
+    private(set) var offset: Float = 0
+    private(set) var velocity: Float = 0
+
+    mutating func kick(_ impulse: Float) {
+        velocity += impulse
+    }
+
+    mutating func advance(deltaTime: Double) {
+        // 固いばねでも飛ばないように、細かく分けて積分する
+        let steps = max(1, Int((deltaTime / (1.0 / 240)).rounded(.up)))
+        let dt = Float(deltaTime) / Float(steps)
+        for _ in 0..<steps {
+            velocity += (-Self.stiffness * offset - Self.damping * velocity) * dt
+            offset += velocity * dt
+        }
+        offset = min(max(offset, -Self.limit), Self.limit)
+    }
+}
+
 extension RigPose {
     /// 状態ごとの動き。`timeInState` は状態に入ってからの秒数、`time` は通しの秒数（揺れ・まばたき用）
-    static func make(state: AvatarState, timeInState t: Double, time g: Double) -> RigPose {
+    /// `arm` と `head` は腕と頭の動きの大きさ（手足が短い・首がないキャラは小さくして、体に埋まらないようにする）
+    static func make(state: AvatarState, timeInState t: Double, time g: Double, arm: Float = 1, head: Float = 1) -> RigPose {
         var pose = RigPose()
+        pose.armScale = arm
+        pose.headScale = head
         let s = { (x: Double) in Float(sin(x)) }
 
         // どの状態でも、息をするように少し動く
@@ -139,14 +182,14 @@ extension RigPose {
             let phase = t * 1.6
             let hop = abs(sin(phase * .pi))
             pose.lift = Float(0.14 * hop)
-            pose.squash = 1 + 0.16 * Float(hop) - 0.22 * Float(max(0, 1 - hop * 3.5))
+            pose.squash = 1 + 0.13 * Float(hop) - 0.15 * Float(max(0, 1 - hop * 3.5))
             pose.set(.armL, roll: -2.3 + 0.25 * s(t * 10))
             pose.set(.armR, roll: 2.3 - 0.25 * s(t * 10))
             pose.set(.legL, pitch: Float(-0.25 * hop))
             pose.set(.legR, pitch: Float(0.25 * hop))
             pose.set(.head, pitch: -0.12, roll: 0.08 * s(t * 5))
-            pose.set(.earL, roll: 0.25 * s(t * 11))
-            pose.set(.earR, roll: -0.25 * s(t * 11))
+            pose.set(.earL, roll: 0.14 * s(t * 11))
+            pose.set(.earR, roll: -0.14 * s(t * 11))
             pose.set(.tail, yaw: 0.8 * s(t * 18))
             pose.shapes[.eyeHappy] = 1
             pose.shapes[.eyeBlink] = 0

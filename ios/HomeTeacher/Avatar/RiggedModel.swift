@@ -161,9 +161,17 @@ final class RiggedAnimator {
     private var scheduler: MannerismScheduler
     private var seenTouches = 0
     private var idleMouth: MouthShape?
+    private var wobble = SquashSpring()
+    /// 状態が変わったときの、つぶれの勢い
+    static let wobbleKick: Float = -1.4
 
-    init(model: RiggedModel, mannerisms: MannerismSet = MannerismSet()) {
+    private let armScale: Float
+    private let headScale: Float
+
+    init(model: RiggedModel, mannerisms: MannerismSet = MannerismSet(), armScale: Float = 1, headScale: Float = 1) {
         self.model = model
+        self.armScale = armScale
+        self.headScale = headScale
         scheduler = MannerismScheduler(set: mannerisms)
         rig.addChild(model.entity)
     }
@@ -183,12 +191,14 @@ final class RiggedAnimator {
         poseAtChange = currentPose
         state = newState
         stateStartedAt = time
+        // 気持ちが変わると、むにっとつぶれて、ぽよんと戻る
+        wobble.kick(Self.wobbleKick)
     }
 
     func update(deltaTime: Double) {
         time += deltaTime
         let timeInState = time - stateStartedAt
-        let target = RigPose.make(state: state, timeInState: timeInState, time: time)
+        let target = RigPose.make(state: state, timeInState: timeInState, time: time, arm: armScale, head: headScale)
         let k = min(1, timeInState / Self.blendDuration)
         let eased = Float(k * k * (3 - 2 * k))
         currentPose = k >= 1 ? target : RigPose.blend(poseAtChange, target, eased)
@@ -201,6 +211,8 @@ final class RiggedAnimator {
         } else if let active = scheduler.update(state: state, time: time) {
             idleMouth = active.kind.apply(elapsed: time - active.startedAt, to: &currentPose)
         }
+        wobble.advance(deltaTime: deltaTime)
+        currentPose.squash += wobble.offset
         yaw += (targetYaw - yaw) * Float(min(1, deltaTime * 5))
         rig.orientation = simd_quatf(angle: yaw, axis: [0, 1, 0])
         rig.position.y = currentPose.lift

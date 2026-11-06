@@ -16,6 +16,15 @@ test("言い替えがある定型句だけ文を替える", () => {
   assert.deepEqual(phrasesFor({}, base), base);
 });
 
+test("自己紹介とあいさつも定型句にする", () => {
+  const base = [{ key: "iine", text: "いいね！" }];
+  assert.deepEqual(phrasesFor({ intro: "はじめまして。", greeting: "よろしくね！" }, base), [
+    { key: "iine", text: "いいね！" },
+    { key: "intro", text: "はじめまして。" },
+    { key: "greeting", text: "よろしくね！" },
+  ]);
+});
+
 test("Azure の音声の長さから文字タイミングを作る", () => {
   assert.equal(azureDuration(6000), 1);
   const alignment = azureAlignment("はい", 6000);

@@ -155,10 +155,12 @@ struct TeacherBrainTests {
         #expect(sent[1]["strict"] as? Bool == false)
     }
 
-    @Test func 言葉で返事をしてからフラグを立てたら記録して続けて呼ばない() async throws {
-        let transport = MockTransport(body: SSEFixture.toolStream(
-            text: "話してくれてありがとう。お母さんにも話してみよう？", inputJSON: Self.flagInput
-        ))
+    @Test func 言葉で返事をしてからフラグを立てたら記録して続きを1回もらう() async throws {
+        // 親に話すよう勧める言葉がないまま終わることがあったので、話していても続きをもらう（#131）。もう伝えていれば何も言わない
+        let transport = MockTransport(responses: [
+            .init(body: SSEFixture.toolStream(text: "話してくれてありがとう。お母さんにも話してみよう？", inputJSON: Self.flagInput)),
+            .init(body: SSEFixture.textStream([])),
+        ])
         let brain = makeBrain(transport)
 
         let sentences = try await collect(await brain.respond(to: "学校でずっと無視されてる"))
@@ -167,7 +169,7 @@ struct TeacherBrainTests {
         let flags = await brain.sessionFlags
         #expect(flags.needsReview.map(\.category) == [.bullying])
         #expect(flags.needsReview.map(\.reason) == ["学校で無視されていると話した。"])
-        #expect(await transport.requests.count == 1)
+        #expect(await transport.requests.count == 2)
 
         // 履歴は tool_use と tool_result が対になっている
         let messages = await brain.history.messages

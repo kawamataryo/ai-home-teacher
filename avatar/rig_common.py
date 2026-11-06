@@ -75,10 +75,10 @@ def sculpt_body(objects, voxel_size=0.012, smooth_iterations=24, name="Skin"):
     remesh.mode = "VOXEL"
     remesh.voxel_size = voxel_size
     remesh.use_smooth_shade = True
-    smooth = obj.modifiers.new("Smooth", "LAPLACIANSMOOTH")
+    # ラプラシアンの平滑化は細い先にトゲが出たので、頂点の平均を使う
+    smooth = obj.modifiers.new("Smooth", "SMOOTH")
     smooth.iterations = smooth_iterations
-    smooth.lambda_factor = 0.7
-    smooth.use_volume_preserve = True
+    smooth.factor = 0.6
     select_only(obj)
     for mod in list(obj.modifiers):
         bpy.ops.object.modifier_apply(modifier=mod.name)
@@ -205,6 +205,7 @@ def begin_shapes(obj):
 def add_shape(obj, name, basis, indices, fn):
     """シェイプキーを足す。`fn(p) -> 新しい位置` を `indices` の頂点に当てる"""
     key = obj.shape_key_add(name=name, from_mix=False)
+    key.value = 0
     key.data.foreach_set("co", basis.ravel())
     for i in indices:
         key.data[i].co = tuple(fn(basis[i]))
@@ -213,6 +214,7 @@ def add_shape(obj, name, basis, indices, fn):
     extra = moved - set(indices)
     if extra:
         raise RuntimeError(f"{name}: 関係のない頂点が {len(extra)} 個動いた")
+    return key
 
 
 def smoothstep(x):
@@ -332,10 +334,13 @@ def setup_render(resolution=900, samples=48, target=(0, 0, 0.6), distance=4.2, b
     scene.cycles.samples = samples
     scene.render.resolution_x = scene.render.resolution_y = resolution
     scene.render.film_transparent = False
+    # RealityKit に近い色で見る
+    scene.view_settings.view_transform = "Standard"
+    scene.view_settings.look = "None"
     world = bpy.data.worlds.new("World")
     world.use_nodes = True
     world.node_tree.nodes["Background"].inputs[0].default_value = (*background, 1)
-    world.node_tree.nodes["Background"].inputs[1].default_value = 0.9
+    world.node_tree.nodes["Background"].inputs[1].default_value = 0.75
     scene.world = world
     cam_data = bpy.data.cameras.new("Cam")
     cam_data.lens = 70

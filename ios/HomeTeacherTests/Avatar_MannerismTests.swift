@@ -250,9 +250,9 @@ struct VoxelCharacterAssetTests {
         #expect(Set(looks.map(\.faceTexturePrefix)).count == looks.count)
     }
 
-    @Test func 見た目がそろって選べるキャラは今の先生を含めて3人() {
+    @Test func 選べるキャラに今の先生を含むすべてが並ぶ() {
         let selectable = CharacterCatalog().selectableCharacters.map(\.id)
-        #expect(selectable == ["haru", "rika", "boru"])
+        #expect(selectable == ["haru", "rika", "boru", "muni"])
     }
 
     @Test func 今の先生の見た目は光らない() {
