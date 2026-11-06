@@ -36,6 +36,8 @@ struct TeacherCharacter: Codable, Identifiable, Equatable, Sendable {
     var phrases: [String: String] = [:]
     /// 見た目（#121）
     var look = CharacterLook.haru
+    /// 動きの癖（#122）
+    var mannerisms = MannerismSet.haru
 
     /// 子どもからの呼ばれ方（「ハル先生」。仲間なら「ソラ」）
     var callName: String { name + honorific }

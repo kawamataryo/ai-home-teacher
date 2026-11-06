@@ -49,6 +49,18 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: com.kawamataryo.HomeTeacherTests
+  HomeTeacherUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - HomeTeacherUITests
+    dependencies:
+      - target: HomeTeacher
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.kawamataryo.HomeTeacherUITests
+        TEST_TARGET_NAME: HomeTeacher
 schemes:
   HomeTeacher:
     build:
@@ -58,3 +70,4 @@ schemes:
     test:
       targets:
         - HomeTeacherTests
+        - HomeTeacherUITests

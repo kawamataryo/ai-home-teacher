@@ -19,7 +19,13 @@ struct AvatarView: View {
     /// 体の向き（度。正で画面の左を向く）。黒板に書いて話すときに黒板の方へ体を向ける（#105）
     var turn: Double = 0
     var look: CharacterLook = .haru
+    /// 動きの癖（待機中の癖・触ったときの反応。#122）
+    var mannerisms: MannerismSet = .haru
+    /// 指で触ると短く反応する（声は出さない。会話の状態にも音声にも触らない）
+    var touchable = false
 
+    /// 触った回数。増えたら表示の中で反応を始める
+    @State private var touches = 0
     /// 読み込めなかった見た目。これを選んでいる間は既定の先生を出す
     @State private var failedLook: CharacterLook?
 
@@ -29,20 +35,27 @@ struct AvatarView: View {
             switch shown.kind {
             case .voxel:
                 VoxelAvatarView(
-                    state: state, lipSync: lipSync, mouth: mouth, turn: turn, look: shown,
+                    state: state, lipSync: lipSync, mouth: mouth, turn: turn, look: shown, mannerisms: mannerisms, touches: touches,
                     onLoadFailed: { failedLook = shown }
                 )
             case .rigged:
                 RiggedAvatarView(
-                    state: state, lipSync: lipSync, mouth: mouth, turn: turn, look: shown,
+                    state: state, lipSync: lipSync, mouth: mouth, turn: turn, look: shown, mannerisms: mannerisms, touches: touches,
                     onLoadFailed: { failedLook = shown }
                 )
             case .paper, .chalk:
-                PaperAvatarView(state: state, lipSync: lipSync, mouth: mouth, turn: turn)
+                PaperAvatarView(state: state, lipSync: lipSync, mouth: mouth, turn: turn, mannerisms: mannerisms, touches: touches)
             }
         }
         // キャラが替わったら作り直す。同じキャラなら作り直さない（#105）
         .id(shown)
+        .contentShape(Rectangle())
+        .allowsHitTesting(touchable)
+        .onTapGesture { touches += 1 }
+        .accessibilityElement()
+        .accessibilityIdentifier("avatar")
+        .accessibilityLabel("先生")
+        .accessibilityValue("\(touches)")
     }
 }
 
@@ -53,6 +66,8 @@ struct VoxelAvatarView: View {
     var mouth: MouthShape?
     var turn: Double
     var look: CharacterLook
+    var mannerisms: MannerismSet
+    var touches: Int
     var onLoadFailed: () -> Void
 
     @State private var animator: AvatarAnimator?
@@ -75,7 +90,7 @@ struct VoxelAvatarView: View {
             do {
                 let loaded = try await TeacherModel.load(name: look.modelName, faceTextures: look.faceTexturePrefix)
                 try await loaded.preloadFaceTextures()
-                let animator = AvatarAnimator(model: loaded)
+                let animator = AvatarAnimator(model: loaded, mannerisms: mannerisms)
                 animator.setState(state)
                 animator.lipSync = lipSync
                 animator.mouthOverride = mouth
@@ -96,6 +111,7 @@ struct VoxelAvatarView: View {
             if animator?.lipSync !== lipSync { animator?.lipSync = lipSync }
             animator?.mouthOverride = mouth
             animator?.targetYaw = AvatarView.yaw(turn)
+            animator?.receiveTouches(touches)
         }
         .overlay {
             if let loadError, look == .haru {

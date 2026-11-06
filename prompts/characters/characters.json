@@ -14,6 +14,14 @@
       "kind": "voxel",
       "model": "teacher",
       "faceTextures": "face"
+    },
+    "mannerisms": {
+      "idle": [
+        "glasses",
+        "scratchHead",
+        "yawn"
+      ],
+      "touch": "startle"
     }
   },
   {
@@ -41,6 +49,16 @@
       "kind": "voxel",
       "model": "teacher",
       "faceTextures": "face"
+    },
+    "mannerisms": {
+      "idle": [
+        "glasses",
+        "peerAtHand",
+        "lookAround"
+      ],
+      "touch": "giggle",
+      "praise": "clap",
+      "encourage": "nodPump"
     }
   }
 ]
