@@ -44,6 +44,9 @@ h2 { font-size: 16px; margin: 0 0 12px; }
 .summary { margin: 4px 0 8px; }
 .note { background: var(--accent-soft); border-radius: 10px; padding: 8px 12px; margin: 8px 0; }
 .note::before { content: "きょうのひとこと"; display: block; font-size: 11px; color: var(--accent); font-weight: 700; }
+.prompt { background: var(--accent-soft); border-color: var(--accent); }
+.prompt h2 { color: var(--accent); margin-bottom: 4px; }
+.prompt .line { font-size: 18px; font-weight: 600; margin: 0; }
 .flags { margin: 8px 0; padding: 0; list-style: none; }
 .flags li { color: var(--warn); font-weight: 600; }
 .flags li::before { content: "⚠ 要確認："; }
@@ -124,6 +127,8 @@ export const DashboardPage: FC<{
         </section>
       )}
 
+      <ParentPromptCard session={sessions[0]} today={today} />
+
       {flagged.length > 0 && (
         <section class="card alert">
           <h2>要確認（{flagged.length} 件）</h2>
@@ -178,6 +183,19 @@ export const DashboardPage: FC<{
         </form>
       </section>
     </Layout>
+  );
+};
+
+// 最新のセッションの声かけ（#158）。項目のないセッション（古いアプリ・ふり返りが作れなかったとき）なら何も出さない。
+// 古いセッションの声かけは「今夜」に見えないよう、いつの勉強かを見出しに書く
+const ParentPromptCard: FC<{ session?: SessionJson; today: string }> = ({ session, today }) => {
+  const prompt = session?.parent_prompt.trim();
+  if (!session || !prompt) return null;
+  return (
+    <section class="card prompt">
+      <h2>{jstDay(session.started_at) === today ? "今夜の声かけ" : `${formatDate(session.started_at)}の勉強から、声かけ`}</h2>
+      <p class="line">{prompt}</p>
+    </section>
   );
 };
 

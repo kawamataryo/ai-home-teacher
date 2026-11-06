@@ -362,6 +362,52 @@ describe("ダッシュボードの表示", () => {
     expect(html).not.toMatch(/<script/i);
   });
 
+  describe("今夜の声かけ", () => {
+    const post = (body: unknown) =>
+      req("/v1/sessions", {
+        method: "POST",
+        headers: { Authorization: "Bearer bootstrap-secret", "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    const at = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString();
+    const dashboardHtml = async () => {
+      const c = await loggedInCookie();
+      return (await req("/dashboard", { headers: { cookie: c } })).text();
+    };
+
+    it("今日のセッションなら一番上に「今夜の声かけ」を出す", async () => {
+      await post({ id: "s1", started_at: at(0), ended_at: at(0), focus_minutes: 10, summary: "要約", flags: ["確認してほしいこと"], parent_prompt: "「図はどうかいたの？」と聞いてみてください" });
+      const html = await dashboardHtml();
+      expect(html).toContain("今夜の声かけ");
+      expect(html).toContain("「図はどうかいたの？」と聞いてみてください");
+      // 要確認やグラフより上
+      expect(html.indexOf("今夜の声かけ")).toBeLessThan(html.indexOf("要確認（"));
+      expect(html.indexOf("今夜の声かけ")).toBeLessThan(html.indexOf("日ごとの学習時間"));
+    });
+
+    it("昨日より前のセッションなら「今夜」と言わず、いつの勉強かを書く", async () => {
+      await post({ id: "s1", started_at: at(3), ended_at: at(3), focus_minutes: 10, parent_prompt: "「図はどうかいたの？」と聞いてみてください" });
+      const html = await dashboardHtml();
+      expect(html).not.toContain("今夜の声かけ");
+      expect(html).toContain("の勉強から、声かけ");
+    });
+
+    it("最新のセッションに声かけがなければ、カードごと出さず古い声かけも出さない", async () => {
+      await post({ id: "old", started_at: at(2), ended_at: at(2), focus_minutes: 10, parent_prompt: "古い声かけ" });
+      await post({ id: "new", started_at: at(0), ended_at: at(0), focus_minutes: 10 });
+      const html = await dashboardHtml();
+      expect(html).not.toContain("今夜の声かけ");
+      expect(html).not.toContain("古い声かけ");
+      expect(html).toContain("日ごとの学習時間");
+    });
+
+    it("セッションがなくても崩れない", async () => {
+      const html = await dashboardHtml();
+      expect(html).not.toContain("声かけ");
+      expect(html).toContain("まだ記録がありません");
+    });
+  });
+
   it("文字はエスケープして出す", async () => {
     await req("/v1/sessions", {
       method: "POST",

@@ -110,6 +110,24 @@ describe("POST /v1/sessions", () => {
     expect(saved.problems[1]).toMatchObject({ kind: "reading", solved_by_self: false, hint_level_reached: 3 });
   });
 
+  it("今夜の声かけを保存して返す。項目なしでも空文字になる（古いアプリ）", async () => {
+    const withPrompt = { ...session, parent_prompt: "「どうやって見つけたの？」と聞いてみてください" };
+    const res = await send("POST", "/v1/sessions", withPrompt);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as any).session.parent_prompt).toBe(withPrompt.parent_prompt);
+
+    const old = await send("POST", "/v1/sessions", { ...session, id: "old-app" });
+    expect(old.status).toBe(200);
+    expect(((await old.json()) as any).session.parent_prompt).toBe("");
+
+    // 同じ id で送り直したら声かけも上書きされる
+    const again = await send("POST", "/v1/sessions", { ...withPrompt, parent_prompt: "「図はどうかいたの？」と聞いてみてください" });
+    expect(((await again.json()) as any).session.parent_prompt).toBe("「図はどうかいたの？」と聞いてみてください");
+
+    const tooLong = await send("POST", "/v1/sessions", { ...session, parent_prompt: "あ".repeat(501) });
+    expect(tooLong.status).toBe(400);
+  });
+
   it("同じ id で送り直すと上書きになり、問題は重複しない", async () => {
     await send("POST", "/v1/sessions", session);
     const res = await send("POST", "/v1/sessions", {

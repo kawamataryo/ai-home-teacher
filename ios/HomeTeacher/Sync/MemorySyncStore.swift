@@ -146,7 +146,7 @@ extension SessionDTO {
     init(record: StudySessionRecord) {
         self.init(
             id: record.id, startedAt: record.startedAt, endedAt: record.endedAt, focusMinutes: record.focusMinutes,
-            summary: record.summary, teacherNote: record.teacherNote, flags: record.flags,
+            summary: record.summary, teacherNote: record.teacherNote, parentPrompt: record.parentPrompt, flags: record.flags,
             problems: record.problems.map {
                 ProblemDTO(kind: $0.kind, summary: $0.summary, solvedBySelf: $0.solvedBySelf,
                            hintLevelReached: $0.hintLevelReached, createdAt: $0.createdAt)
@@ -160,7 +160,7 @@ extension StudySessionRecord {
     init(dto: SessionDTO, syncedAt: Date) {
         self.init(
             id: dto.id, startedAt: dto.startedAt, endedAt: dto.endedAt, focusMinutes: dto.focusMinutes,
-            summary: dto.summary, teacherNote: dto.teacherNote, flags: dto.flags,
+            summary: dto.summary, teacherNote: dto.teacherNote, parentPrompt: dto.parentPrompt, flags: dto.flags,
             problems: dto.problems.map {
                 ProblemRecord(kind: $0.kind, summary: $0.summary, solvedBySelf: $0.solvedBySelf,
                               hintLevelReached: $0.hintLevelReached, createdAt: $0.createdAt ?? dto.startedAt)

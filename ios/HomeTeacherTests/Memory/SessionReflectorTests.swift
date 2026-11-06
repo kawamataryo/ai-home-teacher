@@ -43,6 +43,7 @@ struct SessionReflectorTests {
     static func response(
         summary: String = "割合の文章題と棒グラフの読み取りに取り組んだ。割合はもとにする量を自分で見つけて解けた。",
         teacherNote: String = "割合の問題で、もとにする量を自分で見つけられました！",
+        parentPrompt: String? = "『もとにする量をどうやって見つけたの？』と聞いてみてください",
         closing: String = "今日は2問やったね！割合の問題、もとにする量を自分で見つけられたのがすごかったよ。また明日もやろうね！",
         memory: [String: Any] = [
             "likes": ["add": ["サッカー"], "remove": [String]()],
@@ -51,14 +52,14 @@ struct SessionReflectorTests {
         ],
         stopReason: String = "tool_use"
     ) -> String {
-        SSEFixture.json([
+        var toolInput: [String: Any] = ["summary": summary, "teacher_note": teacherNote, "spoken_closing": closing, "memory": memory]
+        if let parentPrompt { toolInput["parent_prompt"] = parentPrompt }
+        return SSEFixture.json([
             "id": "msg_1", "type": "message", "role": "assistant", "model": "claude-sonnet-5-5",
             "stop_reason": stopReason,
             "content": [
                 ["type": "text", "text": "記録します。"],
-                ["type": "tool_use", "id": "toolu_9", "name": "record_reflection", "input": [
-                    "summary": summary, "teacher_note": teacherNote, "spoken_closing": closing, "memory": memory,
-                ]],
+                ["type": "tool_use", "id": "toolu_9", "name": "record_reflection", "input": toolInput],
             ],
         ])
     }
@@ -87,7 +88,7 @@ struct SessionReflectorTests {
         #expect(tools[0]["strict"] as? Bool == true)
         let schema = try #require(tools[0]["input_schema"] as? [String: Any])
         #expect(schema["additionalProperties"] as? Bool == false)
-        #expect(Set(schema["required"] as? [String] ?? []) == ["summary", "teacher_note", "spoken_closing", "memory"])
+        #expect(Set(schema["required"] as? [String] ?? []) == ["summary", "teacher_note", "parent_prompt", "spoken_closing", "memory"])
         let memory = try #require((schema["properties"] as? [String: Any])?["memory"] as? [String: Any])
         #expect(Set(memory["required"] as? [String] ?? []) == ["likes", "events", "weak_points"])
 
@@ -116,10 +117,44 @@ struct SessionReflectorTests {
         let reflection = try SessionReflector.parseResponse(Data(Self.response().utf8))
         #expect(reflection.summary.hasPrefix("割合の文章題と"))
         #expect(reflection.teacherNote == "割合の問題で、もとにする量を自分で見つけられました！")
+        #expect(reflection.parentPrompt == "『もとにする量をどうやって見つけたの？』と聞いてみてください")
         #expect(reflection.spokenClosing.contains("2問"))
         #expect(reflection.memoryUpdates[.likes] == .init(add: ["サッカー"], remove: []))
         #expect(reflection.memoryUpdates[.weakPoints] == .init(add: ["棒グラフの読み取り"], remove: ["割合の文章題"]))
         #expect(reflection.memoryUpdates[.events] == .init())
+    }
+
+    @Test func 声かけがない応答や長すぎる声かけでも壊れない() async throws {
+        let without = try SessionReflector.parseResponse(Data(Self.response(parentPrompt: nil).utf8))
+        #expect(without.parentPrompt == "")
+
+        let store = try SwiftDataMemoryStore.inMemory()
+        let long = String(repeating: "あ", count: ServerLimits.parentPrompt + 50)
+        let transport = MockTransport(body: Self.response(parentPrompt: long))
+        _ = try await makeReflector(transport).finish(input, store: store)
+        #expect(try await store.latestSession()?.parentPrompt.count == ServerLimits.parentPrompt)
+    }
+
+    @Test func 評価用のツール定義はSwiftと同じ() throws {
+        let transport = MockTransport(body: "")
+        let request = try makeReflector(transport).makeRequest(input, memories: [])
+        let now: JSONValue = .object([
+            "model": .string(request.model.rawValue),
+            "max_tokens": .number(Double(request.maxTokens)),
+            "tools": .array(request.tools),
+            "tool_choice": request.toolChoice,
+        ])
+        let repoRoot = URL(filePath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let url = repoRoot.appending(path: "evals/fixtures/reflection_tool.json")
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes, .prettyPrinted]
+        if ProcessInfo.processInfo.environment["REFLECTION_EXPORT"] == "1" {
+            try encoder.encode(now).write(to: url)
+            return
+        }
+        let saved = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
+        #expect(saved == now, "evals/fixtures/reflection_tool.json が古い。TEST_RUNNER_REFLECTION_EXPORT=1 で書き出し直す")
     }
 
     @Test func max_tokensで切れたりツールがなかったりしたら失敗にする() throws {
@@ -154,6 +189,7 @@ struct SessionReflectorTests {
         #expect(saved.focusMinutes == 35)
         #expect(saved.summary.hasPrefix("割合の文章題と"))
         #expect(saved.teacherNote == "割合の問題で、もとにする量を自分で見つけられました！")
+        #expect(saved.parentPrompt == "『もとにする量をどうやって見つけたの？』と聞いてみてください")
         #expect(saved.flags == ["学校で友だちとけんかしたと話していた"])
         #expect(saved.problems == input.problems)
         #expect(saved.syncedAt == nil)
@@ -172,6 +208,8 @@ struct SessionReflectorTests {
         #expect(finished.reflectionError?.contains("502") == true)
         #expect(finished.spokenClosing == "今日は2問やったね。そのうち1問は自分の力で解けたね！おつかれさま、また一緒にやろうね！")
         let saved = try #require(try await store.latestSession())
+        // 決まり文句の日は声かけを作らない（記録にないことを親に伝えない）
+        #expect(saved.parentPrompt == "")
         #expect(saved.flags == ["学校で友だちとけんかしたと話していた"])
         #expect(saved.summary.contains("2問に取り組んだ（自力 1問）"))
         #expect(saved.problems.count == 2)

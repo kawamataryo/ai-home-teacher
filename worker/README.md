@@ -34,6 +34,7 @@ iPad アプリの API キーを守るための Cloudflare Worker。アプリは�
   "focus_minutes": 35,
   "summary": "割合の文章題を 3 問やった",
   "teacher_note": "今日は割合の問題を自力で解けました！",
+  "parent_prompt": "「もとにする量をどうやって見つけたの？」と聞いてみてください",
   "flags": ["学校で友だちとけんかしたと話していた"],
   "problems": [
     { "kind": "thinking", "summary": "割合：もとにする量を求める", "solved_by_self": true, "hint_level_reached": 1, "created_at": "2026-11-03T16:05:00+09:00" }
@@ -49,6 +50,7 @@ iPad アプリの API キーを守るための Cloudflare Worker。アプリは�
 | `focus_minutes` | int | ○ | 0〜1440 |
 | `summary` | string | | 4000 文字まで。既定 `""` |
 | `teacher_note` | string | | 先生のひとこと。1000 文字まで。既定 `""` |
+| `parent_prompt` | string | | 今夜の声かけ（親が子どもにかける一言の提案）。500 文字まで。既定 `""`（古いアプリは送らない） |
 | `flags` | string[] | | 「要確認」メモ。20 件・各 500 文字まで。既定 `[]` |
 | `problems[].kind` | `reading` / `thinking` / `writing` | ○ | spec §3② の問題の種類 |
 | `problems[].summary` | string | ○ | 1〜1000 文字 |
@@ -70,6 +72,7 @@ iPad アプリの API キーを守るための Cloudflare Worker。アプリは�
     "focus_minutes": 35,
     "summary": "割合の文章題を 3 問やった",
     "teacher_note": "今日は割合の問題を自力で解けました！",
+    "parent_prompt": "「もとにする量をどうやって見つけたの？」と聞いてみてください",
     "flags": ["学校で友だちとけんかしたと話していた"],
     "updated_at": "2026-11-03T07:41:02.123Z",
     "problems": [

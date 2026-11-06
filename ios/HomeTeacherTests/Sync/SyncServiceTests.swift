@@ -121,7 +121,7 @@ struct SyncServiceTests {
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer token-123")
         let httpBody = try #require(request.httpBody)
         let body = try #require(try JSONSerialization.jsonObject(with: httpBody) as? [String: Any])
-        #expect(Set(body.keys) == ["id", "started_at", "ended_at", "focus_minutes", "summary", "teacher_note", "flags", "problems"])
+        #expect(Set(body.keys) == ["id", "started_at", "ended_at", "focus_minutes", "summary", "teacher_note", "parent_prompt", "flags", "problems"])
         #expect(body["id"] as? String == session.id)
         #expect(body["started_at"] as? String == "2026-11-03T07:00:00.000Z")
         #expect(body["ended_at"] as? String == "2026-11-03T07:30:00.000Z")

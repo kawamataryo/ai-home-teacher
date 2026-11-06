@@ -68,6 +68,8 @@ struct SessionDTO: Codable, Equatable, Sendable {
     var summary: String
     /// 先生のひとこと。
     var teacherNote: String
+    /// 今夜の声かけ（#158）。
+    var parentPrompt: String
     /// 「要確認」メモ。
     var flags: [String]
     var problems: [ProblemDTO]
@@ -76,7 +78,7 @@ struct SessionDTO: Codable, Equatable, Sendable {
 
     init(
         id: String, childID: String? = nil, startedAt: Date, endedAt: Date, focusMinutes: Int,
-        summary: String = "", teacherNote: String = "", flags: [String] = [], problems: [ProblemDTO] = [],
+        summary: String = "", teacherNote: String = "", parentPrompt: String = "", flags: [String] = [], problems: [ProblemDTO] = [],
         updatedAt: Date? = nil
     ) {
         self.id = id
@@ -86,6 +88,7 @@ struct SessionDTO: Codable, Equatable, Sendable {
         self.focusMinutes = focusMinutes
         self.summary = summary
         self.teacherNote = teacherNote
+        self.parentPrompt = parentPrompt
         self.flags = flags
         self.problems = problems
         self.updatedAt = updatedAt
@@ -98,6 +101,7 @@ struct SessionDTO: Codable, Equatable, Sendable {
         case endedAt = "ended_at"
         case focusMinutes = "focus_minutes"
         case teacherNote = "teacher_note"
+        case parentPrompt = "parent_prompt"
         case updatedAt = "updated_at"
     }
 
@@ -110,6 +114,7 @@ struct SessionDTO: Codable, Equatable, Sendable {
         focusMinutes = try c.decode(Int.self, forKey: .focusMinutes)
         summary = try c.decodeIfPresent(String.self, forKey: .summary) ?? ""
         teacherNote = try c.decodeIfPresent(String.self, forKey: .teacherNote) ?? ""
+        parentPrompt = try c.decodeIfPresent(String.self, forKey: .parentPrompt) ?? ""
         flags = try c.decodeIfPresent([String].self, forKey: .flags) ?? []
         problems = try c.decodeIfPresent([ProblemDTO].self, forKey: .problems) ?? []
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
@@ -124,6 +129,7 @@ struct SessionDTO: Codable, Equatable, Sendable {
         try c.encode(focusMinutes, forKey: .focusMinutes)
         try c.encode(summary, forKey: .summary)
         try c.encode(teacherNote, forKey: .teacherNote)
+        try c.encode(parentPrompt, forKey: .parentPrompt)
         try c.encode(flags, forKey: .flags)
         try c.encode(problems, forKey: .problems)
     }

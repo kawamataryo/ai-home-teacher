@@ -45,3 +45,8 @@ INSERT INTO memories (id, child_id, category, content, updated_at) VALUES
 ('sample-m1', 'default', 'likes', 'サッカー（ポジションはキーパー）', strftime('%Y-%m-%dT07:43:00.000Z', 'now')),
 ('sample-m2', 'default', 'events', '週末に運動会がある', strftime('%Y-%m-%dT07:43:00.000Z', 'now')),
 ('sample-m3', 'default', 'weak_points', '割合（もとにする量）', strftime('%Y-%m-%dT07:43:00.000Z', 'now'));
+
+-- 今夜の声かけ（#158）。いちばん新しいセッションにだけ入れる
+UPDATE sessions SET parent_prompt = '「もとにする量をどうやって見つけたの？」と聞いてみてください' WHERE id = 'sample-0';
+-- 「今夜の声かけ」と出るように、いちばん新しいセッションをさっき終わったことにする
+UPDATE sessions SET started_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-45 minutes'), ended_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-3 minutes') WHERE id = 'sample-0';
