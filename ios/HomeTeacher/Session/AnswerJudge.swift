@@ -35,6 +35,7 @@ protocol AnswerJudging: AnyObject {
 /// 規則（正答との照合・助けを求める言い方）→ Jev（答えを言っているか ＋ 正答と同じか ＋ 助けを求めているか）→ 規則の代わりの判定、の順に決める（spec §3②）。
 ///
 /// - 正答（と言いかえ）が発話に含まれていれば、Jev を待たずに `correct`（表記の揺れは AnswerLeakGuard と同じに揃える）
+/// - 読みが同じときも `correct`（音声認識の変換ミス。「工場」を「向上」と書き起こすなど。AnswerReading）
 /// - 「わからない」などの助けを求める言い方は、答えではない。Jev が「助けを求めている」と答えたときも同じ（「どうやるの？」など）
 /// - Jev：答えを言っていて（はい）、正答と同じなら（はい）`correct`、違えば（いいえ）`wrong`。どちらかが迷う帯ならどちらにもしない。
 ///   途中の考え（「4と6」「たて×横」）は「答えを言っていない」になる
@@ -62,7 +63,8 @@ final class AnswerJudge: AnswerJudging {
         guard let problem = Self.problemContext(tutoring) else {
             return AnswerJudgement(verdict: .notAnAnswer, source: .rule, asksForHelp: ruleHelp)
         }
-        if tutoring.leakGuard.containsAnswer(utterance) {
+        if tutoring.leakGuard.containsAnswer(utterance)
+            || AnswerReading.containsSameReading(utterance, answers: [tutoring.analysis.answer] + tutoring.analysis.answerVariants) {
             return AnswerJudgement(verdict: .correct, source: .rule)
         }
         if ruleHelp {

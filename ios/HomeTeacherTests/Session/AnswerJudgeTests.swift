@@ -36,6 +36,29 @@ struct AnswerJudgeTests {
         #expect(await transport.requests.isEmpty)
     }
 
+    @Test(arguments: ["向上だと思う", "こうじょう", "コウジョウかな"])
+    func 読みが同じ変換ミスはJevを待たずに正解(utterance: String) async {
+        let analysis = ProblemAnalysis(
+            kind: .reading, problemSummary: "いちばん働く人が多い場所を答える", answer: "工場",
+            hintSteps: ["何を答える？", "資料のどこ？", "いちばん多いのは？", "数を比べよう"]
+        )
+        let transport = MockTransport(body: "{}")
+        let result = await judge(transport).judge(utterance, tutoring: Self.tutoring(analysis))
+        #expect(result == AnswerJudgement(verdict: .correct, source: .rule))
+        #expect(await transport.requests.isEmpty)
+    }
+
+    @Test(arguments: [
+        ("工場", "校長だと思う"), // 読みが近いだけ
+        ("24cm²", "にじゅうよん"), // 数は読みで比べない
+        ("市", "しかくだと思う"), // 短い答えは比べない
+        ("京都", "今日とても難しい"), // 単語の境目をまたいで一致しない
+        ("東京", "そうとう今日"),
+    ])
+    func 読みの比較で正解にしない(answer: String, utterance: String) {
+        #expect(!AnswerReading.containsSameReading(utterance, answers: [answer]))
+    }
+
     @Test func 助けを求める言い方は答えではない() async {
         let transport = MockTransport(body: "{}")
         let result = await judge(transport).judge("わかんない、答え教えて", tutoring: Self.tutoring())
