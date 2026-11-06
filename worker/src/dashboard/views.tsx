@@ -43,7 +43,7 @@ h2 { font-size: 16px; margin: 0 0 12px; }
 .meta { font-size: 13px; color: var(--muted); }
 .summary { margin: 4px 0 8px; }
 .note { background: var(--accent-soft); border-radius: 10px; padding: 8px 12px; margin: 8px 0; }
-.note::before { content: "先生のひとこと"; display: block; font-size: 11px; color: var(--accent); font-weight: 700; }
+.note::before { content: "きょうのひとこと"; display: block; font-size: 11px; color: var(--accent); font-weight: 700; }
 .flags { margin: 8px 0; padding: 0; list-style: none; }
 .flags li { color: var(--warn); font-weight: 600; }
 .flags li::before { content: "⚠ 要確認："; }

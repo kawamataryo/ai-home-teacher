@@ -234,3 +234,13 @@ test("黒板の部品の種類を確かめる（#107）", () => {
   assert.equal(checkReply("黒板を見てね。どっちかな？", { boardComponent: "chalk_drawing" }, ["show_board"], board).pass, true);
   assert.equal(checkReply("黒板を見てね。どっちかな？", { boardComponent: "chalk_drawing" }, ["show_board"], '{"component":{"type":"table"}}').pass, false);
 });
+
+test("自由に描く図の座標は答えの漏れとして数えない。図の文字と、ほかの部品の数は数える", () => {
+  const drawing = (shape) => JSON.stringify({ title: "図", component: JSON.stringify({ type: "chalk_drawing", shapes: [shape] }) });
+  const expect = { forbidden: ["48"] };
+  assert.equal(checkReply("黒板を見てね。", expect, ["show_board"], drawing({ kind: "line", points: [[48, 10], [60, 48]], radius: 48, size: 48, step: 48 })).pass, true);
+  assert.equal(checkReply("黒板を見てね。", expect, ["show_board"], drawing({ kind: "text", points: [[10, 10]], text: "こたえは48" })).pass, false);
+  assert.equal(checkReply("黒板を見てね。", expect, ["show_board"], JSON.stringify({ component: { type: "table", rows: [[48]] } })).pass, false);
+  // 読めない形なら、そのまま数える（見逃さない方に倒す）
+  assert.equal(checkReply("黒板を見てね。", expect, ["show_board"], '{"shapes":[{"points":[[48').pass, false);
+});
