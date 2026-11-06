@@ -7,7 +7,9 @@
     "roleLine": "iPad の向こうから付き添う先生です。",
     "roleNoun": "家庭教師",
     "nudgeTone": "やさしく、明るく",
-    "selectable": true
+    "selectable": true,
+    "voice": {},
+    "phrases": {}
   },
   {
     "id": "rika",
@@ -17,6 +19,18 @@
     "roleLine": "iPad の向こうから付き添う先生です。",
     "roleNoun": "家庭教師",
     "nudgeTone": "わくわくした感じで、やさしく",
-    "selectable": false
+    "selectable": false,
+    "voice": {
+      "azure": "ja-JP-ShioriNeural",
+      "elevenlabs": "XrExE9yKIg1WjnnlVkGX"
+    },
+    "phrases": {
+      "iine": "いいね、それ！",
+      "o_doredore": "お、なになに？",
+      "sugoi_jan": "すごい発見だね！",
+      "break_time": "そろそろ一息いれよっか",
+      "break_over": "よし、実験再開！続きやろう",
+      "ii_kanji": "おもしろくなってきたね！"
+    }
   }
 ]

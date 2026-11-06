@@ -214,3 +214,61 @@ struct TeacherVoiceTests {
         #expect(started.isEmpty)
     }
 }
+
+/// キャラを替えると、話す文と定型句の両方が同じ声になる（#120）
+@MainActor
+struct TeacherVoiceCharacterTests {
+    private let player = MockAudioPlayer()
+    private let lipSync = LipSyncPlayer()
+    private static let rika = TeacherCharacter(
+        id: "rika", name: "リカ", honorific: "先生", relation: .teacher, roleLine: "付き添います。", roleNoun: "家庭教師", nudgeTone: "明るく", selectable: true,
+        voice: .init(azure: "ja-JP-ShioriNeural"), phrases: ["iine": "いいね、それ！"]
+    )
+    private let phrases: [PhraseCache.Phrase] = [.init(key: "iine", text: "いいね！"), .init(key: "naruhodo", text: "なるほど")]
+
+    private func phraseCache(_ character: TeacherCharacter) -> PhraseCache {
+        PhraseCache(phrases: phrases, bundle: .withoutBundledPhrases, directory: nil, character: character)
+    }
+
+    @Test func キャラを替えると文も定型句も新しい声で作る() async {
+        let haruVoice = MockTTSProvider(identifier: "haru-voice")
+        let rikaVoice = MockTTSProvider(identifier: "rika-voice")
+        let voice = TeacherVoice(primary: haruVoice, player: player, lipSync: lipSync, phraseCache: phraseCache(.haru))
+
+        var started: [(String, String)] = []
+        voice.onPlaybackStart = { started.append(($0, $1)) }
+
+        let first = Task { await voice.say("なるほど") }
+        await player.waitUntilPlaying(count: 1)
+        player.finish()
+        _ = await first.value
+
+        voice.use(primary: rikaVoice, phraseCache: phraseCache(Self.rika))
+        let second = Task { await voice.say("なるほど") }
+        await player.waitUntilPlaying(count: 2)
+        player.finish()
+        _ = await second.value
+        // 言い替えのある定型句は、そのキャラの文で話す
+        let third = Task { await voice.say("いいね！") }
+        await player.waitUntilPlaying(count: 3)
+        player.finish()
+        _ = await third.value
+        let fourth = Task { await voice.say("ふつうの文です。") }
+        await player.waitUntilPlaying(count: 4)
+        player.finish()
+        _ = await fourth.value
+
+        #expect(started.map(\.1) == ["haru-voice", "rika-voice", "rika-voice", "rika-voice"])
+        #expect(started.map(\.0) == ["なるほど", "なるほど", "いいね、それ！", "ふつうの文です。"])
+    }
+
+    @Test func オフラインなら端末の声に落ちて止まらない() async {
+        let failing = MockTTSProvider(identifier: "rika-voice", behavior: .fail(TTSError.upstream("offline")))
+        let system = MockTTSProvider(identifier: "system")
+        let voice = TeacherVoice(primary: failing, fallback: system, player: player, lipSync: lipSync, phraseCache: phraseCache(Self.rika))
+        let task = Task { await voice.say("なるほど") }
+        await player.waitUntilPlaying(count: 1)
+        player.finish()
+        #expect(await task.value == .completed)
+    }
+}

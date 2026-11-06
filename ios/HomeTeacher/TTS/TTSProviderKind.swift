@@ -15,10 +15,10 @@ enum TTSProviderKind: String, CaseIterable, Equatable, Sendable {
 
     /// Worker 経由の TTS を作る。`identifier` は `TTSProvider.identifier` と同じ
     @MainActor
-    func makeProvider(client: WorkerClient) -> any TTSProvider {
+    func makeProvider(client: WorkerClient, voice: TeacherCharacter.Voice = .init()) -> any TTSProvider {
         switch self {
-        case .elevenlabs: ElevenLabsTTSProvider(client: client)
-        case .azure: AzureTTSProvider(client: client)
+        case .elevenlabs: ElevenLabsTTSProvider(client: client, voiceID: voice.elevenlabs)
+        case .azure: AzureTTSProvider(client: client, voice: voice.azure)
         }
     }
 }

@@ -129,3 +129,111 @@ struct PhraseCacheTests {
         #expect(system.requests.count == 5)
     }
 }
+
+/// キャラごとに分ける（#120）
+@MainActor
+struct CharacterPhraseCacheTests {
+    private static let rika = TeacherCharacter(
+        id: "rika", name: "リカ", honorific: "先生", relation: .teacher, roleLine: "付き添います。", roleNoun: "家庭教師", nudgeTone: "明るく", selectable: true,
+        voice: .init(azure: "ja-JP-ShioriNeural", elevenlabs: "voice-rika"), phrases: ["iine": "いいね、それ！"]
+    )
+    private static let koko = TeacherCharacter(
+        id: "koko", name: "ココ", honorific: "先生", relation: .teacher, roleLine: "付き添います。", roleNoun: "家庭教師", nudgeTone: "明るく", selectable: true,
+        voice: .init(azure: "ja-JP-NaokiNeural"), phrases: [:]
+    )
+    private let phrases: [PhraseCache.Phrase] = [.init(key: "iine", text: "いいね！"), .init(key: "naruhodo", text: "なるほど")]
+
+    private func temporaryBase() -> URL {
+        FileManager.default.temporaryDirectory.appending(path: "CharacterPhraseCacheTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+    }
+
+    private func speech(_ text: String, _ marker: UInt8) -> SynthesizedSpeech {
+        SynthesizedSpeech(text: text, provider: "azure", format: .mp3, audio: Data([marker]), alignment: nil)
+    }
+
+    private func cache(_ character: TeacherCharacter, base: URL) -> PhraseCache {
+        PhraseCache(
+            phrases: phrases, bundle: .withoutBundledPhrases, directory: PhraseCache.directory(for: character, base: base),
+            preferredProvider: "azure", character: character
+        )
+    }
+
+    @Test func 既定の先生の保存先は今までと同じ() {
+        let base = temporaryBase()
+        #expect(PhraseCache.directory(for: .haru, base: base) == base)
+        #expect(PhraseCache.directory(for: Self.rika, base: base) != base)
+        #expect(PhraseCache.directory(for: Self.rika, base: base) != PhraseCache.directory(for: Self.koko, base: base))
+    }
+
+    @Test func 今までに作った既定の先生のキャッシュをそのまま使う() throws {
+        let base = temporaryBase()
+        defer { try? FileManager.default.removeItem(at: base) }
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        let old = speech("なるほど", 9)
+        // 変更前の場所（PhraseCache/<key>.json）に置いてあるもの
+        try JSONEncoder().encode(old).write(to: base.appending(path: "naruhodo.json"))
+        #expect(cache(.haru, base: base).speech(for: "なるほど") == old)
+    }
+
+    @Test func 別のキャラのキャッシュを再生しない() {
+        let base = temporaryBase()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let haruSpeech = speech("なるほど", 1)
+        cache(.haru, base: base).store(haruSpeech, for: .init(key: "naruhodo", text: "なるほど"))
+        // ハルの音声があっても、リカとココには使わない
+        #expect(cache(Self.rika, base: base).speech(for: "なるほど") == nil)
+        #expect(cache(Self.koko, base: base).speech(for: "なるほど") == nil)
+
+        let rikaSpeech = speech("なるほど", 2)
+        cache(Self.rika, base: base).store(rikaSpeech, for: .init(key: "naruhodo", text: "なるほど"))
+        #expect(cache(Self.rika, base: base).speech(for: "なるほど") == rikaSpeech)
+        #expect(cache(.haru, base: base).speech(for: "なるほど") == haruSpeech)
+        #expect(cache(Self.koko, base: base).speech(for: "なるほど") == nil)
+    }
+
+    @Test func アプリに同梱した今の先生の音声をほかのキャラに使わない() throws {
+        let manifest = try PhraseCache.loadManifest()
+        let phrase = try #require(manifest.first { $0.key == "naruhodo" })
+        #expect(PhraseCache(phrases: manifest, bundle: .main, directory: nil).speech(for: phrase) != nil)
+        #expect(PhraseCache(phrases: manifest, bundle: .main, directory: nil, character: Self.koko).speech(for: phrase) == nil)
+    }
+
+    @Test func 言い替えがあればそのキャラの文で話す() {
+        let rika = cache(Self.rika, base: temporaryBase())
+        #expect(rika.spokenText(for: "いいね！") == "いいね、それ！")
+        #expect(rika.spokenText(for: "いいね") == "いいね、それ！")
+        #expect(rika.spokenText(for: "なるほど") == "なるほど")
+        #expect(rika.spokenText(for: "ふつうの文。") == "ふつうの文。")
+        #expect(rika.phrase(for: "いいね、それ！")?.key == "iine")
+        #expect(cache(.haru, base: temporaryBase()).spokenText(for: "いいね！") == "いいね！")
+    }
+
+    @Test func 言い替えた文と違う音声は古いものとして使わない() throws {
+        let base = temporaryBase()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let directory = PhraseCache.directory(for: Self.rika, base: base)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try JSONEncoder().encode(speech("いいね！", 3)).write(to: directory.appending(path: "iine.json"))
+        #expect(cache(Self.rika, base: base).speech(for: "いいね！") == nil)
+    }
+
+    @Test func 初回はキャラの声で作って同じキャラのキャッシュに入れる() async {
+        let base = temporaryBase()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let primary = MockTTSProvider(identifier: "azure")
+        #expect(await cache(Self.koko, base: base).prepare(primary: primary, fallback: nil) == 2)
+        #expect(cache(Self.koko, base: base).speech(for: "なるほど")?.provider == "azure")
+        #expect(cache(.haru, base: base).speech(for: "なるほど") == nil)
+        #expect(await cache(Self.koko, base: base).prepare(primary: primary, fallback: nil) == 0)
+    }
+
+    @Test func 声の指定をTTSに渡す() {
+        let client = WorkerClient.unconfigured
+        let azure = TTSProviderKind.azure.makeProvider(client: client, voice: Self.rika.voice) as? AzureTTSProvider
+        #expect(azure?.voice == "ja-JP-ShioriNeural")
+        let eleven = TTSProviderKind.elevenlabs.makeProvider(client: client, voice: Self.rika.voice) as? ElevenLabsTTSProvider
+        #expect(eleven?.voiceID == "voice-rika")
+        // 既定の先生は Worker の既定の声のまま
+        #expect((TTSProviderKind.azure.makeProvider(client: client, voice: TeacherCharacter.haru.voice) as? AzureTTSProvider)?.voice == nil)
+    }
+}

@@ -10,6 +10,12 @@ struct TeacherCharacter: Codable, Identifiable, Equatable, Sendable {
         case companion
     }
 
+    /// 声の指定。nil なら Worker の既定の声（今の先生）
+    struct Voice: Codable, Equatable, Sendable {
+        var azure: String?
+        var elevenlabs: String?
+    }
+
     let id: String
     /// 名前（「ハル」）
     let name: String
@@ -24,6 +30,10 @@ struct TeacherCharacter: Codable, Identifiable, Equatable, Sendable {
     let nudgeTone: String
     /// 選ぶ画面に出すか（見た目までそろったら true にする）
     let selectable: Bool
+    /// 声（#120）
+    var voice = Voice()
+    /// 定型句の言い替え（定型句の key → 文）。書いていない定型句は共通の文のまま話す
+    var phrases: [String: String] = [:]
 
     /// 子どもからの呼ばれ方（「ハル先生」。仲間なら「ソラ」）
     var callName: String { name + honorific }
@@ -36,7 +46,8 @@ struct TeacherCharacter: Codable, Identifiable, Equatable, Sendable {
     /// 既定の先生。一覧を読めないときや、選択がないときもこの先生にする
     static let haru = TeacherCharacter(
         id: "haru", name: "ハル", honorific: "先生", relation: .teacher,
-        roleLine: "iPad の向こうから付き添う先生です。", roleNoun: "家庭教師", nudgeTone: "やさしく、明るく", selectable: true
+        roleLine: "iPad の向こうから付き添う先生です。", roleNoun: "家庭教師", nudgeTone: "やさしく、明るく", selectable: true,
+        voice: Voice(), phrases: [:]
     )
 }
 

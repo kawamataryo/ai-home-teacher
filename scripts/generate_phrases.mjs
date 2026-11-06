@@ -5,9 +5,13 @@
 //   WORKER_BASE_URL=https://xxx.workers.dev FAMILY_TOKEN=... node scripts/generate_phrases.mjs
 //   node scripts/generate_phrases.mjs --force        # すでにあるものも作り直す
 //   node scripts/generate_phrases.mjs --key iine     # 1 つだけ
+//   node scripts/generate_phrases.mjs --character rika               # キャラの声と言い替えで作る（既定は今の先生）
+//   node scripts/generate_phrases.mjs --character rika --provider azure   # Azure の声で作る（既定は elevenlabs）
 //
 // 一覧: ios/HomeTeacher/Resources/Phrases/teacher_phrases.json（アプリの PhraseCache と共通）
-// 出力: ios/HomeTeacher/Resources/Phrases/phrase_<key>.json（SynthesizedSpeech の JSON。音声は MP3 の base64）
+//       キャラの声と言い替え: prompts/characters/characters.json
+// 出力: ios/HomeTeacher/Resources/Phrases/phrase_<key>.json（今の先生）、phrase_<キャラ>_<key>.json（ほかのキャラ）
+//       中身は SynthesizedSpeech の JSON（音声は MP3 の base64）
 // 書き出したら `cd ios && xcodegen generate` をやり直す。
 //
 // Worker の設定がなければ、何もせずに終了する（exit 0）。そのときアプリは初回起動時に
@@ -16,16 +20,21 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { azureAlignment, bundledPhraseName, phrasesFor } from "./phrases_lib.mjs";
 import { parseTTSStream } from "./tts_stream.mjs";
 
-const phrasesDir = join(dirname(fileURLToPath(import.meta.url)), "..", "ios", "HomeTeacher", "Resources", "Phrases");
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const phrasesDir = join(root, "ios", "HomeTeacher", "Resources", "Phrases");
+const charactersFile = join(root, "prompts", "characters", "characters.json");
 
 function parseArgs(argv) {
-  const args = { force: false, key: null, voiceId: process.env.ELEVENLABS_VOICE_ID || null };
+  const args = { force: false, key: null, voiceId: process.env.ELEVENLABS_VOICE_ID || null, character: "haru", provider: "elevenlabs" };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--force") args.force = true;
     else if (argv[i] === "--key") args.key = argv[++i];
     else if (argv[i] === "--voice-id") args.voiceId = argv[++i];
+    else if (argv[i] === "--character") args.character = argv[++i];
+    else if (argv[i] === "--provider") args.provider = argv[++i];
   }
   return args;
 }
@@ -44,6 +53,18 @@ async function synthesize(baseURL, token, text, voiceId) {
   return parseTTSStream(pieces);
 }
 
+// Azure は音声のバイト列だけを返す（文字タイミングは音声の長さから作る。アプリの TTSAlignment.evenlySpaced と同じ）
+async function synthesizeAzure(baseURL, token, text, voice) {
+  const response = await fetch(new URL("/v1/tts/azure", baseURL), {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(voice ? { text, voice } : { text }),
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+  const audio = Buffer.from(await response.arrayBuffer());
+  return { audio, alignment: azureAlignment(text, audio.length) };
+}
+
 async function main() {
   const baseURL = process.env.WORKER_BASE_URL;
   const token = process.env.FAMILY_TOKEN;
@@ -52,12 +73,16 @@ async function main() {
     return;
   }
   const args = parseArgs(process.argv.slice(2));
-  const phrases = JSON.parse(readFileSync(join(phrasesDir, "teacher_phrases.json"), "utf8"))
-    .filter((p) => !args.key || p.key === args.key);
+  const characters = JSON.parse(readFileSync(charactersFile, "utf8"));
+  const character = characters.find((c) => c.id === args.character);
+  if (!character) throw new Error(`知らないキャラ: ${args.character}`);
+  if (!["elevenlabs", "azure"].includes(args.provider)) throw new Error(`知らない TTS: ${args.provider}`);
+  const base = JSON.parse(readFileSync(join(phrasesDir, "teacher_phrases.json"), "utf8"));
+  const phrases = phrasesFor(character, base).filter((p) => !args.key || p.key === args.key);
 
   let failed = 0;
   for (const phrase of phrases) {
-    const out = join(phrasesDir, `phrase_${phrase.key}.json`);
+    const out = join(phrasesDir, `${bundledPhraseName(character.id, phrase.key)}.json`);
     if (!args.force && existsSync(out)) {
       const existing = JSON.parse(readFileSync(out, "utf8"));
       if (existing.text === phrase.text) {
@@ -66,11 +91,13 @@ async function main() {
       }
     }
     try {
-      const { audio, alignment } = await synthesize(baseURL, token, phrase.text, args.voiceId);
+      const { audio, alignment } = args.provider === "azure"
+        ? await synthesizeAzure(baseURL, token, phrase.text, character.voice?.azure)
+        : await synthesize(baseURL, token, phrase.text, args.voiceId ?? character.voice?.elevenlabs);
       if (audio.length === 0) throw new Error("音声が空");
       const speech = {
         text: phrase.text,
-        provider: "elevenlabs",
+        provider: args.provider,
         format: "mp3",
         audio: audio.toString("base64"),
         ...(alignment ? { alignment } : {}),

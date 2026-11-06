@@ -8,7 +8,7 @@ struct HomeTeacherApp: App {
         WindowGroup {
             ContentView(services: services)
                 // 定型句の音声を初回に作っておく（#12）
-                .task { await PhraseCache.warmUp(config: services.config) }
+                .task { await PhraseCache.warmUp(config: services.config, character: SessionPreferences().selectedCharacter) }
                 // 起動時に同期し、つながったらまた同期する（#28）
                 .task { await services.syncAtLaunch() }
         }

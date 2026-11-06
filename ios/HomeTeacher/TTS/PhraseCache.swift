@@ -11,6 +11,9 @@ import OSLog
 /// （Azure に切り替えたのに、定型句だけ同梱の ElevenLabs の声で話さないように）。
 ///
 /// どちらも中身は `SynthesizedSpeech` の JSON（音声は base64）。文が一覧と違えば古いものとして使わない。
+///
+/// キャラごとに分ける（#120）。別のキャラの声が混ざらないように、同梱は `phrase_<キャラ>_<key>`、ディスクは
+/// `PhraseCache/characters/<キャラ>/` を見る。既定の先生は今までと同じ場所（`phrase_<key>`、`PhraseCache/`）のまま。
 @MainActor
 final class PhraseCache {
     struct Phrase: Codable, Equatable, Sendable {
@@ -27,13 +30,28 @@ final class PhraseCache {
     private let directory: URL?
     /// 先に使う声（`TTSProvider.identifier`）。nil なら見つけた順
     private let preferredProvider: String?
+    /// 同梱の音声の名前に付ける印。既定の先生は空
+    private let bundledInfix: String
+    /// 共通の文 → このキャラの定型句（言い替えがあるものだけ）
+    private let replacements: [String: Phrase]
     private var loaded: [String: SynthesizedSpeech] = [:]
     private let logger = Logger(subsystem: "com.kawamataryo.HomeTeacher", category: "PhraseCache")
 
     init(
-        phrases: [Phrase], bundle: Bundle = .main, directory: URL? = PhraseCache.defaultDirectory, preferredProvider: String? = nil
+        phrases: [Phrase], bundle: Bundle = .main, directory: URL? = PhraseCache.defaultDirectory, preferredProvider: String? = nil,
+        character: TeacherCharacter = .haru
     ) {
-        self.phrases = phrases
+        self.phrases = phrases.map { phrase in
+            character.phrases[phrase.key].map { Phrase(key: phrase.key, text: $0) } ?? phrase
+        }
+        var replacements: [String: Phrase] = [:]
+        for phrase in phrases {
+            if let text = character.phrases[phrase.key] {
+                replacements[Self.normalize(phrase.text)] = Phrase(key: phrase.key, text: text)
+            }
+        }
+        self.replacements = replacements
+        bundledInfix = character.id == TeacherCharacter.haru.id ? "" : "\(character.id)_"
         self.bundle = bundle
         self.directory = directory
         self.preferredProvider = preferredProvider
@@ -41,11 +59,20 @@ final class PhraseCache {
 
     /// 同梱の一覧で作る
     convenience init(
-        bundle: Bundle = .main, directory: URL? = PhraseCache.defaultDirectory, preferredProvider: String? = nil
+        bundle: Bundle = .main, directory: URL? = PhraseCache.defaultDirectory, preferredProvider: String? = nil,
+        character: TeacherCharacter = .haru
     ) throws {
         try self.init(
-            phrases: Self.loadManifest(bundle: bundle), bundle: bundle, directory: directory, preferredProvider: preferredProvider
+            phrases: Self.loadManifest(bundle: bundle), bundle: bundle,
+            directory: directory.map { Self.directory(for: character, base: $0) }, preferredProvider: preferredProvider,
+            character: character
         )
+    }
+
+    /// キャラごとの保存先。既定の先生は今までと同じ場所
+    static func directory(for character: TeacherCharacter, base: URL) -> URL {
+        guard character.id != TeacherCharacter.haru.id else { return base }
+        return base.appending(path: "characters/\(character.id)", directoryHint: .isDirectory)
     }
 
     static func loadManifest(bundle: Bundle = .main) throws -> [Phrase] {
@@ -67,6 +94,11 @@ final class PhraseCache {
             result.removeLast()
         }
         return result
+    }
+
+    /// 実際に話す文。共通の定型句で、このキャラに言い替えがあればそちらにする
+    func spokenText(for text: String) -> String {
+        replacements[Self.normalize(text)]?.text ?? text
     }
 
     func phrase(for text: String) -> Phrase? {
@@ -143,7 +175,7 @@ final class PhraseCache {
     }
 
     private func bundledURL(for phrase: Phrase) -> URL? {
-        bundle.url(forResource: Self.bundledPrefix + phrase.key, withExtension: "json")
+        bundle.url(forResource: Self.bundledPrefix + bundledInfix + phrase.key, withExtension: "json")
     }
 
     private func diskURL(for phrase: Phrase) -> URL? {
@@ -162,15 +194,15 @@ final class PhraseCache {
 extension PhraseCache {
     /// 起動時に裏で呼ぶ。足りない定型句の音声を作ってディスクにためる
     /// （Worker の設定がなければ AVSpeechSynthesizer の声だけで作る）。テストのホストとして起動したときは何もしない
-    static func warmUp(config: AppConfig?) async {
+    static func warmUp(config: AppConfig?, character: TeacherCharacter = .haru) async {
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         let system = SystemTTSProvider()
         if let config {
-            let primary = config.ttsProvider.makeProvider(client: WorkerClient(config: config))
-            guard let cache = try? PhraseCache(preferredProvider: primary.identifier) else { return }
+            let primary = config.ttsProvider.makeProvider(client: WorkerClient(config: config), voice: character.voice)
+            guard let cache = try? PhraseCache(preferredProvider: primary.identifier, character: character) else { return }
             await cache.prepare(primary: primary, fallback: system)
         } else {
-            guard let cache = try? PhraseCache() else { return }
+            guard let cache = try? PhraseCache(character: character) else { return }
             await cache.prepare(primary: system, fallback: nil)
         }
     }

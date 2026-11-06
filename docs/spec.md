@@ -80,6 +80,7 @@
 - **定型句キャッシュ**：「いいね！」「どれどれ」「休憩しよっか」などは事前に音声を生成して同梱し、待ち時間ゼロで再生する
   - 一覧は `ios/HomeTeacher/Resources/Phrases/teacher_phrases.json`。音声は `scripts/generate_phrases.mjs` で ElevenLabs から作って同梱する
   - 同梱の音声がない定型句は、初回起動時に作ってディスクにキャッシュする（オフラインなら AVSpeechSynthesizer の声。あとで ElevenLabs が使えたら作り直す）
+  - キャラごとに声と定型句を分ける（#120）。声は `prompts/characters/characters.json` の `voice`（nil なら Worker の既定の声）、言い替えは `phrases`。同梱は `phrase_<キャラ>_<key>.json`、ディスクは `PhraseCache/characters/<キャラ>/`。既定の先生は今までの場所のまま。共通の定型句を話すときは、そのキャラの言い替えがあればそちらで話す。オフラインでは AVSpeechSynthesizer に落ちる（キャラらしさより止まらないことを優先する）
   - 同梱の音声は ElevenLabs の声。Azure（既定）のときは初回起動時に Azure の声で作り直してディスクに置き、そちらを先に使う（先生の声が定型句だけ変わらないように）
 - **相づち**：Sonnet の処理に時間がかかるときは、Haiku の応答か定型句（「お、どれどれ…」）で間をつなぐ
 - **初めての許可**（#66）：いきなりシステムのダイアログを出さない。まだ聞いていない許可だけを、マイク → 音声認識 → カメラ（カメラがある端末だけ）の順に、先生が理由を話してから「いいよ」のボタンで聞く。状態は毎回 OS の許可の状態から決める
