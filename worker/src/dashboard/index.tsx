@@ -8,6 +8,7 @@ import { BOOTSTRAP_FAMILY_ID } from "../auth";
 import type { Env } from "../env";
 import { deleteMemory, listMemories, listParentMessages, listSessions, resolveChild } from "../sync";
 import { currentTokenIssuedAt, issueFamilyToken } from "../tokens";
+import { GROWTH_WEEKS, weeklyGrowth, type GrowthProblem } from "./growth";
 import { authorizationUrl, exchangeCodeForEmail, isAllowedEmail, pkceChallenge, randomString } from "./google";
 import { DashboardPage, jstDay, LoginPage, type DayTotal } from "./views";
 
@@ -212,7 +213,8 @@ async function renderDashboard(c: Context<DashEnv>, parent: Parent, options: Ren
   // JST の 0 時を UTC にして絞り込む
   const fromUtc = new Date(Date.parse(`${days[0].day}T00:00:00Z`) - 9 * 3_600_000).toISOString();
 
-  const [chartRows, sessions, tokenIssuedAt, messages, memories] = await Promise.all([
+    const growthFrom = new Date(now - GROWTH_WEEKS * 7 * 86_400_000).toISOString();
+  const [chartRows, sessions, tokenIssuedAt, messages, memories, growthRows] = await Promise.all([
     db
       .prepare(
         `SELECT s.started_at, s.focus_minutes FROM sessions s JOIN children c ON c.id = s.child_id
@@ -224,6 +226,14 @@ async function renderDashboard(c: Context<DashEnv>, parent: Parent, options: Ren
     currentTokenIssuedAt(db, parent.familyId),
     listParentMessages(db, parent.familyId, { limit: MESSAGE_LIST }),
     listMemories(db, parent.familyId, {}),
+    db
+      .prepare(
+        `SELECT s.started_at, p.solved_by_self, p.hint_level_reached
+         FROM problems p JOIN sessions s ON s.id = p.session_id JOIN children c ON c.id = s.child_id
+         WHERE c.family_id = ? AND s.started_at >= ?`,
+      )
+      .bind(parent.familyId, growthFrom)
+      .all<GrowthProblem>(),
   ]);
   for (const r of chartRows.results) {
     const d = days.find((x) => x.day === jstDay(r.started_at));
@@ -237,6 +247,7 @@ async function renderDashboard(c: Context<DashEnv>, parent: Parent, options: Ren
       today={today}
       sessions={sessions}
       tokenIssuedAt={tokenIssuedAt}
+      growth={weeklyGrowth(growthRows.results, now)}
       messages={messages}
       memories={memories}
       memoryError={options.memoryError}
