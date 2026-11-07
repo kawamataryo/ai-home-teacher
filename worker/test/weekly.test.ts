@@ -79,6 +79,17 @@ describe("週の区切りと、作らない週", () => {
 });
 
 describe("入力", () => {
+  it("日付は JST で渡す（朝の勉強が前の日にならない）", async () => {
+    const at = "2026-11-03T22:30:00.000Z"; // JST 11/4（水）7:30
+    await d1.db()
+      .prepare("INSERT INTO sessions (id, child_id, started_at, ended_at, focus_minutes, updated_at) VALUES ('morning', 'default', ?, ?, 10, ?)")
+      .bind(at, at, at)
+      .run();
+    const text = weeklyUserMessage(await loadWeekRecord(d1.db(), CHILD, "2026-11-02"));
+    expect(text).toContain("## 2026-11-04 の勉強");
+    expect(text).not.toContain("2026-11-03 の勉強");
+  });
+
   it("要約、ひとこと、問題を渡し、要確認は渡さない。写真や音声の項目もない", async () => {
     await seedWeek();
     const record = await loadWeekRecord(d1.db(), CHILD, "2026-11-02");
