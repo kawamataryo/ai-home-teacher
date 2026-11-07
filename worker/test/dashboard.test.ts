@@ -362,6 +362,38 @@ describe("ダッシュボードの表示", () => {
     expect(html).not.toMatch(/<script/i);
   });
 
+  describe("自力で解けた問題の変化", () => {
+    it("週ごとの数を出し、点数やスコアを出さない。問題のないセッションでも崩れない", async () => {
+      const at = new Date().toISOString();
+      const problem = (solved: boolean, hint: number) => ({ kind: "thinking", summary: "問題", solved_by_self: solved, hint_level_reached: hint });
+      const res = await req("/v1/sessions", {
+        method: "POST",
+        headers: { Authorization: "Bearer bootstrap-secret", "content-type": "application/json" },
+        body: JSON.stringify({ id: "g1", started_at: at, ended_at: at, focus_minutes: 10, problems: [problem(true, 0), problem(true, 2), problem(false, 4)] }),
+      });
+      expect(res.status).toBe(200);
+      await req("/v1/sessions", {
+        method: "POST",
+        headers: { Authorization: "Bearer bootstrap-secret", "content-type": "application/json" },
+        body: JSON.stringify({ id: "g2", started_at: at, ended_at: at, focus_minutes: 10 }),
+      });
+      const c = await loggedInCookie();
+      const html = await (await req("/dashboard", { headers: { cookie: c } })).text();
+      expect(html).toContain("自力で解けた問題の変化");
+      expect(html).toContain("2問を自力で（全3問）・記録が少ない週");
+      expect(html).toContain("記録なし");
+      expect(html).toContain("まだ記録が少ない週");
+      for (const bad of ["スコア", "順位", "集中力"]) expect(html).not.toContain(bad);
+    });
+
+    it("記録がなくても開ける", async () => {
+      const c = await loggedInCookie();
+      const res = await req("/dashboard", { headers: { cookie: c } });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toContain("自力で解けた問題の変化");
+    });
+  });
+
   describe("先生が覚えていること", () => {
     const auth = { Authorization: "Bearer bootstrap-secret", "content-type": "application/json" };
     const putMemory = (category: string, items: string[]) =>

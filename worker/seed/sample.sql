@@ -56,3 +56,15 @@ UPDATE sessions SET started_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-45 minu
 INSERT INTO parent_messages (id, child_id, sender_label, body, created_at, delivered_at) VALUES
 ('sample-m1', 'default', 'お母さん', '割合がんばったね。今日のごはんはカレーだよ', strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-30 minutes'), NULL),
 ('sample-m2', 'default', 'お母さん', '運動会の練習おつかれさま', strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-20 hours'));
+
+-- 自力で解けた問題の変化（#161）。比べられる週ができるように問題を足す
+INSERT INTO problems (id, session_id, kind, summary, solved_by_self, hint_level_reached, created_at) VALUES
+('sample-g1', 'sample-0', 'thinking', '割合の練習', 1, 0, strftime('%Y-%m-%dT07:20:00.000Z', 'now')),
+('sample-g2', 'sample-0', 'thinking', '割合の練習', 1, 0, strftime('%Y-%m-%dT07:21:00.000Z', 'now')),
+('sample-g3', 'sample-0', 'reading', '資料の読み取り', 1, 2, strftime('%Y-%m-%dT07:22:00.000Z', 'now')),
+('sample-g4', 'sample-5', 'thinking', '割合の練習', 1, 0, strftime('%Y-%m-%dT07:05:00.000Z', 'now', '-7 day')),
+('sample-g5', 'sample-5', 'thinking', '割合の練習', 1, 2, strftime('%Y-%m-%dT07:06:00.000Z', 'now', '-7 day')),
+('sample-g6', 'sample-5', 'reading', '資料の読み取り', 0, 3, strftime('%Y-%m-%dT07:07:00.000Z', 'now', '-7 day')),
+('sample-g7', 'sample-6', 'thinking', '割合の基本', 0, 4, strftime('%Y-%m-%dT07:05:00.000Z', 'now', '-8 day')),
+('sample-g8', 'sample-6', 'writing', '作文の構成', 1, 1, strftime('%Y-%m-%dT07:06:00.000Z', 'now', '-8 day')),
+('sample-g9', 'sample-6', 'thinking', '割合の基本', 0, 3, strftime('%Y-%m-%dT07:07:00.000Z', 'now', '-8 day'));

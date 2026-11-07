@@ -2,6 +2,7 @@
 // スマホ幅を基本にして、広い画面では中央寄せにする。
 
 import type { Child, FC } from "hono/jsx";
+import { growthSentence, type WeekGrowth } from "./growth";
 import type { MemoryRow, ParentMessageRow, SessionJson } from "../sync";
 
 export type DayTotal = { day: string; minutes: number }; // day は JST の YYYY-MM-DD
@@ -10,11 +11,13 @@ const CSS = `
 :root {
   --bg: #f7f4ee; --card: #fffdf9; --ink: #2b2a27; --muted: #6f6a60; --line: #e6e0d4;
   --accent: #2f7d6d; --accent-soft: #dcefe9; --warn: #b4531c; --warn-soft: #fff0e3; --bar: #4a9d8b;
+  --grow-1: #2f7d6d; --grow-2: #8cc7b8; --grow-3: #d9d3c6;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #1b1c1b; --card: #252725; --ink: #ecebe6; --muted: #a6a39b; --line: #3a3c39;
     --accent: #7cc7b5; --accent-soft: #23403a; --warn: #f0a46c; --warn-soft: #3d2a1d; --bar: #5fb3a0;
+    --grow-1: #7cc7b5; --grow-2: #3f7f72; --grow-3: #55574f;
   }
 }
 * { box-sizing: border-box; }
@@ -56,6 +59,18 @@ textarea.input { min-height: 84px; resize: vertical; }
 .message p { margin: 0 0 2px; }
 .status { font-size: 12px; font-weight: 700; color: var(--muted); }
 .status.told { color: var(--accent); }
+.growth-line { font-weight: 600; margin: 0 0 12px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+.week { padding: 6px 0; }
+.week-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.week-head span:last-child { color: var(--muted); text-align: right; }
+.stack { display: flex; gap: 2px; height: 10px; margin-top: 4px; }
+.stack div { min-width: 4px; }
+.stack div:first-child { border-radius: 4px 0 0 4px; }
+.stack div:last-child { border-radius: 0 4px 4px 0; }
+.stack div:only-child { border-radius: 4px; }
+.g1 { background: var(--grow-1); } .g2 { background: var(--grow-2); } .g3 { background: var(--grow-3); }
 .memory-group { margin-top: 12px; }
 .memory-group h3 { font-size: 13px; color: var(--muted); margin: 0 0 4px; }
 .memory { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
@@ -115,12 +130,13 @@ export const DashboardPage: FC<{
   sessions: SessionJson[];
   tokenIssuedAt: string | null;
   messages: ParentMessageRow[];
+  growth: WeekGrowth[];
   memories: MemoryRow[];
   memoryError?: string;
   newToken?: string;
   messageError?: string;
   messageDraft?: { sender: string; body: string };
-}> = ({ email, days, today, sessions, tokenIssuedAt, messages, memories, memoryError, newToken, messageError, messageDraft }) => {
+}> = ({ email, days, today, sessions, tokenIssuedAt, growth, messages, memories, memoryError, newToken, messageError, messageDraft }) => {
   const flagged = sessions.filter((s) => s.flags.length > 0);
   const week = days.slice(-7).reduce((sum, d) => sum + d.minutes, 0);
   const todayMinutes = days.find((d) => d.day === today)?.minutes ?? 0;
@@ -180,6 +196,8 @@ export const DashboardPage: FC<{
         </div>
         <StudyChart days={days} today={today} />
       </section>
+
+      <GrowthCard weeks={growth} />
 
       <section class="card">
         <h2>セッション</h2>
@@ -261,6 +279,55 @@ const MessageCard: FC<{
             </div>
           ) : (
             <div class="status">まだ伝えていません</div>
+          )}
+        </div>
+      ))}
+    </section>
+  );
+};
+
+// 週ごとの取り組みの変化（#161）。棒は問題の数そのもの。割合やスコアにしない
+const GrowthCard: FC<{ weeks: WeekGrowth[] }> = ({ weeks }) => {
+  const max = Math.max(1, ...weeks.map((w) => w.total));
+  return (
+    <section class="card">
+      <h2>自力で解けた問題の変化</h2>
+      <p class="growth-line">{growthSentence(weeks)}</p>
+      <div class="legend">
+        <span>
+          <i class="g1" />
+          ヒントなしで解けた
+        </span>
+        <span>
+          <i class="g2" />
+          ヒントを使って解けた
+        </span>
+        <span>
+          <i class="g3" />
+          一緒に解いた
+        </span>
+      </div>
+      {[...weeks].reverse().map((w) => (
+        <div class="week">
+          <div class="week-head">
+            <span>{shortDay(w.weekStart)}の週</span>
+            <span>
+              {w.total === 0
+                ? "記録なし"
+                : `${w.solvedNoHint + w.solvedWithHint}問を自力で（全${w.total}問）${w.enough ? "" : "・記録が少ない週"}`}
+            </span>
+          </div>
+          {w.total > 0 && (
+            <div
+              class="stack"
+              role="img"
+              aria-label={`ヒントなしで解けた ${w.solvedNoHint} 問、ヒントを使って解けた ${w.solvedWithHint} 問、一緒に解いた ${w.together} 問`}
+              style={`width: ${(w.total / max) * 100}%`}
+            >
+              {w.solvedNoHint > 0 && <div class="g1" style={`flex: ${w.solvedNoHint}`} title={`ヒントなしで解けた ${w.solvedNoHint} 問`} />}
+              {w.solvedWithHint > 0 && <div class="g2" style={`flex: ${w.solvedWithHint}`} title={`ヒントを使って解けた ${w.solvedWithHint} 問`} />}
+              {w.together > 0 && <div class="g3" style={`flex: ${w.together}`} title={`一緒に解いた ${w.together} 問`} />}
+            </div>
           )}
         </div>
       ))}
