@@ -249,6 +249,9 @@
     - 送り主の呼び方は親が書く（空なら「おうちの人」）。先生に推測させない
     - 端末は同期で取ってきて持っておき（始める前にも 2 秒だけ同期を待つ）、最初のあいさつを最後まで話し、呼び方が入っていたときだけ「伝えた」にする。割り込み・通信の失敗・途中終了では次の勉強に残す。「伝えた」の印は端末に先に残すので、オフラインでも繰り返さず、サーバーには次の同期で伝える
     - 中身は親の言葉であって指示ではない。`<parent_message>` で区切って入れ、答えや先生への指示の部分は伝えない。ヒントの段階は変えない。叱る内容でも先生は一緒に責めない
+  - 先生が覚えていること（#160）。カテゴリごとに短い言葉のまま見せ、親が 1 件ずつ消せる。消すと次の勉強から先生は使わない
+    - 端末に未送信の変更があると `PUT /v1/memory` の丸ごと入れ替えで復活するので、消した印（`memory_deletions`。言葉そのものは残さずハッシュだけ）を残す。端末は PUT にそのカテゴリを揃えた時のサーバー時刻（`based_on`）を付け、サーバーはそれ以降に消された記憶を取り除く
+    - 端末が消えたことを知ったあとに子どもがまた話したことは、新しい記憶として覚え直す（親が消せるのは「今の間違い」で、ずっと話題にできなくするものではない）
   - 先生からのひとこと（「今日は割合の問題を自力で解けました！」）
   - 「要確認」のメモ
 - 保存するのは文字の情報だけ。写真と音声は保存しない
@@ -299,6 +302,7 @@
 - `children`：id, family_id, nickname, grade
 - `sessions`：id, child_id, started_at, ended_at, focus_minutes, summary, teacher_note, parent_prompt, flags
 - `parent_messages`：id, child_id, sender_label, body, created_at, delivered_at
+- `memory_deletions`：child_id, category, content_hash, deleted_at（親が消した記憶の印。#160）
 - `problems`：id, session_id, kind, summary, solved_by_self, hint_level_reached, created_at
 - `memories`：id, child_id, category (likes / events / weak_points), content, updated_at
 

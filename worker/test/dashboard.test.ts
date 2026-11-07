@@ -362,6 +362,74 @@ describe("ダッシュボードの表示", () => {
     expect(html).not.toMatch(/<script/i);
   });
 
+  describe("先生が覚えていること", () => {
+    const auth = { Authorization: "Bearer bootstrap-secret", "content-type": "application/json" };
+    const putMemory = (category: string, items: string[]) =>
+      req("/v1/memory", { method: "PUT", headers: auth, body: JSON.stringify({ category, items: items.map((content) => ({ content })) }) });
+    const del = (fields: Record<string, string>, cookieValue: string, origin = "http://localhost") =>
+      req("/dashboard/memories/delete", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded", origin, cookie: cookieValue },
+        body: new URLSearchParams(fields).toString(),
+      });
+    const list = async () => ((await (await req("/v1/memory", { headers: auth })).json()) as any).memories.map((m: any) => m.content);
+
+    it("カテゴリごとに、短い言葉のまま見せる", async () => {
+      await putMemory("likes", ["サッカー"]);
+      await putMemory("events", ["週末に水族館に行った"]);
+      await putMemory("weak_points", ["割合の文章題"]);
+      const c = await loggedInCookie();
+      const html = await (await req("/dashboard", { headers: { cookie: c } })).text();
+      for (const text of ["好きなこと", "最近の出来事", "苦手な単元", "サッカー", "週末に水族館に行った", "割合の文章題"]) {
+        expect(html).toContain(text);
+      }
+    });
+
+    it("記憶がなくても崩れない", async () => {
+      const c = await loggedInCookie();
+      const html = await (await req("/dashboard", { headers: { cookie: c } })).text();
+      expect(html).toContain("まだ覚えていることはありません");
+    });
+
+    it("消すとアプリの同期でも消え、未送信の変更でも復活しない", async () => {
+      await putMemory("likes", ["サッカー", "猫のミケ"]);
+      const c = await loggedInCookie();
+      const res = await del({ category: "likes", content: "猫のミケ" }, c);
+      expect(res.status).toBe(303);
+      expect(await list()).toEqual(["サッカー"]);
+      await putMemory("likes", ["サッカー", "猫のミケ", "マイクラ"]);
+      expect(await list()).toEqual(["サッカー", "マイクラ"]);
+    });
+
+    it("ログインしていなければ消さない。別のサイトからの POST も拒否する（CSRF）", async () => {
+      await putMemory("likes", ["サッカー"]);
+      expect((await del({ category: "likes", content: "サッカー" }, "")).status).toBe(303);
+      const c = await loggedInCookie();
+      expect((await del({ category: "likes", content: "サッカー" }, c, "https://evil.example")).status).toBe(403);
+      expect(await list()).toEqual(["サッカー"]);
+    });
+
+    it("他の家族の記憶は、同じ言葉を送っても消せない", async () => {
+      const db = d1.db();
+      await db.batch([
+        db.prepare("INSERT INTO families (id, name) VALUES ('other', 'よその家')"),
+        db.prepare("INSERT INTO children (id, family_id, nickname) VALUES ('other-child', 'other', 'よそ')"),
+        db.prepare("INSERT INTO memories (id, child_id, category, content, updated_at) VALUES ('m', 'other-child', 'likes', 'よその記憶', '2026-11-03T00:00:00.000Z')"),
+      ]);
+      const c = await loggedInCookie();
+      const html = await (await req("/dashboard", { headers: { cookie: c } })).text();
+      expect(html).not.toContain("よその記憶");
+      expect((await del({ category: "likes", content: "よその記憶" }, c)).status).toBe(303);
+      expect(await db.prepare("SELECT id FROM memories WHERE id = 'm'").first()).toEqual({ id: "m" });
+      expect((await db.prepare("SELECT count(*) AS n FROM memory_deletions").first<{ n: number }>())!.n).toBe(0);
+    });
+
+    it("カテゴリが違えば 400", async () => {
+      const c = await loggedInCookie();
+      expect((await del({ category: "secret", content: "x" }, c)).status).toBe(400);
+    });
+  });
+
   describe("親の伝言", () => {
     const send = (fields: Record<string, string>, cookieValue: string, headers: Record<string, string> = {}) =>
       req("/dashboard/messages", {

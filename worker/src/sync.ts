@@ -5,6 +5,7 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "./env";
+import { sha256Hex } from "./tokens";
 
 export const sync = new Hono<AppEnv>();
 
@@ -61,6 +62,8 @@ const memoryPut = z
     child_id: id.optional(),
     category,
     items: z.array(z.object({ content: z.string().min(1).max(500) }).strict()).max(100),
+    // 端末がこのカテゴリをサーバーの内容で揃えたときの server_time（#160）。これより後に親が消した記憶は復活させない
+    based_on: isoDateTime.optional(),
   })
   .strict();
 
@@ -102,7 +105,7 @@ export type ParentMessageRow = {
   delivered_at: string | null;
 };
 
-type MemoryRow = { id: string; child_id: string; category: string; content: string; updated_at: string };
+export type MemoryRow = { id: string; child_id: string; category: string; content: string; updated_at: string };
 
 export type SessionJson = Omit<SessionRow, "flags"> & {
   flags: string[];
@@ -205,8 +208,10 @@ sync.get("/sessions", async (c) => {
 sync.get("/memory", async (c) => {
   const q = memoryQuery.safeParse(c.req.query());
   if (!q.success) return invalid(c, q.error);
+  // 読む前の時刻を返す（読んだあとに親が消したものを、消す前の内容とみなせるように）
+  const serverTime = new Date().toISOString();
   const memories = await listMemories(c.env.DB, c.var.familyId, q.data);
-  return c.json({ memories });
+  return c.json({ memories, server_time: serverTime });
 });
 
 sync.put("/memory", async (c) => {
@@ -218,16 +223,21 @@ sync.put("/memory", async (c) => {
 
   // そのカテゴリの記憶をまるごと入れ替える（PUT なので何度送っても同じ結果になる）
   const now = new Date().toISOString();
+  const blocked = await blockedContentHashes(db, childId, input.category, input.based_on);
+  const items: typeof input.items = [];
+  for (const item of input.items) {
+    if (!blocked.has(await memoryContentHash(item.content))) items.push(item);
+  }
   await db.batch([
     db.prepare("DELETE FROM memories WHERE child_id = ? AND category = ?").bind(childId, input.category),
-    ...input.items.map((item) =>
+    ...items.map((item) =>
       db
         .prepare("INSERT INTO memories (id, child_id, category, content, updated_at) VALUES (?, ?, ?, ?, ?)")
         .bind(crypto.randomUUID(), childId, input.category, item.content, now),
     ),
   ]);
   const memories = await listMemories(db, c.var.familyId, { child_id: childId, category: input.category });
-  return c.json({ memories });
+  return c.json({ memories, server_time: now });
 });
 
 // 親の伝言（#159）。まだ伝えていないものを古い順に返す
@@ -306,6 +316,51 @@ export async function listSessions(
   );
 }
 
+// 同じ内容かを比べるためのハッシュ。アプリの MemoryMerger.normalizedKey と揃える（全角半角・大文字小文字・空白の違いを無視する）
+export async function memoryContentHash(content: string): Promise<string> {
+  return sha256Hex(content.normalize("NFKC").toLowerCase().split(/\s+/).filter(Boolean).join(" "));
+}
+
+// 端末が知らないうちに親が消した記憶。based_on がなければ（古いアプリ）消したものはすべて戻さない。
+// based_on より前に消したものは、端末も消えたことを知っている。それでもまた入っていれば、子どもがまた話した新しい記憶なので受け入れる
+async function blockedContentHashes(
+  db: D1Database,
+  childId: string,
+  category: string,
+  basedOn?: string,
+): Promise<Set<string>> {
+  const { results } = await db
+    .prepare("SELECT content_hash, deleted_at FROM memory_deletions WHERE child_id = ? AND category = ?")
+    .bind(childId, category)
+    .all<{ content_hash: string; deleted_at: string }>();
+  return new Set(results.filter((d) => !basedOn || d.deleted_at >= basedOn).map((d) => d.content_hash));
+}
+
+// 親がダッシュボードで記憶を消す。同じ内容（表記の違いを含む）の行をすべて消し、印を残す。
+// 消す行は、ログイン中の親の家族の子どものものに限る
+export async function deleteMemory(db: D1Database, familyId: string, category: string, content: string): Promise<number> {
+  const childId = await resolveChild(db, familyId);
+  if (!childId) return 0;
+  const hash = await memoryContentHash(content);
+  const { results } = await db
+    .prepare("SELECT id, content FROM memories WHERE child_id = ? AND category = ?")
+    .bind(childId, category)
+    .all<{ id: string; content: string }>();
+  const ids: string[] = [];
+  for (const row of results) if ((await memoryContentHash(row.content)) === hash) ids.push(row.id);
+  if (ids.length === 0) return 0;
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO memory_deletions (child_id, category, content_hash, deleted_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(child_id, category, content_hash) DO UPDATE SET deleted_at = excluded.deleted_at`,
+      )
+      .bind(childId, category, hash, new Date().toISOString()),
+    ...ids.map((id) => db.prepare("DELETE FROM memories WHERE id = ?").bind(id)),
+  ]);
+  return ids.length;
+}
+
 // 新しい順で limit 件を取り、古い順に並べて返す（undeliveredOnly のときはすべて伝える順）
 export async function listParentMessages(
   db: D1Database,
@@ -325,7 +380,7 @@ export async function listParentMessages(
   return results;
 }
 
-async function listMemories(
+export async function listMemories(
   db: D1Database,
   familyId: string,
   opts: { category?: string; child_id?: string },

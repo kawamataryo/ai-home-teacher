@@ -6,7 +6,7 @@ import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import { csrf } from "hono/csrf";
 import { BOOTSTRAP_FAMILY_ID } from "../auth";
 import type { Env } from "../env";
-import { listParentMessages, listSessions, resolveChild } from "../sync";
+import { deleteMemory, listMemories, listParentMessages, listSessions, resolveChild } from "../sync";
 import { currentTokenIssuedAt, issueFamilyToken } from "../tokens";
 import { authorizationUrl, exchangeCodeForEmail, isAllowedEmail, pkceChallenge, randomString } from "./google";
 import { DashboardPage, jstDay, LoginPage, type DayTotal } from "./views";
@@ -74,6 +74,25 @@ dashboard.post("/messages", async (c) => {
     .bind(crypto.randomUUID(), childId, sender || DEFAULT_SENDER_LABEL, body, new Date().toISOString())
     .run();
   return c.redirect("/dashboard", 303);
+});
+
+// 先生が覚えていることを親が消す（#160）。行の id は同期のたびに変わるので、カテゴリと内容で指定する
+dashboard.post("/memories/delete", async (c) => {
+  const parent = await currentParent(c);
+  if (!parent) return c.redirect("/dashboard", 303);
+  const form = await c.req.parseBody();
+  const category = form.category;
+  const content = form.content;
+  if (
+    (category !== "likes" && category !== "events" && category !== "weak_points") ||
+    typeof content !== "string" ||
+    content.length === 0
+  ) {
+    return c.html(await renderDashboard(c, parent, { memoryError: "消す記憶が分かりませんでした。" }), 400);
+  }
+  // もうなくても（同期で先に消えていても）、見たい結果は同じなので画面に戻る
+  await deleteMemory(c.env.DB, parent.familyId, category, content);
+  return c.redirect("/dashboard#memory", 303);
 });
 
 dashboard.post("/logout", (c) => {
@@ -182,7 +201,7 @@ async function familyForParent(db: D1Database, email: string): Promise<string> {
 
 // ---- 表示 ----
 
-type RenderOptions = { newToken?: string; messageError?: string; messageDraft?: { sender: string; body: string } };
+type RenderOptions = { memoryError?: string; newToken?: string; messageError?: string; messageDraft?: { sender: string; body: string } };
 
 async function renderDashboard(c: Context<DashEnv>, parent: Parent, options: RenderOptions = {}) {
   const db = c.env.DB;
@@ -193,7 +212,7 @@ async function renderDashboard(c: Context<DashEnv>, parent: Parent, options: Ren
   // JST の 0 時を UTC にして絞り込む
   const fromUtc = new Date(Date.parse(`${days[0].day}T00:00:00Z`) - 9 * 3_600_000).toISOString();
 
-  const [chartRows, sessions, tokenIssuedAt, messages] = await Promise.all([
+  const [chartRows, sessions, tokenIssuedAt, messages, memories] = await Promise.all([
     db
       .prepare(
         `SELECT s.started_at, s.focus_minutes FROM sessions s JOIN children c ON c.id = s.child_id
@@ -204,6 +223,7 @@ async function renderDashboard(c: Context<DashEnv>, parent: Parent, options: Ren
     listSessions(db, parent.familyId, { limit: 30 }),
     currentTokenIssuedAt(db, parent.familyId),
     listParentMessages(db, parent.familyId, { limit: MESSAGE_LIST }),
+    listMemories(db, parent.familyId, {}),
   ]);
   for (const r of chartRows.results) {
     const d = days.find((x) => x.day === jstDay(r.started_at));
@@ -218,6 +238,8 @@ async function renderDashboard(c: Context<DashEnv>, parent: Parent, options: Ren
       sessions={sessions}
       tokenIssuedAt={tokenIssuedAt}
       messages={messages}
+      memories={memories}
+      memoryError={options.memoryError}
       newToken={options.newToken}
       messageError={options.messageError}
       messageDraft={options.messageDraft}

@@ -104,6 +104,8 @@ iPad アプリの API キーを守るための Cloudflare Worker。アプリは�
 
 `category` は `likes`（好きなこと）/ `events`（最近の出来事）/ `weak_points`（苦手な単元）。カテゴリ順、保存した順。
 
+親がダッシュボードで消した記憶（#160）は `memory_deletions` に印を残す（消した言葉そのものは残さない）。本文の `based_on` には、端末がそのカテゴリをサーバーの内容で揃えたときの `server_time`（GET と PUT のレスポンスにある）を入れる。`based_on` 以降に消されたものが `items` にあれば取り除く。`based_on` がなければ（古いアプリ）消したものはすべて取り除く。`based_on` より前に消されたものは、子どもがまた話した新しい記憶として受け入れる。
+
 ### `GET /v1/messages` / `POST /v1/messages/:id/delivered`
 
 親の伝言（#159）。`GET` はまだ伝えていない伝言を古い順に返す（`{ "messages": [{ "id", "child_id", "sender_label", "body", "created_at", "delivered_at": null }] }`）。先生が話し終えたら `POST /v1/messages/:id/delivered`（本文 `{ "delivered_at": "ISO 8601" }`、省略すると受け取った時刻）。何度送っても最初の時刻のまま。別の家族の id は 404。

@@ -127,4 +127,155 @@ struct MemorySyncStoreTests {
         #expect(state.parentMessages.isEmpty)
         #expect(state.toldParentMessages.isEmpty)
     }
+
+    // MARK: - 親が消した記憶（#160）
+
+    /// 記憶の同期 API だけを持つ小さなサーバー。Worker と同じく、based_on 以降に消されたものを PUT から取り除く
+    private actor FakeMemoryServer: HTTPTransport {
+        var rows: [String] = []
+        var deletions: [(content: String, at: Date)] = []
+        var clock = Date(timeIntervalSince1970: 1_793_000_000)
+        private(set) var puts: [MemoryPutRequest] = []
+        private var beforeGetMemory: (@Sendable () async -> Void)?
+
+        func setBeforeGetMemory(_ hook: @escaping @Sendable () async -> Void) { beforeGetMemory = hook }
+
+        func seed(_ contents: [String]) { rows = contents }
+
+        func parentDeletes(_ content: String) {
+            clock.addTimeInterval(1)
+            rows.removeAll { $0 == content }
+            deletions.append((content, clock))
+        }
+
+        private func listBody() -> Data {
+            clock.addTimeInterval(1)
+            let items = rows.enumerated().map { index, content in
+                #"{"id":"m\#(index)","child_id":"default","category":"likes","content":"\#(content)","updated_at":"2026-11-03T00:00:00.000Z"}"#
+            }
+            return Data((#"{"memories":["# + items.joined(separator: ",") + #"],"server_time":"\#(SyncCoding.formatDate(clock))"}"#).utf8)
+        }
+
+        func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+            let path = request.url?.path() ?? ""
+            let body: Data
+            switch (request.httpMethod, path) {
+            case ("PUT", "/v1/memory"):
+                let put = try SyncCoding.decoder.decode(MemoryPutRequest.self, from: request.httpBody ?? Data())
+                puts.append(put)
+                let base = put.basedOn
+                rows = put.items.map(\.content).filter { content in
+                    !deletions.contains { $0.content == content && (base == nil || $0.at >= base!) }
+                }
+                body = listBody()
+            case ("GET", "/v1/memory"):
+                if let hook = beforeGetMemory {
+                    beforeGetMemory = nil
+                    await hook()
+                }
+                body = listBody()
+            case ("GET", "/v1/sessions"):
+                body = Data(#"{"sessions":[],"server_time":"2026-11-03T09:00:00.000Z"}"#.utf8)
+            default:
+                body = Data(#"{"messages":[]}"#.utf8)
+            }
+            return (body, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+
+        func lines(for request: URLRequest) async throws -> (AsyncThrowingStream<String, Error>, HTTPURLResponse) {
+            throw URLError(.badURL)
+        }
+    }
+
+    @Test func 未送信の変更があっても親が消した記憶は復活せず次のプロンプトに入らない() async throws {
+        let server = FakeMemoryServer()
+        await server.seed(["サッカー", "猫のミケ"])
+        let client = WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: server)
+        let base = try SwiftDataMemoryStore.inMemory()
+        let store = MemorySyncStore(base: base, stateStorage: InMemorySyncStateStorage())
+        let sync = SyncService(client: client, store: store, sleep: { _ in })
+
+        // 1. 同期して、端末に「猫のミケ」がある
+        #expect(await sync.syncNow(reason: .appLaunch).outcome == .completed)
+        #expect(try await base.memories(category: .likes).map(\.content).contains("猫のミケ"))
+        let basedOn = try #require(await store.memoryBase(category: .likes))
+
+        // 2. 親が消す。その間に端末はふり返りで同じカテゴリを書き換える（まだ送れていない）
+        await server.parentDeletes("猫のミケ")
+        var updates = MemoryUpdates()
+        updates[.likes] = .init(add: ["マイクラ"])
+        try await store.applyMemoryUpdates(updates, now: start)
+        #expect(await store.pendingMemoryCategories() == [.likes])
+        #expect(try await base.memories(category: .likes).map(\.content).contains("猫のミケ"))
+
+        // 3. 同期すると、新しく覚えたことは残り、消した記憶は戻らない
+        let report = await sync.syncNow(reason: .sessionEnded)
+        #expect(report.outcome == .completed)
+        #expect(report.pushedMemoryCategories == [.likes])
+        #expect(await server.puts.last?.basedOn == basedOn)
+        #expect(await server.rows.sorted() == ["サッカー", "マイクラ"].sorted())
+        let local = try await base.memories(category: .likes).map(\.content)
+        #expect(Set(local) == ["サッカー", "マイクラ"])
+        #expect(await store.pendingMemoryCategories().isEmpty)
+
+        // 4. 次のセッションのプロンプトに入らない
+        let text = OpeningPromptBuilder().previousSessionText(last: nil, memories: try await store.memories(), now: start)
+        #expect(text?.contains("マイクラ") == true)
+        #expect(text?.contains("ミケ") == false)
+    }
+
+    @Test func 未送信の変更がないカテゴリは取ってくるだけで消える() async throws {
+        let server = FakeMemoryServer()
+        await server.seed(["サッカー", "猫のミケ"])
+        let client = WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: server)
+        let base = try SwiftDataMemoryStore.inMemory()
+        let store = MemorySyncStore(base: base, stateStorage: InMemorySyncStateStorage())
+        let sync = SyncService(client: client, store: store, sleep: { _ in })
+        _ = await sync.syncNow(reason: .appLaunch)
+
+        await server.parentDeletes("猫のミケ")
+        _ = await sync.syncNow(reason: .sessionStarting)
+        #expect(try await base.memories(category: .likes).map(\.content) == ["サッカー"])
+        #expect(await server.puts.isEmpty)
+    }
+
+    @Test func 消えたことを知ったあとにまた話した記憶は覚え直せる() async throws {
+        let server = FakeMemoryServer()
+        await server.seed(["猫のミケ"])
+        let client = WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: server)
+        let base = try SwiftDataMemoryStore.inMemory()
+        let store = MemorySyncStore(base: base, stateStorage: InMemorySyncStateStorage())
+        let sync = SyncService(client: client, store: store, sleep: { _ in })
+        _ = await sync.syncNow(reason: .appLaunch)
+        await server.parentDeletes("猫のミケ")
+        _ = await sync.syncNow(reason: .sessionStarting)
+
+        var updates = MemoryUpdates()
+        updates[.likes] = .init(add: ["猫のミケ"])
+        try await store.applyMemoryUpdates(updates, now: start)
+        _ = await sync.syncNow(reason: .sessionEnded)
+        #expect(await server.rows == ["猫のミケ"])
+    }
+
+    @Test func 同期の途中で書き換えたカテゴリは基準の時刻を進めない() async throws {
+        let server = FakeMemoryServer()
+        await server.seed(["猫のミケ"])
+        let client = WorkerClient(baseURL: URL(string: "https://example.workers.dev")!, familyToken: "t", transport: server)
+        let base = try SwiftDataMemoryStore.inMemory()
+        let store = MemorySyncStore(base: base, stateStorage: InMemorySyncStateStorage())
+        let sync = SyncService(client: client, store: store, sleep: { _ in })
+        _ = await sync.syncNow(reason: .appLaunch)
+        let before = try #require(await store.memoryBase(category: .likes))
+
+        // 取ってくる直前に端末が書き換える（ふり返りと同期が重なったとき）。古い内容のままなので基準を進めてはいけない
+        let start = self.start
+        await server.setBeforeGetMemory {
+            var updates = MemoryUpdates()
+            updates[.likes] = .init(add: ["マイクラ"])
+            try? await store.applyMemoryUpdates(updates, now: start)
+        }
+        _ = await sync.syncNow(reason: .manual)
+        #expect(await store.memoryBase(category: .likes) == before)
+        #expect(await store.pendingMemoryCategories() == [.likes])
+    }
 }
