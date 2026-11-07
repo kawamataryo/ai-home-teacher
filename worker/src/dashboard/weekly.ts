@@ -73,6 +73,11 @@ export function hasEnoughRecords(record: WeekRecord): boolean {
   return record.sessions.length >= MIN_SESSIONS && record.problems.length >= MIN_PROBLEMS;
 }
 
+// 親向けの文に違う日付が入らないよう、JST の日付で渡す（started_at は UTC）
+function jstDate(iso: string): string {
+  return new Date(Date.parse(iso) + JST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
 function problemResult(p: WeekProblem): string {
   const hint = p.hint_level_reached === 0 ? "ヒントなし" : `ヒント${p.hint_level_reached}段階目まで`;
   return p.solved_by_self ? `自力で解けた（${hint}）` : `まだ解けていない・一緒に解いた（${hint}）`;
@@ -90,7 +95,7 @@ export function weeklyUserMessage(record: WeekRecord): string {
     `- 取り組んだ問題：${record.problems.length}問・自力で解けたのは${solved}問`,
   ];
   for (const s of record.sessions) {
-    lines.push("", `## ${s.started_at.slice(0, 10)} の勉強`, `- 要約：${s.summary || "（なし）"}`);
+    lines.push("", `## ${jstDate(s.started_at)} の勉強`, `- 要約：${s.summary || "（なし）"}`);
     if (s.teacher_note) lines.push(`- 先生のひとこと：${s.teacher_note}`);
     for (const p of record.problems.filter((x) => x.session_id === s.id)) {
       lines.push(`- 問題 [${p.kind}] ${p.summary}：${problemResult(p)}`);
