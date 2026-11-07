@@ -5,6 +5,8 @@ import os
 struct SyncState: Codable, Equatable, Sendable {
     var lastPullAt: Date?
     var dirtyMemoryCategories: Set<MemoryCategory> = []
+    /// カテゴリごとに、サーバーの内容で最後に揃えたときのサーバー時刻（PUT の based_on。#160）。
+    var memoryBases: [MemoryCategory: Date] = [:]
     /// まだ伝えていない親の伝言（古い順）。#159
     var parentMessages: [ParentMessage] = []
     /// 先生が話し終えて、まだサーバーに伝えていない伝言（id → 話し終えた時刻）。
@@ -16,7 +18,7 @@ struct SyncState: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case lastPullAt, dirtyMemoryCategories, parentMessages, toldParentMessages
+        case lastPullAt, dirtyMemoryCategories, memoryBases, parentMessages, toldParentMessages
     }
 
     // 古い版のアプリが保存した JSON にない項目があっても読めるようにする（読めないと未送信の印まで失う）
@@ -24,6 +26,7 @@ struct SyncState: Codable, Equatable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         lastPullAt = try c.decodeIfPresent(Date.self, forKey: .lastPullAt)
         dirtyMemoryCategories = try c.decodeIfPresent(Set<MemoryCategory>.self, forKey: .dirtyMemoryCategories) ?? []
+        memoryBases = try c.decodeIfPresent([MemoryCategory: Date].self, forKey: .memoryBases) ?? [:]
         parentMessages = try c.decodeIfPresent([ParentMessage].self, forKey: .parentMessages) ?? []
         toldParentMessages = try c.decodeIfPresent([String: Date].self, forKey: .toldParentMessages) ?? [:]
     }
@@ -115,6 +118,14 @@ actor MemorySyncStore: SyncStore, MemoryStore, ParentMessageInbox {
 
     func localMemories(category: MemoryCategory) async throws -> [MemoryItemDTO] {
         try await base.memories(category: category).map { MemoryItemDTO(content: $0.content) }
+    }
+
+    func memoryBase(category: MemoryCategory) -> Date? {
+        state.memoryBases[category]
+    }
+
+    func setMemoryBase(_ date: Date, category: MemoryCategory) {
+        update { $0.memoryBases[category] = date }
     }
 
     func replaceParentMessages(_ messages: [ParentMessage]) {

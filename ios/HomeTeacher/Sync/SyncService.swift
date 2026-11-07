@@ -39,7 +39,7 @@ struct SyncReport: Equatable, Sendable {
 ///
 /// 順番は「送る → 取ってくる」。
 /// 1. pending のセッションを POST /v1/sessions（id で上書きされるので、何度送っても重複しない）
-/// 2. 端末で書き換えた記憶のカテゴリを PUT /v1/memory
+/// 2. 端末で書き換えた記憶のカテゴリを PUT /v1/memory（親がダッシュボードで消した記憶は、サーバーが based_on で照らして取り除く）
 /// 3. GET /v1/memory で記憶を取ってきて、カテゴリごとに入れ替える（記憶はサーバーが正）
 /// 4. GET /v1/sessions?since=lastPullAt&order=updated&limit=200 でセッションを取ってくる（200 件ならページ送り）
 /// 5. 先生が話し終えた親の伝言を POST /v1/messages/:id/delivered で伝え、GET /v1/messages で次の伝言を取ってくる
@@ -160,7 +160,12 @@ actor SyncService {
     private func pushMemories(into report: inout SyncReport) async throws {
         let pending = try await store.pendingMemoryCategories()
         for category in MemoryCategory.allCases where pending.contains(category) {
-            let request = MemoryPutRequest(category: category, items: try await store.localMemories(category: category))
+            // based_on より後に親が消した記憶は、サーバーが取り除いて返す（未送信の変更で復活させない。#160）
+            let request = MemoryPutRequest(
+                category: category,
+                items: try await store.localMemories(category: category),
+                basedOn: try await store.memoryBase(category: category)
+            )
             let body = try SyncCoding.encoder.encode(request)
             let data: Data
             do {
@@ -171,6 +176,7 @@ actor SyncService {
             }
             let response = try SyncCoding.decoder.decode(MemoryListResponse.self, from: data)
             try await store.replaceMemories(category: category, items: response.memories)
+            if let serverTime = response.serverTime { try await store.setMemoryBase(serverTime, category: category) }
             report.pushedMemoryCategories.append(category)
         }
     }
@@ -183,6 +189,8 @@ actor SyncService {
         for category in MemoryCategory.allCases where !pending.contains(category) {
             // サーバーで空になったカテゴリも空に入れ替える
             try await store.replaceMemories(category: category, items: response.memories.filter { $0.category == category })
+            // 揃えたカテゴリだけ進める。端末で書き換え中のカテゴリは古い内容のままなので、親が消したものを取り除いてもらう
+            if let serverTime = response.serverTime { try await store.setMemoryBase(serverTime, category: category) }
             report.pulledMemoryCategories.append(category)
         }
     }

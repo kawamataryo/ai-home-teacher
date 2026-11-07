@@ -160,10 +160,13 @@ struct MemoryPutRequest: Codable, Equatable, Sendable {
     var category: MemoryCategory
     var items: [MemoryItemDTO]
     var childID: String?
+    /// このカテゴリをサーバーの内容で揃えたときのサーバー時刻（#160）。これより後に親が消した記憶は、サーバーが取り除く。
+    var basedOn: Date?
 
     private enum CodingKeys: String, CodingKey {
         case category, items
         case childID = "child_id"
+        case basedOn = "based_on"
     }
 }
 
@@ -216,6 +219,13 @@ struct SessionListResponse: Codable, Equatable, Sendable {
 /// GET /v1/memory と PUT /v1/memory のレスポンス。
 struct MemoryListResponse: Codable, Equatable, Sendable {
     var memories: [MemoryDTO]
+    /// サーバーが読んだときの時刻（次の PUT の based_on）。
+    var serverTime: Date?
+
+    private enum CodingKeys: String, CodingKey {
+        case memories
+        case serverTime = "server_time"
+    }
 }
 
 /// 同期 API 用の JSON の読み書き。時刻はタイムゾーン付きの ISO 8601。

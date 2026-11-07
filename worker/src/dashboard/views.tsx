@@ -2,7 +2,7 @@
 // スマホ幅を基本にして、広い画面では中央寄せにする。
 
 import type { Child, FC } from "hono/jsx";
-import type { ParentMessageRow, SessionJson } from "../sync";
+import type { MemoryRow, ParentMessageRow, SessionJson } from "../sync";
 
 export type DayTotal = { day: string; minutes: number }; // day は JST の YYYY-MM-DD
 
@@ -56,6 +56,11 @@ textarea.input { min-height: 84px; resize: vertical; }
 .message p { margin: 0 0 2px; }
 .status { font-size: 12px; font-weight: 700; color: var(--muted); }
 .status.told { color: var(--accent); }
+.memory-group { margin-top: 12px; }
+.memory-group h3 { font-size: 13px; color: var(--muted); margin: 0 0 4px; }
+.memory { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.memory span { overflow-wrap: anywhere; min-width: 0; }
+.memory form { flex: none; margin: 0; }
 .flags { margin: 8px 0; padding: 0; list-style: none; }
 .flags li { color: var(--warn); font-weight: 600; }
 .flags li::before { content: "⚠ 要確認："; }
@@ -110,10 +115,12 @@ export const DashboardPage: FC<{
   sessions: SessionJson[];
   tokenIssuedAt: string | null;
   messages: ParentMessageRow[];
+  memories: MemoryRow[];
+  memoryError?: string;
   newToken?: string;
   messageError?: string;
   messageDraft?: { sender: string; body: string };
-}> = ({ email, days, today, sessions, tokenIssuedAt, messages, newToken, messageError, messageDraft }) => {
+}> = ({ email, days, today, sessions, tokenIssuedAt, messages, memories, memoryError, newToken, messageError, messageDraft }) => {
   const flagged = sessions.filter((s) => s.flags.length > 0);
   const week = days.slice(-7).reduce((sum, d) => sum + d.minutes, 0);
   const todayMinutes = days.find((d) => d.day === today)?.minutes ?? 0;
@@ -181,6 +188,8 @@ export const DashboardPage: FC<{
           <SessionItem s={s} />
         ))}
       </section>
+
+      <MemoryCard memories={memories} error={memoryError} />
 
       <section class="card">
         <h2>家族トークン</h2>
@@ -258,6 +267,43 @@ const MessageCard: FC<{
     </section>
   );
 };
+
+const MEMORY_GROUPS = [
+  { category: "likes", label: "好きなこと" },
+  { category: "events", label: "最近の出来事" },
+  { category: "weak_points", label: "苦手な単元" },
+];
+
+// 先生が覚えていること（#160）。短い言葉のまま見せて、言い換えも評価もしない
+const MemoryCard: FC<{ memories: MemoryRow[]; error?: string }> = ({ memories, error }) => (
+  <section class="card" id="memory">
+    <h2>先生が覚えていること</h2>
+    <p class="small">間違いや古くなった内容は消せます。消すと、次の勉強から先生は使いません。</p>
+    {error && <p class="error">{error}</p>}
+    {memories.length === 0 && <p class="empty">まだ覚えていることはありません。</p>}
+    {MEMORY_GROUPS.map(({ category, label }) => {
+      const items = memories.filter((m) => m.category === category);
+      if (items.length === 0) return null;
+      return (
+        <div class="memory-group">
+          <h3>{label}</h3>
+          {items.map((m) => (
+            <div class="memory">
+              <span>{m.content}</span>
+              <form method="post" action="/dashboard/memories/delete">
+                <input type="hidden" name="category" value={m.category} />
+                <input type="hidden" name="content" value={m.content} />
+                <button class="btn sub" type="submit" aria-label={`${m.content} を消す`}>
+                  消す
+                </button>
+              </form>
+            </div>
+          ))}
+        </div>
+      );
+    })}
+  </section>
+);
 
 const SessionItem: FC<{ s: SessionJson }> = ({ s }) => {
   const stuck = s.problems.filter((p) => !p.solved_by_self);

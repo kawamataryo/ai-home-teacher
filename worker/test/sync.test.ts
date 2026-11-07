@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import app, { type Env } from "../src/index";
+import { deleteMemory } from "../src/sync";
 import { useD1 } from "./helpers/d1";
 
 const d1 = useD1();
@@ -343,5 +344,87 @@ describe("/v1/messages（親の伝言）", () => {
   it("トークンなしは 401", async () => {
     const res = await app.request("/v1/messages", {}, env());
     expect(res.status).toBe(401);
+  });
+});
+
+describe("親が消した記憶を PUT /v1/memory で復活させない", () => {
+  const put = (items: string[], basedOn?: string, extra: Record<string, unknown> = {}) =>
+    send("PUT", "/v1/memory", {
+      category: "likes",
+      items: items.map((content) => ({ content })),
+      ...(basedOn ? { based_on: basedOn } : {}),
+      ...extra,
+    });
+  const contents = async (res: Response) => ((await res.json()) as any).memories.map((m: any) => m.content);
+
+  it("端末が消す前の内容で送ってきたら、消した記憶だけを除いて新しい記憶は残す", async () => {
+    await put(["サッカー", "猫のミケ"]);
+    const { server_time: base } = (await (await send("GET", "/v1/memory")).json()) as any;
+    // 親が消す
+    await new Promise((r) => setTimeout(r, 5));
+    expect(await deleteMemory(d1.db(), "default", "likes", "猫のミケ")).toBe(1);
+
+    // 端末には未送信の変更がある（消す前の内容に、新しく覚えたことを足したもの）
+    const res = await put(["サッカー", "猫のミケ", "マイクラ"], base);
+    expect(res.status).toBe(200);
+    expect(await contents(res)).toEqual(["サッカー", "マイクラ"]);
+    expect(await contents(await send("GET", "/v1/memory"))).toEqual(["サッカー", "マイクラ"]);
+  });
+
+  it("表記の違い（全角半角・大文字小文字・空白）でも復活しない", async () => {
+    await put(["Ｍinecraft  の 建築"]);
+    await deleteMemory(d1.db(), "default", "likes", "minecraft の建築".replace("の建築", "の 建築"));
+    expect(await contents(await put(["MINECRAFT の 建築", "サッカー"]))).toEqual(["サッカー"]);
+  });
+
+  it("based_on がなければ（古いアプリ）消した記憶はすべて復活しない", async () => {
+    await put(["猫のミケ"]);
+    await deleteMemory(d1.db(), "default", "likes", "猫のミケ");
+    expect(await contents(await put(["猫のミケ", "サッカー"]))).toEqual(["サッカー"]);
+  });
+
+  it("端末が消えたことを知ったあとに子どもがまた話した記憶は受け入れる", async () => {
+    await put(["猫のミケ"]);
+    await deleteMemory(d1.db(), "default", "likes", "猫のミケ");
+    await new Promise((r) => setTimeout(r, 5));
+    const { server_time: base, memories } = (await (await send("GET", "/v1/memory")).json()) as any;
+    expect(memories).toEqual([]);
+    await new Promise((r) => setTimeout(r, 5));
+    expect(await contents(await put(["猫のミケ"], base))).toEqual(["猫のミケ"]);
+  });
+
+  it("消した時刻と based_on が同じなら、まだ知らないとみなす", async () => {
+    await put(["猫のミケ"]);
+    await deleteMemory(d1.db(), "default", "likes", "猫のミケ");
+    const { deleted_at } = (await d1.db().prepare("SELECT deleted_at FROM memory_deletions").first<{ deleted_at: string }>())!;
+    expect(await contents(await put(["猫のミケ"], deleted_at))).toEqual([]);
+  });
+
+  it("別のカテゴリの同じ言葉には効かない", async () => {
+    await put(["割合"]);
+    await send("PUT", "/v1/memory", { category: "weak_points", items: [{ content: "割合" }] });
+    await deleteMemory(d1.db(), "default", "likes", "割合");
+    const res = await send("PUT", "/v1/memory", { category: "weak_points", items: [{ content: "割合" }] });
+    expect(await contents(res)).toEqual(["割合"]);
+  });
+
+  it("消した言葉そのものは印に残さない", async () => {
+    await put(["猫のミケ"]);
+    await deleteMemory(d1.db(), "default", "likes", "猫のミケ");
+    const row = await d1.db().prepare("SELECT * FROM memory_deletions").first<Record<string, string>>();
+    expect(JSON.stringify(row)).not.toContain("ミケ");
+    expect(row?.content_hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("別の家族の記憶は消せない", async () => {
+    await seedOtherFamily();
+    expect(await deleteMemory(d1.db(), "default", "likes", "よその好きなこと")).toBe(0);
+    const row = await d1.db().prepare("SELECT content FROM memories WHERE id = 'm-other'").first();
+    expect(row).toEqual({ content: "よその好きなこと" });
+    expect((await d1.db().prepare("SELECT count(*) AS n FROM memory_deletions").first<{ n: number }>())!.n).toBe(0);
+  });
+
+  it("based_on が時刻でなければ 400", async () => {
+    expect((await put(["a"], "きのう")).status).toBe(400);
   });
 });

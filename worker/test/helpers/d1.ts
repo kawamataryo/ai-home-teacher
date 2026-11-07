@@ -12,7 +12,7 @@ const migrationFiles = (
     glob: (pattern: string, opts: object) => Record<string, string>;
   }
 ).glob("../../migrations/*.sql", { query: "?raw", import: "default", eager: true });
-const TABLES_CHILD_FIRST = ["family_tokens", "problems", "sessions", "memories", "parent_messages", "children", "parents", "families", "d1_migrations"];
+const TABLES_CHILD_FIRST = ["family_tokens", "problems", "sessions", "memories", "memory_deletions", "parent_messages", "children", "parents", "families", "d1_migrations"];
 
 // migrations/*.sql を番号順に 1 文ずつに分ける（コメント行は捨てる。SQL のコメントに ; は書かない）
 export function migrationStatements(): string[] {

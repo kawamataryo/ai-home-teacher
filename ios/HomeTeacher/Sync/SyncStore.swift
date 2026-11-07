@@ -19,6 +19,10 @@ protocol SyncStore: Sendable {
     /// 端末にあるそのカテゴリの記憶（PUT で送る内容）。
     func localMemories(category: MemoryCategory) async throws -> [MemoryItemDTO]
 
+    /// そのカテゴリをサーバーの内容で最後に揃えたときのサーバー時刻（PUT の based_on）。
+    func memoryBase(category: MemoryCategory) async throws -> Date?
+    func setMemoryBase(_ date: Date, category: MemoryCategory) async throws
+
     /// サーバーのまだ伝えていない伝言で入れ替える。先生が話し終えたもの（told）は入れない。
     func replaceParentMessages(_ messages: [ParentMessage]) async throws
     /// 先生が話し終えて、まだサーバーに伝えていない伝言（id → 話し終えた時刻）。
@@ -50,6 +54,7 @@ actor InMemorySyncStore: SyncStore {
     /// 端末で書き換えて、まだ送れていない記憶。
     private(set) var localEdits: [MemoryCategory: [MemoryItemDTO]] = [:]
     private var pullAt: Date?
+    private(set) var memoryBases: [MemoryCategory: Date] = [:]
     private(set) var parentMessages: [ParentMessage] = []
     private(set) var toldMessages: [String: Date] = [:]
 
@@ -97,6 +102,14 @@ actor InMemorySyncStore: SyncStore {
 
     func localMemories(category: MemoryCategory) -> [MemoryItemDTO] {
         localEdits[category] ?? (memories[category] ?? []).map { MemoryItemDTO(content: $0.content) }
+    }
+
+    func memoryBase(category: MemoryCategory) -> Date? {
+        memoryBases[category]
+    }
+
+    func setMemoryBase(_ date: Date, category: MemoryCategory) {
+        memoryBases[category] = date
     }
 
     func replaceParentMessages(_ messages: [ParentMessage]) {
