@@ -68,3 +68,9 @@ INSERT INTO problems (id, session_id, kind, summary, solved_by_self, hint_level_
 ('sample-g7', 'sample-6', 'thinking', '割合の基本', 0, 4, strftime('%Y-%m-%dT07:05:00.000Z', 'now', '-8 day')),
 ('sample-g8', 'sample-6', 'writing', '作文の構成', 1, 1, strftime('%Y-%m-%dT07:06:00.000Z', 'now', '-8 day')),
 ('sample-g9', 'sample-6', 'thinking', '割合の基本', 0, 3, strftime('%Y-%m-%dT07:07:00.000Z', 'now', '-8 day'));
+
+-- 週のまとめ（#162）
+DELETE FROM weekly_summaries WHERE child_id = 'default';
+INSERT INTO weekly_summaries (child_id, week_start, status, grown, next_focus, claimed_at) VALUES
+('default', date('now', '+9 hours', 'weekday 1', '-14 days'), 'ready', '割合の文章題で、もとにする量を自分で見つけられるようになってきました。線分図を自分からかいて考える場面も増えています。', '割合が 1 を超える問題でも、線分図をどう使うかに注目してみてください。', strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+('default', date('now', '+9 hours', 'weekday 1', '-21 days'), 'ready', '小数のかけ算で、筆算の位をそろえて計算できました。', '分数の計算に入るので、通分の手順に注目してみてください。', strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-7 days'));

@@ -253,6 +253,10 @@
     - 端末に未送信の変更があると `PUT /v1/memory` の丸ごと入れ替えで復活するので、消した印（`memory_deletions`。言葉そのものは残さずハッシュだけ）を残す。端末は PUT にそのカテゴリを揃えた時のサーバー時刻（`based_on`）を付け、サーバーはそれ以降に消された記憶を取り除く
     - 端末が消えたことを知ったあとに子どもがまた話したことは、新しい記憶として覚え直す（親が消せるのは「今の間違い」で、ずっと話題にできなくするものではない）
   - 自力で解けた問題の変化（#161）。JST の月曜始まりで 6 週分、ヒントなしで解けた／ヒントを使って解けた／一緒に解いた、の問題数を見せ、規則で作る一言を添える（Claude は呼ばない）。週 5 問未満の週とは比べず、差が 2 問未満なら「増えた」と言わない。割合、点数、順位は出さず、下がった週も責めず、ヒントの増加を悪く書かない。今の `kind` では単元が分からないので、単元ごとに見せるなら別 issue で `problems` に項目を足す
+  - 週のまとめ（#162）。終わった週（JST の月〜日）の記録から、Sonnet で「伸びたこと」と「来週の見どころ」を作って保存し、過去の週も見られる。入力は要約、先生のひとこと、問題だけ（写真、音声、要確認は渡さない）
+    - 作るのは、その週の記録がある状態で最初にダッシュボードを開いたとき。Cron にしなかったのは、親が開かない週の費用をかけないため。`waitUntil` で裏で作るので親を待たせず、次に開くと見られる
+    - 勉強 2 回かつ問題 3 問に満たない週は作らない。呼ぶ前に行を確保して、同じ週に重ねて呼ばない。失敗しても 6 時間あけて、1 週につき合計 3 回まで
+    - プロンプトは `worker/prompts/`。`prompts/` はアプリに同梱されるので、Worker だけが使うものは分けた
   - 先生からのひとこと（「今日は割合の問題を自力で解けました！」）
   - 「要確認」のメモ
 - 保存するのは文字の情報だけ。写真と音声は保存しない
@@ -303,6 +307,7 @@
 - `children`：id, family_id, nickname, grade
 - `sessions`：id, child_id, started_at, ended_at, focus_minutes, summary, teacher_note, parent_prompt, flags
 - `parent_messages`：id, child_id, sender_label, body, created_at, delivered_at
+- `weekly_summaries`：child_id, week_start, status, grown, next_focus, attempts, claimed_at（週のまとめ。#162）
 - `memory_deletions`：child_id, category, content_hash, deleted_at（親が消した記憶の印。#160）
 - `problems`：id, session_id, kind, summary, solved_by_self, hint_level_reached, created_at
 - `memories`：id, child_id, category (likes / events / weak_points), content, updated_at

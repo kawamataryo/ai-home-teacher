@@ -4,6 +4,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
+  // 週のまとめのプロンプト（worker/prompts/*.md）を文字列として同梱する（#162）
+  "rules": [{ "type": "Text", "globs": ["**/*.md"], "fallthrough": true }],
   "vars": {
     // ElevenLabs の既定の声。実際に使う voice ID に置き換える（秘密情報ではない）
     "ELEVENLABS_VOICE_ID": "TX3LPaxmHKxFdv7VOQHJ",

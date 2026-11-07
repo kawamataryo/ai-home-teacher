@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import app, { type Env } from "../src/index";
+import { jstWeekStart } from "../src/dashboard/growth";
 import { useD1 } from "./helpers/d1";
 
 const d1 = useD1();
@@ -360,6 +361,95 @@ describe("ダッシュボードの表示", () => {
     expect(html).toContain("発行する");
     // 外部のスクリプトは読まない
     expect(html).not.toMatch(/<script/i);
+  });
+
+  describe("週のまとめ", () => {
+    const lastWeek = (day: number) => {
+      const monday = Date.parse(`${jstWeekStart(Date.now())}T00:00:00Z`) - 7 * 86_400_000 - 9 * 3_600_000;
+      return new Date(monday + day * 86_400_000 + 7 * 3_600_000).toISOString();
+    };
+    const post = (id: string, at: string) =>
+      req("/v1/sessions", {
+        method: "POST",
+        headers: { Authorization: "Bearer bootstrap-secret", "content-type": "application/json" },
+        body: JSON.stringify({
+          id, started_at: at, ended_at: at, focus_minutes: 20, summary: `${id}の要約`, flags: ["友だちとけんかした"],
+          problems: [{ kind: "thinking", summary: "問題", solved_by_self: true }, { kind: "reading", summary: "問題2", solved_by_self: false, hint_level_reached: 2 }],
+        }),
+      });
+    const open = (c: string, tasks: Promise<unknown>[]) =>
+      app.request("/dashboard", { headers: { cookie: c } }, env(), {
+        waitUntil: (t: Promise<unknown>) => tasks.push(t),
+        passThroughOnException: () => {},
+        props: {},
+      } as unknown as ExecutionContext);
+    const claudeOk = () =>
+      Response.json({ stop_reason: "tool_use", content: [{ type: "tool_use", name: "record_weekly_summary", input: { grown: "割合で図をかいて考えました。", next_focus: "線分図に注目してみてください。" } }] });
+
+    it("画面を待たせずに作り、次に開くと出る。要確認は別の枠のまま", async () => {
+      await post("w1", lastWeek(1));
+      await post("w2", lastWeek(2));
+      const c = await loggedInCookie();
+      fetchMock.mockResolvedValueOnce(claudeOk());
+      const tasks: Promise<unknown>[] = [];
+      const first = await (await open(c, tasks)).text();
+      expect(first).toContain("先週のまとめを作っています");
+      expect(tasks).toHaveLength(1);
+      await Promise.all(tasks);
+
+      const second = await (await open(c, tasks)).text();
+      expect(second).toContain("割合で図をかいて考えました。");
+      expect(second).toContain("線分図に注目してみてください。");
+      expect(second).not.toContain("先週のまとめを作っています");
+      // 週のまとめのカードに要確認を混ぜない
+      const card = second.slice(second.indexOf('id="weekly"'), second.indexOf("日ごとの学習時間"));
+      expect(card).not.toContain("けんか");
+      expect(second).toContain("要確認（");
+      // Google ログインの 1 回 + Claude の 1 回
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("Claude に失敗してもダッシュボードが開く", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      await post("w1", lastWeek(1));
+      await post("w2", lastWeek(2));
+      const c = await loggedInCookie();
+      fetchMock.mockRejectedValueOnce(new Error("network"));
+      const tasks: Promise<unknown>[] = [];
+      const res = await open(c, tasks);
+      expect(res.status).toBe(200);
+      await Promise.all(tasks);
+      const again = await open(c, tasks);
+      expect(again.status).toBe(200);
+      const html = await again.text();
+      expect(html).toContain("日ごとの学習時間");
+      expect(html).not.toContain('id="weekly"');
+      vi.restoreAllMocks();
+    });
+
+    it("過去の週も見られる", async () => {
+      const db = d1.db();
+      await db.batch([
+        db.prepare("INSERT INTO weekly_summaries (child_id, week_start, status, grown, next_focus, claimed_at) VALUES ('default', '2026-10-19', 'ready', '古い週の伸び', '古い週の見どころ', '2026-10-26T00:00:00.000Z')"),
+        db.prepare("INSERT INTO weekly_summaries (child_id, week_start, status, grown, next_focus, claimed_at) VALUES ('default', '2026-10-26', 'ready', '新しい週の伸び', '新しい週の見どころ', '2026-11-02T00:00:00.000Z')"),
+      ]);
+      const c = await loggedInCookie();
+      const html = await (await req("/dashboard", { headers: { cookie: c } })).text();
+      expect(html.indexOf("新しい週の伸び")).toBeLessThan(html.indexOf("古い週の伸び"));
+      expect(html).toContain("<details>");
+      expect(html).toContain("10/19〜10/25のまとめ");
+    });
+
+    it("別の家族のまとめは見えない", async () => {
+      const db = d1.db();
+      await db.batch([
+        db.prepare("INSERT INTO families (id, name) VALUES ('other', 'よその家')"),
+        db.prepare("INSERT INTO children (id, family_id, nickname) VALUES ('other-child', 'other', 'よそ')"),
+        db.prepare("INSERT INTO weekly_summaries (child_id, week_start, status, grown, next_focus, claimed_at) VALUES ('other-child', '2026-10-26', 'ready', 'よその伸び', 'よその見どころ', '2026-11-02T00:00:00.000Z')"),
+      ]);
+      const c = await loggedInCookie();
+      expect(await (await req("/dashboard", { headers: { cookie: c } })).text()).not.toContain("よその伸び");
+    });
   });
 
   describe("自力で解けた問題の変化", () => {

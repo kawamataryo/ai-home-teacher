@@ -1,0 +1,14 @@
+{
+  "name": "record_weekly_summary",
+  "description": "1週間の記録から、親に伝える週のまとめを記録する。今週伸びたことと来週の見どころを必ずまとめて渡す。",
+  "strict": true,
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "grown": { "type": "string", "description": "今週伸びたこと。記録にある具体的なことを2〜3文で。答えの数字や言葉、推測、診断は書かない" },
+      "next_focus": { "type": "string", "description": "来週の見どころ。記録にある単元や取り組みの続きから1〜2文で。指示にしない" }
+    },
+    "required": ["grown", "next_focus"],
+    "additionalProperties": false
+  }
+}

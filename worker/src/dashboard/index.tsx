@@ -8,6 +8,7 @@ import { BOOTSTRAP_FAMILY_ID } from "../auth";
 import type { Env } from "../env";
 import { deleteMemory, listMemories, listParentMessages, listSessions, resolveChild } from "../sync";
 import { currentTokenIssuedAt, issueFamilyToken } from "../tokens";
+import { ensureWeeklySummary, listWeeklySummaries, type WeeklyState } from "./weekly";
 import { GROWTH_WEEKS, weeklyGrowth, type GrowthProblem } from "./growth";
 import { authorizationUrl, exchangeCodeForEmail, isAllowedEmail, pkceChallenge, randomString } from "./google";
 import { DashboardPage, jstDay, LoginPage, type DayTotal } from "./views";
@@ -214,6 +215,7 @@ async function renderDashboard(c: Context<DashEnv>, parent: Parent, options: Ren
   const fromUtc = new Date(Date.parse(`${days[0].day}T00:00:00Z`) - 9 * 3_600_000).toISOString();
 
     const growthFrom = new Date(now - GROWTH_WEEKS * 7 * 86_400_000).toISOString();
+  const weekly = await loadWeeklyState(c, parent, now);
   const [chartRows, sessions, tokenIssuedAt, messages, memories, growthRows] = await Promise.all([
     db
       .prepare(
@@ -248,6 +250,7 @@ async function renderDashboard(c: Context<DashEnv>, parent: Parent, options: Ren
       sessions={sessions}
       tokenIssuedAt={tokenIssuedAt}
       growth={weeklyGrowth(growthRows.results, now)}
+      weekly={weekly}
       messages={messages}
       memories={memories}
       memoryError={options.memoryError}
@@ -256,6 +259,18 @@ async function renderDashboard(c: Context<DashEnv>, parent: Parent, options: Ren
       messageDraft={options.messageDraft}
     />
   );
+}
+
+// 週のまとめ（#162）。ここで失敗しても画面は普通に開く
+async function loadWeeklyState(c: Context<DashEnv>, parent: Parent, now: number): Promise<WeeklyState> {
+  try {
+    const childId = await resolveChild(c.env.DB, parent.familyId);
+    if (!childId) return { summaries: [], generating: false };
+    const generating = await ensureWeeklySummary(c.env, childId, now, (task) => c.executionCtx.waitUntil(task));
+    return { summaries: await listWeeklySummaries(c.env.DB, childId), generating };
+  } catch {
+    return { summaries: [], generating: false };
+  }
 }
 
 function redirectUri(c: Context<DashEnv>): string {
