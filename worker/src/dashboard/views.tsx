@@ -3,6 +3,7 @@
 
 import type { Child, FC } from "hono/jsx";
 import { growthSentence, type WeekGrowth } from "./growth";
+import type { WeeklyState } from "./weekly";
 import type { MemoryRow, ParentMessageRow, SessionJson } from "../sync";
 
 export type DayTotal = { day: string; minutes: number }; // day は JST の YYYY-MM-DD
@@ -59,6 +60,10 @@ textarea.input { min-height: 84px; resize: vertical; }
 .message p { margin: 0 0 2px; }
 .status { font-size: 12px; font-weight: 700; color: var(--muted); }
 .status.told { color: var(--accent); }
+.weekly h3 { font-size: 13px; color: var(--accent); margin: 12px 0 2px; }
+.weekly p { margin: 0; }
+.weekly details { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; }
+.weekly summary { font-size: 13px; color: var(--muted); cursor: pointer; }
 .growth-line { font-weight: 600; margin: 0 0 12px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
@@ -131,12 +136,13 @@ export const DashboardPage: FC<{
   tokenIssuedAt: string | null;
   messages: ParentMessageRow[];
   growth: WeekGrowth[];
+  weekly: WeeklyState;
   memories: MemoryRow[];
   memoryError?: string;
   newToken?: string;
   messageError?: string;
   messageDraft?: { sender: string; body: string };
-}> = ({ email, days, today, sessions, tokenIssuedAt, growth, messages, memories, memoryError, newToken, messageError, messageDraft }) => {
+}> = ({ email, days, today, sessions, tokenIssuedAt, growth, weekly, messages, memories, memoryError, newToken, messageError, messageDraft }) => {
   const flagged = sessions.filter((s) => s.flags.length > 0);
   const week = days.slice(-7).reduce((sum, d) => sum + d.minutes, 0);
   const todayMinutes = days.find((d) => d.day === today)?.minutes ?? 0;
@@ -181,6 +187,8 @@ export const DashboardPage: FC<{
       )}
 
       <MessageCard messages={messages} error={messageError} draft={messageDraft} />
+
+      <WeeklyCard weekly={weekly} />
 
       <section class="card">
         <h2>日ごとの学習時間</h2>
@@ -281,6 +289,36 @@ const MessageCard: FC<{
             <div class="status">まだ伝えていません</div>
           )}
         </div>
+      ))}
+    </section>
+  );
+};
+
+const WeeklyBody: FC<{ grown: string; nextFocus: string }> = ({ grown, nextFocus }) => (
+  <>
+    <h3>伸びたこと</h3>
+    <p>{grown}</p>
+    <h3>来週の見どころ</h3>
+    <p>{nextFocus}</p>
+  </>
+);
+
+// 週のまとめ（#162）。まだなければ出さない。要確認は別の枠のまま、ここには混ぜない
+const WeeklyCard: FC<{ weekly: WeeklyState }> = ({ weekly }) => {
+  const [latest, ...past] = weekly.summaries;
+  if (!latest && !weekly.generating) return null;
+  return (
+    <section class="card weekly" id="weekly">
+      <h2>{latest ? `${weekRangeLabel(latest.week_start)}のまとめ` : "週のまとめ"}</h2>
+      {weekly.generating && (
+        <p class="small">先週のまとめを作っています。少しあとで開き直すと見られます。</p>
+      )}
+      {latest && <WeeklyBody grown={latest.grown} nextFocus={latest.next_focus} />}
+      {past.map((s) => (
+        <details>
+          <summary>{weekRangeLabel(s.week_start)}のまとめ</summary>
+          <WeeklyBody grown={s.grown} nextFocus={s.next_focus} />
+        </details>
       ))}
     </section>
   );
@@ -468,6 +506,11 @@ const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 export function jstDay(iso: string | number): string {
   const t = typeof iso === "number" ? iso : Date.parse(iso);
   return new Date(t + JST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function weekRangeLabel(weekStart: string): string {
+  const end = new Date(Date.parse(`${weekStart}T00:00:00Z`) + 6 * 86_400_000).toISOString().slice(0, 10);
+  return `${shortDay(weekStart)}〜${shortDay(end)}`;
 }
 
 function shortDay(day: string): string {
